@@ -180,13 +180,19 @@
                             <TextBlock Text="Тема" Classes="FieldLabel"/>
                             <StackPanel Orientation="Horizontal" Spacing="8">
                                 <RadioButton Content="Тёмная" GroupName="ThemeMode"
-                                             IsChecked="{Binding ThemeMode, Converter={x:Static conv:ThemeModeEqualsConverter.Instance}, ConverterParameter=Dark, Mode=TwoWay}"
+                                             Tag="Dark"
+                                             IsChecked="{Binding ThemeMode, Converter={x:Static conv:ThemeModeEqualsConverter.Instance}, ConverterParameter=Dark, Mode=OneWay}"
+                                             Click="OnThemeModeClick"
                                              ToolTip.Tip="Тёмная палитра (по умолчанию)"/>
                                 <RadioButton Content="Светлая" GroupName="ThemeMode"
-                                             IsChecked="{Binding ThemeMode, Converter={x:Static conv:ThemeModeEqualsConverter.Instance}, ConverterParameter=Light, Mode=TwoWay}"
+                                             Tag="Light"
+                                             IsChecked="{Binding ThemeMode, Converter={x:Static conv:ThemeModeEqualsConverter.Instance}, ConverterParameter=Light, Mode=OneWay}"
+                                             Click="OnThemeModeClick"
                                              ToolTip.Tip="Светлая палитра"/>
                                 <RadioButton Content="Системная" GroupName="ThemeMode"
-                                             IsChecked="{Binding ThemeMode, Converter={x:Static conv:ThemeModeEqualsConverter.Instance}, ConverterParameter=System, Mode=TwoWay}"
+                                             Tag="System"
+                                             IsChecked="{Binding ThemeMode, Converter={x:Static conv:ThemeModeEqualsConverter.Instance}, ConverterParameter=System, Mode=OneWay}"
+                                             Click="OnThemeModeClick"
                                              ToolTip.Tip="Следовать системной теме"/>
                             </StackPanel>
                         </StackPanel>

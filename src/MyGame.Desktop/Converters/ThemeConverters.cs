@@ -9,7 +9,7 @@ using MyGame.Desktop.Services;
 namespace MyGame.Desktop.Converters;
 
 /// <summary>
-/// Two-way string-equality converter used to bind a string property to
+/// One-way string-equality converter used to bind a string property to
 /// a group of <c>RadioButton.IsChecked</c> values (issue #47).
 ///
 /// <para>
@@ -19,13 +19,15 @@ namespace MyGame.Desktop.Converters;
 /// </para>
 ///
 /// <para>
-/// Reverse direction: when the RadioButton becomes checked, write the
-/// <c>ConverterParameter</c> back to the source property (so e.g.
-/// clicking the "Light" radio sets <c>ThemeMode = "Light"</c>). When the
-/// RadioButton becomes unchecked, return
-/// <see cref="AvaloniaProperty.UnsetValue"/> so the source is left alone
-/// — otherwise unchecking one radio would null-out the property before
-/// the newly-checked radio's <c>ConvertBack</c> fires.
+/// The reverse direction (<c>ConvertBack</c>) is no longer used: the
+/// SettingsView RadioButtons bind with <c>Mode=OneWay</c> and set the
+/// source via a <c>Click</c> handler. The previous <c>Mode=TwoWay</c>
+/// setup returned <see cref="AvaloniaProperty.UnsetValue"/> from
+/// <c>ConvertBack</c> on the unchecked path, which triggered Avalonia's
+/// <c>ReflectionConverter</c> fallback to call
+/// <c>Activator.CreateInstance(typeof(string))</c> — throwing
+/// <c>MissingMethodException</c> because <c>System.String</c> has no
+/// parameterless constructor.
 /// </para>
 ///
 /// <para>
