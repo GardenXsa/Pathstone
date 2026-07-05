@@ -1762,6 +1762,16 @@ public partial class GameViewModel : ViewModelBase
     // (the panel buttons are effectively read-only in client mode since
     // CanSave is false — travel authority there should route through the
     // host via a future tool-call message).
+    //
+    // Issue #20 (chunked generation): when the exit's destination doesn't
+    // exist in World.Locations (a phantom exit to a cold region), the
+    // handler triggers WorldBuilderOrchestrator.GenerateRegionAsync on a
+    // background task. A "Генерация региона…" overlay is shown while the
+    // AI call is in flight; on success, the new region's locations are
+    // committed, the phantom exit is removed (replaced by real exits in
+    // CommitLocations on the next refresh), and the world is saved. The
+    // player stays at their current location — they can then click the
+    // new real exit to actually travel into the generated region.
     private void OnTravel(Panels.ExitRow exit)
     {
         if (_world is null) return;
@@ -1772,12 +1782,36 @@ public partial class GameViewModel : ViewModelBase
             return;
         }
 
+        // Strip the "⚠" marker the world panel appends to phantom-exit
+        // destination names (issue #20). The real destination name (the
+        // cold region's name, as set by the committer on the phantom
+        // exit's ToName) is what we look up.
+        var destName = exit.ToName;
+        var phantomMarker = " \u26a0"; // "⚠"
+        var isPhantom = false;
+        if (destName is not null && destName.EndsWith(phantomMarker, StringComparison.Ordinal))
+        {
+            destName = destName[..^phantomMarker.Length];
+            isPhantom = true;
+        }
+
         // Find the destination location by display name. ExitRow stores
         // the destination's display name (resolved in WorldPanelViewModel
         // from exit.To → world.GetLocation(...).Name). Matching back by
         // name is robust to entity-id churn across save/load.
         var destLoc = _world.Locations.FirstOrDefault(l =>
-            string.Equals(l.Name, exit.ToName, StringComparison.Ordinal));
+            string.Equals(l.Name, destName, StringComparison.Ordinal));
+
+        if (destLoc is null && isPhantom)
+        {
+            // Phantom exit to a not-yet-generated cold region — kick off
+            // region generation. The player stays at the current
+            // location; after generation completes, the world is
+            // refreshed so the new real exits appear.
+            _ = TriggerColdRegionGenerationAsync(destName ?? exit.ToName ?? string.Empty);
+            return;
+        }
+
         if (destLoc is null)
         {
             AppendLog(LogEntry.System($"Не удалось найти локацию «{exit.ToName}»."));
@@ -1816,6 +1850,159 @@ public partial class GameViewModel : ViewModelBase
             });
         }
     }
+
+    /// <summary>
+    /// Trigger on-demand generation of a cold region (issue #20). Shows
+    /// a "Генерация региона…" overlay, calls
+    /// <see cref="WorldBuilderOrchestrator.GenerateRegionAsync"/> on a
+    /// background task (using the save's stashed
+    /// <see cref="SaveMeta.OriginalPlanJson"/>), then refreshes + saves
+    /// on completion. The player stays at their current location — the
+    /// new region's locations are committed with exits connecting back
+    /// to the start region (so the user can click them to actually
+    /// travel in).
+    /// </summary>
+    private async Task TriggerColdRegionGenerationAsync(string regionName)
+    {
+        if (_world is null || _saveId is null || _meta is null) return;
+        if (string.IsNullOrWhiteSpace(regionName)) return;
+        // Don't trigger if we're already generating a region (prevents
+        // double-clicks from spawning parallel AI calls).
+        if (IsRegionGenerating) return;
+
+        // Reload the meta from disk to pick up the latest OriginalPlanJson
+        // (in case it was patched by a rebuild or another session).
+        var freshMeta = _saveManager.LoadMeta(_saveId) ?? _meta;
+        if (string.IsNullOrWhiteSpace(freshMeta.OriginalPlanJson))
+        {
+            AppendLog(LogEntry.System(
+                $"⚠ Регион «{regionName}» ещё не сгенерирован, но оригинальный план недоступен — генерация отменена."));
+            return;
+        }
+
+        // Parse the original plan from the stashed JSON.
+        WorldPlan? originalPlan = null;
+        try
+        {
+            var opts = new System.Text.Json.JsonSerializerOptions
+            {
+                PropertyNamingPolicy = System.Text.Json.JsonNamingPolicy.CamelCase,
+                PropertyNameCaseInsensitive = true,
+            };
+            originalPlan = System.Text.Json.JsonSerializer.Deserialize<WorldPlan>(freshMeta.OriginalPlanJson, opts);
+        }
+        catch (Exception ex)
+        {
+            AppendLog(LogEntry.System(
+                $"⚠ Не удалось разобрать оригинальный план мира: {ex.Message}"));
+            return;
+        }
+        if (originalPlan is null)
+        {
+            AppendLog(LogEntry.System("⚠ Оригинальный план мира пуст — генерация отменена."));
+            return;
+        }
+
+        IsRegionGenerating = true;
+        RegionGenerationStatus = $"Генерация региона «{regionName}»…";
+        AppendLog(LogEntry.System($"Генерация региона «{regionName}»…"));
+
+        try
+        {
+            var settings = _settingsStore.Load();
+            if (string.IsNullOrWhiteSpace(settings.Ai.ApiKey))
+            {
+                AppendLog(LogEntry.System("⚠ Не задан API-ключ — генерация региона невозможна."));
+                return;
+            }
+
+            // Build a temporary orchestrator bound to the LIVE world
+            // (not a fresh one). GenerateRegionAsync mutates the live
+            // world in place via the committer.
+            var ai = new AiClient(settings.Ai);
+            var prompts = ServiceHost.Resolve<PromptLoader>();
+            var tools = new ToolRegistry(_world);
+            var orchestrator = new WorldBuilderOrchestrator(
+                ai, _world, prompts, tools, aiSettings: settings.Ai);
+
+            var progress = new Progress<WorldBuildProgress>(p =>
+                Dispatcher.UIThread.Post(() => RegionGenerationStatus = p.Label));
+
+            var result = await Task.Run(() => orchestrator.GenerateRegionAsync(
+                regionName, originalPlan, progress, ct: default));
+
+            if (result.Success)
+            {
+                if (result.AlreadyReady)
+                {
+                    AppendLog(LogEntry.System($"Регион «{regionName}» уже был готов — обновляем выходы."));
+                }
+                else
+                {
+                    AppendLog(LogEntry.System(
+                        $"Регион «{regionName}» сгенерирован: +{result.LocationsAdded} лок., " +
+                        $"+{result.NpcsAdded} NPC, +{result.BuildingsAdded} зд."));
+                    foreach (var err in result.Errors)
+                        AppendLog(LogEntry.System($"  ⚠ {err}"));
+                }
+
+                // Remove the phantom exit that triggered the generation
+                // (if any) — the new real exits are now in place from
+                // the committer's CommitLocations pass.
+                var player = _world.ActivePlayer ?? _world.Players.FirstOrDefault();
+                if (player is not null)
+                {
+                    var loc = _world.GetLocation(player.LocationId);
+                    if (loc is not null)
+                    {
+                        var phantoms = loc.Exits
+                            .Where(e => e.To == EntityId.Empty
+                                && string.Equals(e.ToName, regionName, StringComparison.OrdinalIgnoreCase))
+                            .ToList();
+                        foreach (var p in phantoms) loc.Exits.Remove(p);
+                    }
+                }
+
+                RefreshFromWorld();
+
+                // Persist the updated world (with the new locations +
+                // readyRegions flag).
+                _meta = freshMeta; // keep the OriginalPlanJson
+                PersistTokensToMeta();
+                try { _saveManager.SaveAll(_saveId, _world, _meta, Log.ToArray()); }
+                catch (Exception ex) { System.Diagnostics.Trace.WriteLine($"[save] {ex.Message}"); }
+            }
+            else
+            {
+                AppendLog(LogEntry.System(
+                    $"⚠ Не удалось сгенерировать регион «{regionName}»: {result.Error}"));
+            }
+        }
+        catch (Exception ex)
+        {
+            AppendLog(LogEntry.System($"⚠ Ошибка генерации региона: {ex.Message}"));
+        }
+        finally
+        {
+            IsRegionGenerating = false;
+            RegionGenerationStatus = null;
+        }
+    }
+
+    /// <summary>
+    /// True while a cold-region generation is in flight (issue #20).
+    /// Drives a "Генерация региона…" overlay in the game view. Set by
+    /// <see cref="TriggerColdRegionGenerationAsync"/>; cleared on
+    /// completion / failure.
+    /// </summary>
+    [ObservableProperty] private bool _isRegionGenerating;
+
+    /// <summary>
+    /// Live status text for the region-generation overlay (issue #20).
+    /// Mirrors the orchestrator's progress callback label.
+    /// </summary>
+    [ObservableProperty] private string? _regionGenerationStatus;
+
 
     /// <summary>
     /// Handle the character panel's ExportRequested event (issue #62).

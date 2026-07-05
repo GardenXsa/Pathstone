@@ -475,7 +475,10 @@ public partial class MainMenuViewModel : ViewModelBase
             foreach (var meta in _saveManager.ListSaves())
             {
                 var saveDir = Path.Combine(savesRoot, meta.Id);
-                var slot = new SaveSlotViewModel(meta, saveDir, id => _shell.NavigateToGame(id));
+                var slot = new SaveSlotViewModel(
+                    meta, saveDir,
+                    id => _shell.NavigateToGame(id),
+                    id => _shell.NavigateToRebuild(id));
                 slot.SelectionChanged += OnSlotSelectionChangedInternal;
                 _allSaves.Add(slot);
             }
@@ -729,14 +732,20 @@ public sealed class SaveSlotViewModel : ObservableObject
 {
     private readonly SaveMeta _meta;
     private readonly Action<string> _load;
+    private readonly Action<string>? _rebuild;
     private bool _isSelected;
 
-    public SaveSlotViewModel(SaveMeta meta, string saveDirectoryPath, Action<string> load)
+    public SaveSlotViewModel(SaveMeta meta, string saveDirectoryPath, Action<string> load, Action<string>? rebuild = null)
     {
         _meta = meta ?? throw new ArgumentNullException(nameof(meta));
         _load = load ?? throw new ArgumentNullException(nameof(load));
+        _rebuild = rebuild;
         SaveDirectoryPath = saveDirectoryPath ?? string.Empty;
         LoadCommand = new RelayCommand(() => _load(_meta.Id));
+        // Issue #23 — Rebuild button opens the rebuild dialog for this
+        // save. Null rebuild action = no button (back-compat with
+        // callers that don't wire it).
+        RebuildCommand = rebuild is null ? null : new RelayCommand(() => rebuild(_meta.Id));
         // Compute the save-directory size once, on construction. The
         // save's files don't change size while the menu is open, so
         // caching is safe; re-opening the saves list (RefreshSaves)
@@ -836,6 +845,19 @@ public sealed class SaveSlotViewModel : ObservableObject
     public event Action<SaveSlotViewModel>? SelectionChanged;
 
     public ICommand LoadCommand { get; }
+
+    /// <summary>
+    /// Rebuild command (issue #23). Opens the rebuild dialog for this
+    /// save. Null when the parent menu didn't wire a rebuild action
+    /// (the button is hidden in that case via IsVisible binding).
+    /// </summary>
+    public ICommand? RebuildCommand { get; }
+
+    /// <summary>
+    /// True when the rebuild button should be visible (the parent menu
+    /// wired a rebuild action). Bound to the rebuild button's IsVisible.
+    /// </summary>
+    public bool CanRebuild => RebuildCommand is not null;
 
     // ─── Formatting helpers ──────────────────────────────────────────
 

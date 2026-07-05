@@ -169,11 +169,21 @@
                                                     <TextBlock Text="{Binding EngineVersion, StringFormat='Движок: {0}'}"
                                                                Classes="Muted Small" Opacity="0.6"/>
                                                 </StackPanel>
-                                                <Button Grid.Column="2" Content="Играть"
-                                                        Command="{Binding LoadCommand}"
-                                                        Classes="SmallButton Primary"
-                                                        VerticalAlignment="Center"
-                                                        ToolTip.Tip="Загрузить это сохранение"/>
+                                                <StackPanel Grid.Column="2" Spacing="4" VerticalAlignment="Center">
+                                                    <Button Content="Играть"
+                                                            Command="{Binding LoadCommand}"
+                                                            Classes="SmallButton Primary"
+                                                            HorizontalAlignment="Stretch"
+                                                            ToolTip.Tip="Загрузить это сохранение"/>
+                                                    <!-- Issue #23 — Rebuild button (under Play).
+                                                         Visible only when CanRebuild is true. -->
+                                                    <Button Content="Перестроить"
+                                                            Command="{Binding RebuildCommand}"
+                                                            Classes="SmallButton"
+                                                            HorizontalAlignment="Stretch"
+                                                            IsVisible="{Binding CanRebuild}"
+                                                            ToolTip.Tip="Перестроить части этого мира (локации/NPC/предметы/наррация/полный пересбор)"/>
+                                                </StackPanel>
                                             </Grid>
                                         </Border>
                                     </DataTemplate>

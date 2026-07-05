@@ -8,10 +8,31 @@ namespace MyGame.Core.World.Entities;
 /// таверне»), optionally locked. Port of the inline exit shape from
 /// <c>engine/types/index.ts</c>.
 /// </summary>
+/// <remarks>
+/// <b>Phantom exits (issue #20 — chunked generation):</b> when
+/// <see cref="To"/> is <see cref="EntityId.Empty"/> AND
+/// <see cref="ToName"/> is non-empty, the exit is a "phantom" exit
+/// pointing to a not-yet-generated cold-region location (or a cold
+/// region's name). The world panel renders the destination as
+/// <see cref="ToName"/>; the GameViewModel's travel handler detects the
+/// phantom exit and triggers region generation via
+/// <c>WorldBuilderOrchestrator.GenerateRegionAsync</c>.
+/// </remarks>
 public sealed class LocationExit
 {
-    /// <summary>Destination location id.</summary>
+    /// <summary>
+    /// Destination location id. <see cref="EntityId.Empty"/> for a
+    /// phantom exit (cold-region boundary) — see <see cref="ToName"/>.
+    /// </summary>
     public EntityId To { get; set; }
+
+    /// <summary>
+    /// Destination location name. Set only for phantom exits (issue #20)
+    /// — when <see cref="To"/> is empty. For normal exits, this is null
+    /// and the destination is resolved via <see cref="To"/> +
+    /// <c>World.GetLocation(To).Name</c>.
+    /// </summary>
+    public string? ToName { get; set; }
 
     /// <summary>Direction label (display string).</summary>
     public string Direction { get; set; } = string.Empty;

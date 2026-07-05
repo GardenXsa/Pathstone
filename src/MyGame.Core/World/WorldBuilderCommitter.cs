@@ -198,9 +198,41 @@ public sealed class WorldBuilderCommitter
 
     internal void CommitLocations(WorldPlan plan, CommitStats stats)
     {
+        // Issue #20 (chunked generation): when the plan's GenerationMode
+        // is "chunked", only the start region's locations are detailed in
+        // the plan; other regions are marked GenStatus="cold" and have no
+        // locations. We must NOT commit a cold-region location even if
+        // the planner accidentally listed one — those will be generated
+        // on-demand when the player travels toward them (see
+        // WorldBuilderOrchestrator.GenerateRegionAsync). The start region
+        // is the one with GenStatus="ready" (or ContainsStart=true); if
+        // neither marker is present, we treat all locations as committable
+        // (backward-compat with non-chunked plans).
+        var isChunked = string.Equals(plan.GenerationMode, "chunked", StringComparison.OrdinalIgnoreCase);
+        var readyRegionNames = (plan.Regions ?? new())
+            .Where(r => string.Equals(r.GenStatus, "ready", StringComparison.OrdinalIgnoreCase)
+                     || (r.ContainsStart ?? false))
+            .Select(r => r.Name)
+            .Where(n => !string.IsNullOrWhiteSpace(n))
+            .ToHashSet(StringComparer.Ordinal);
+        var coldRegionNames = (plan.Regions ?? new())
+            .Where(r => string.Equals(r.GenStatus, "cold", StringComparison.OrdinalIgnoreCase))
+            .Select(r => r.Name)
+            .Where(n => !string.IsNullOrWhiteSpace(n))
+            .ToHashSet(StringComparer.Ordinal);
+
+        // Filter the plan's locations: in chunked mode, skip any that
+        // belong to a cold region. Locations with no Region field (or a
+        // region not in either set) are always committed (backward compat).
+        var committableLocations = (plan.Locations ?? new())
+            .Where(pl => !isChunked
+                || string.IsNullOrWhiteSpace(pl.Region)
+                || !coldRegionNames.Contains(pl.Region))
+            .ToList();
+
         // First pass: create all locations (no exits yet — they reference
         // siblings that may not exist on a forward pass).
-        foreach (var pl in plan.Locations ?? new())
+        foreach (var pl in committableLocations)
         {
             if (string.IsNullOrWhiteSpace(pl.Name))
             {
@@ -238,35 +270,77 @@ public sealed class WorldBuilderCommitter
         // Second pass: wire up exits. PlanLocation.Connections is a list
         // of target location names; we make the connection bidirectional
         // unless the source already has an exit to the target.
-        foreach (var pl in plan.Locations ?? new())
+        // Issue #20 (chunked generation): exits pointing to cold-region
+        // locations (not yet created) become PHANTOM exits — the exit's
+        // To is EntityId.Empty and ToName is the target name. The travel
+        // handler detects phantom exits and triggers region generation
+        // when the player clicks them.
+        foreach (var pl in committableLocations)
         {
             if (!_locationByName.TryGetValue(pl.Name, out var from)) continue;
 
             foreach (var targetName in pl.Connections ?? new())
             {
-                if (!_locationByName.TryGetValue(targetName, out var to)) continue;
-                if (from.Exits.Any(e => e.To == to.Id)) continue; // already wired
-
-                var direction = ResolveDirection(pl.Name, targetName, pl.DirectionFromHub);
-                from.Exits.Add(new LocationExit
+                if (string.IsNullOrWhiteSpace(targetName)) continue;
+                if (_locationByName.TryGetValue(targetName, out var to))
                 {
-                    To = to.Id,
-                    Direction = direction,
-                    Locked = false,
-                });
+                    // Target exists — wire a normal bidirectional exit.
+                    if (from.Exits.Any(e => e.To == to.Id)) continue; // already wired
 
-                // Bidirectional: if the target doesn't yet point back,
-                // add a reverse exit with the opposite direction.
-                if (!to.Exits.Any(e => e.To == from.Id))
-                {
-                    to.Exits.Add(new LocationExit
+                    var direction = ResolveDirection(pl.Name, targetName, pl.DirectionFromHub);
+                    from.Exits.Add(new LocationExit
                     {
-                        To = from.Id,
-                        Direction = OppositeDirection(direction),
+                        To = to.Id,
+                        Direction = direction,
+                        Locked = false,
+                    });
+
+                    // Bidirectional: if the target doesn't yet point back,
+                    // add a reverse exit with the opposite direction.
+                    if (!to.Exits.Any(e => e.To == from.Id))
+                    {
+                        to.Exits.Add(new LocationExit
+                        {
+                            To = from.Id,
+                            Direction = OppositeDirection(direction),
+                            Locked = false,
+                        });
+                    }
+                }
+                else if (isChunked)
+                {
+                    // Phantom exit — target doesn't exist (cold region).
+                    // Skip if a phantom exit with the same target name is
+                    // already on the source (idempotent re-commit).
+                    if (from.Exits.Any(e => e.To == EntityId.Empty
+                        && string.Equals(e.ToName, targetName, StringComparison.OrdinalIgnoreCase)))
+                        continue;
+
+                    var direction = ResolveDirection(pl.Name, targetName, pl.DirectionFromHub);
+                    from.Exits.Add(new LocationExit
+                    {
+                        To = EntityId.Empty,
+                        ToName = targetName,
+                        Direction = direction,
                         Locked = false,
                     });
                 }
+                // else: non-chunked plan, target missing — silently skip
+                // (the existing behavior; preserves back-compat).
             }
+        }
+
+        // Stash the cold-region set on the world's Flags so the travel
+        // handler can detect "this exit leads to a not-yet-generated
+        // region" without re-parsing the plan. We also stash the start
+        // region name so GenerateRegionAsync knows which region is the
+        // "boundary" the player is currently in.
+        if (isChunked)
+        {
+            if (_world.Flags is null) _world.Flags = new();
+            _world.Flags["coldRegions"] = coldRegionNames.ToList();
+            _world.Flags["readyRegions"] = readyRegionNames.ToList();
+            _world.Flags["generationMode"] = "chunked";
         }
     }
 

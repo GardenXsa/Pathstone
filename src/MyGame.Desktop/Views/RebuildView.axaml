@@ -1,0 +1,115 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:vm="using:MyGame.Desktop.ViewModels"
+             mc:Ignorable="d" d:DesignWidth="720" d:DesignHeight="600"
+             x:Class="MyGame.Desktop.Views.RebuildView"
+             x:DataType="vm:RebuildViewModel">
+
+    <DockPanel LastChildFill="True">
+
+        <Border DockPanel.Dock="Top" Classes="TopBar">
+            <Grid ColumnDefinitions="Auto,*,Auto">
+                <Button Grid.Column="0" Content="← Назад" Command="{Binding BackCommand}" Classes="SmallButton"
+                        IsEnabled="{Binding !IsRunning}"
+                        ToolTip.Tip="Вернуться в главное меню"/>
+                <TextBlock Grid.Column="1" Text="{Binding Title}" Classes="AppTitle"
+                           HorizontalAlignment="Center"/>
+                <TextBlock Grid.Column="2" Text="" />
+            </Grid>
+        </Border>
+
+        <ScrollViewer HorizontalScrollBarVisibility="Disabled">
+            <StackPanel Margin="32,24" Spacing="16" MaxWidth="680" HorizontalAlignment="Center">
+
+                <TextBlock Text="Перестроить мир" Classes="ScreenTitle"
+                           HorizontalAlignment="Center"/>
+
+                <TextBlock Text="Выберите, что перестроить. Частичные опции — добавляющие (существующее не удаляется). Полный пересбор — единственная деструктивная опция: мир создаётся заново."
+                           Classes="Muted Small" TextWrapping="Wrap" TextAlignment="Center"/>
+
+                <!-- Full-rebuild toggle (issue #23). The only destructive
+                     option. When checked, the partial checkboxes are
+                     disabled (greyed out) — the orchestrator runs the
+                     full pipeline regardless. -->
+                <Border Classes="InfoBox" Padding="10"
+                        BorderBrush="{DynamicResource AppDangerBrush}">
+                    <StackPanel Spacing="6">
+                        <CheckBox Content="Полный пересбор (удалить всё и создать заново)"
+                                  IsChecked="{Binding FullRebuild}"
+                                  FontWeight="SemiBold"
+                                  IsEnabled="{Binding !IsRunning}"
+                                  ToolTip.Tip="Деструктивно: удалить все сущности и сгенерировать мир заново"/>
+                        <TextBlock Text="⚠ ВНИМАНИЕ: это удалит вашего персонажа, прогресс, локации, NPC — всё. Сохранение будет перезаписано."
+                                   Classes="Small"
+                                   Foreground="{DynamicResource AppDangerBrush}"
+                                   TextWrapping="Wrap"
+                                   IsVisible="{Binding IsFullRebuildWarningVisible}"/>
+                    </StackPanel>
+                </Border>
+
+                <!-- Partial rebuild checkboxes. Disabled when FullRebuild
+                     is checked (the orchestrator ignores them, but we
+                     grey them out for clarity). -->
+                <StackPanel Spacing="6" IsEnabled="{Binding !IsPartialDisabled}">
+                    <TextBlock Text="Частичная перестройка (добавляющая):" Classes="FieldLabel"/>
+                    <CheckBox Content="Локации — добавить новые локации"
+                              IsChecked="{Binding RebuildLocations}"
+                              ToolTip.Tip="Добавить новые локации к существующим"/>
+                    <CheckBox Content="NPC — добавить новых персонажей"
+                              IsChecked="{Binding RebuildNpcs}"
+                              ToolTip.Tip="Добавить новых NPC к существующим"/>
+                    <CheckBox Content="Предметы — добавить лут и сокровища"
+                              IsChecked="{Binding RebuildItems}"
+                              ToolTip.Tip="Добавить новые предметы"/>
+                    <CheckBox Content="Наррация — переписать вступление"
+                              IsChecked="{Binding RebuildNarration}"
+                              ToolTip.Tip="Переписать вступительный текст (мир не меняется)"/>
+                </StackPanel>
+
+                <!-- Optional rebuild brief. Empty = use the original
+                     world's theme/setting (from World.Flags). -->
+                <StackPanel Spacing="6">
+                    <TextBlock Text="Бриф для перестройки (необязательно):" Classes="FieldLabel"/>
+                    <TextBox Text="{Binding Brief}"
+                             PlaceholderText="Оставьте пустым, чтобы использовать оригинальный бриф мира"
+                             AcceptsReturn="True" TextWrapping="Wrap"
+                             Height="80" FontSize="13"
+                             IsEnabled="{Binding !IsRunning}"
+                             ToolTip.Tip="Опишите, что добавить или изменить. Пусто = использовать оригинальный бриф"/>
+                </StackPanel>
+
+                <!-- Progress (visible only while running). -->
+                <Border Classes="InfoBox" Padding="10"
+                        IsVisible="{Binding IsRunning}">
+                    <StackPanel Spacing="6">
+                        <TextBlock Text="{Binding ProgressLabel}" Classes="Muted"
+                                   TextWrapping="Wrap"/>
+                        <ProgressBar Value="{Binding ProgressPercent}" Maximum="100" Height="6"/>
+                    </StackPanel>
+                </Border>
+
+                <!-- Result / error message. -->
+                <Border Classes="InfoBox" Padding="10"
+                        IsVisible="{Binding ResultSummary, Converter={x:Static StringConverters.IsNotNullOrEmpty}}">
+                    <TextBlock Text="{Binding ResultSummary}" TextWrapping="Wrap"
+                               FontFamily="Cascadia Mono,Consolas,Menlo,monospace"/>
+                </Border>
+
+                <!-- Action buttons. -->
+                <StackPanel Spacing="10" HorizontalAlignment="Center">
+                    <Button Content="Перестроить" Command="{Binding RebuildCommand}" Classes="MenuButton Primary"
+                            HorizontalAlignment="Stretch"
+                            ToolTip.Tip="Запустить перестройку мира"/>
+                    <Button Content="Отмена" Command="{Binding BackCommand}" Classes="SmallButton"
+                            IsEnabled="{Binding !IsRunning}"
+                            ToolTip.Tip="Вернуться в меню без изменений"/>
+                </StackPanel>
+
+                <TextBlock Text="Перестройка займёт 30-90 секунд в зависимости от выбранных категорий."
+                           Classes="Muted Small" TextWrapping="Wrap" TextAlignment="Center"/>
+            </StackPanel>
+        </ScrollViewer>
+    </DockPanel>
+</UserControl>

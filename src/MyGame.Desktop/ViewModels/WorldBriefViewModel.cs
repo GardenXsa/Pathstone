@@ -1,6 +1,6 @@
 using System.Collections.Generic;
+using System.Collections.ObjectModel;
 using System.Threading.Tasks;
-using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using MyGame.Core.AI.Agents;
 using MyGame.Core.Profile;
@@ -22,7 +22,17 @@ namespace MyGame.Desktop.ViewModels;
 /// An "advanced" toggle enables optional pet-agent delegations — extra AI
 /// sub-tasks that enrich the world after the deterministic committer
 /// stage (mass NPC spawning, batch item creation, lore markers). Off by
-/// default to keep the simple 3-stage pipeline as the default.
+/// default to keep the simple 3-stage pipeline as the default. When
+/// enabled, an editable list of delegations is shown (issue #22 — the
+/// user can add/remove/edit rows; the defaults are pre-populated).
+/// </para>
+///
+/// <para>
+/// <b>Generation mode (issue #20):</b> a radio-button selector picks
+/// between «Полный» (full — planner designs the whole world) and
+/// «По регионам» (chunked — planner designs only the start region,
+/// others are generated on-demand as the player travels toward them).
+/// Default is «Полный».
 /// </para>
 /// </summary>
 public partial class WorldBriefViewModel : ViewModelBase
@@ -34,6 +44,7 @@ public partial class WorldBriefViewModel : ViewModelBase
 
     private string _brief = string.Empty;
     private bool _usePetDelegations;
+    private string _generationMode = "full"; // "full" | "chunked"
 
     public WorldBriefViewModel(
         ProfileStore profileStore,
@@ -46,6 +57,12 @@ public partial class WorldBriefViewModel : ViewModelBase
         _saveManager = saveManager;
         _shell = shell;
         Title = "Создать мир";
+
+        // Issue #22 — pre-populate the default delegations so the user
+        // sees the affordance and can edit them rather than starting
+        // from a blank list.
+        foreach (var del in BuildDefaultDelegations())
+            Delegations.Add(new PetDelegationViewModel(del));
     }
 
     /// <summary>
@@ -64,13 +81,56 @@ public partial class WorldBriefViewModel : ViewModelBase
     /// the deterministic committer stage. Each delegation is a separate
     /// AI sub-task (mass NPC spawn, batch item creation, lore markers)
     /// that enriches the world. Off by default — adds ~30-60s + extra
-    /// token cost.
+    /// token cost. When checked, an editable list of delegations is
+    /// shown (issue #22).
     /// </summary>
     public bool UsePetDelegations
     {
         get => _usePetDelegations;
         set => SetProperty(ref _usePetDelegations, value);
     }
+
+    /// <summary>
+    /// Generation mode (issue #20): "full" (planner designs the whole
+    /// world) or "chunked" (planner designs only the start region; others
+    /// are generated on-demand as the player travels toward them).
+    /// Default "full". Two-way bound to a radio-button selector in the
+    /// view; the Build command passes it through to the
+    /// <see cref="WorldPlanRequest"/>.
+    /// </summary>
+    public string GenerationMode
+    {
+        get => _generationMode;
+        set => SetProperty(ref _generationMode, value);
+    }
+
+    /// <summary>
+    /// True when <see cref="GenerationMode"/> is "full" — bound to the
+    /// «Полный» radio button's IsChecked.
+    /// </summary>
+    public bool IsGenerationModeFull
+    {
+        get => _generationMode == "full";
+        set { if (value) GenerationMode = "full"; }
+    }
+
+    /// <summary>
+    /// True when <see cref="GenerationMode"/> is "chunked" — bound to the
+    /// «По регионам» radio button's IsChecked.
+    /// </summary>
+    public bool IsGenerationModeChunked
+    {
+        get => _generationMode == "chunked";
+        set { if (value) GenerationMode = "chunked"; }
+    }
+
+    /// <summary>
+    /// Editable list of pet delegations (issue #22). Pre-populated with
+    /// the two defaults (background population + loot/scatter); the user
+    /// can add / remove / edit rows. The Build command filters out rows
+    /// with an empty Task before passing them to the orchestrator.
+    /// </summary>
+    public ObservableCollection<PetDelegationViewModel> Delegations { get; } = new();
 
     [RelayCommand]
     private void UsePresetDarkFantasy() =>
@@ -93,21 +153,62 @@ public partial class WorldBriefViewModel : ViewModelBase
                 "Разведчики пропадают. Тон — пыль, ржавчина, тишина, одиночество, страх перед外面的世界.";
 
     /// <summary>
+    /// Add a blank delegation row to the editable list (issue #22).
+    /// The user fills in the Label + Task + MaxIterations inline.
+    /// </summary>
+    [RelayCommand]
+    private void AddDelegation()
+    {
+        Delegations.Add(new PetDelegationViewModel(new PetDelegation
+        {
+            Label = $"Делегация {Delegations.Count + 1}",
+            Task = string.Empty,
+            MaxIterations = 6,
+        }));
+    }
+
+    /// <summary>
+    /// Remove the given delegation row from the editable list. Bound to
+    /// the per-row «Удалить» button (CommandParameter = the row VM).
+    /// </summary>
+    [RelayCommand]
+    private void RemoveDelegation(PetDelegationViewModel? row)
+    {
+        if (row is null) return;
+        Delegations.Remove(row);
+    }
+
+    /// <summary>
     /// Continue to the world-build progress screen with the current brief.
     /// </summary>
     [RelayCommand]
     private void Build()
     {
         // Empty brief is fine — the planner prompt has a default branch.
-        var delegations = UsePetDelegations ? BuildDefaultDelegations() : null;
-        _shell.NavigateToWorldBuild(Brief ?? string.Empty, delegations);
+        // Filter the editable delegations to non-empty tasks; pass null
+        // when the user hasn't opted in (so the orchestrator skips the
+        // pet stage entirely).
+        IReadOnlyCollection<PetDelegation>? delegations = null;
+        if (UsePetDelegations)
+        {
+            var filtered = new List<PetDelegation>();
+            foreach (var vm in Delegations)
+            {
+                var del = vm.ToDelegation();
+                if (!string.IsNullOrWhiteSpace(del.Task))
+                    filtered.Add(del);
+            }
+            delegations = filtered.Count > 0 ? filtered : null;
+        }
+        _shell.NavigateToWorldBuild(Brief ?? string.Empty, delegations, GenerationMode);
     }
 
     /// <summary>
     /// Build the default set of pet-agent delegations. These run after the
     /// deterministic committer stage and enrich the world with extra
     /// detail. Each delegation is a focused AI sub-task with its own
-    /// tool-call loop.
+    /// tool-call loop. Used to pre-populate the editable list (issue #22)
+    /// — the user can edit/delete/add to taste.
     /// </summary>
     private static IReadOnlyCollection<PetDelegation> BuildDefaultDelegations()
     {

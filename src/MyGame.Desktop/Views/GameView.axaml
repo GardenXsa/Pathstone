@@ -503,6 +503,41 @@
             </Border>
         </Border>
 
+        <!-- REGION GENERATION OVERLAY (issue #20 — chunked generation).
+             Shown while the orchestrator generates a cold region on
+             demand (after the player clicks a phantom exit). Non-modal:
+             the user can't act while it's up, but it disappears
+             automatically on completion. ZIndex 90 keeps it below the
+             death/reconnect modal overlays (ZIndex 100). -->
+        <Border Background="#B0000000"
+                IsVisible="{Binding IsRegionGenerating}"
+                HorizontalAlignment="Stretch"
+                VerticalAlignment="Stretch"
+                ZIndex="90">
+            <Border HorizontalAlignment="Center" VerticalAlignment="Center"
+                    Background="{DynamicResource AppSurfaceBrush}"
+                    BorderBrush="{DynamicResource AppAccentBrush}"
+                    BorderThickness="2" CornerRadius="8"
+                    Padding="40,30" MinWidth="380" MaxWidth="560">
+                <StackPanel Spacing="14" HorizontalAlignment="Center">
+                    <TextBlock Text="🌍" FontSize="40" HorizontalAlignment="Center"/>
+                    <TextBlock Text="Генерация региона…"
+                               FontSize="20" FontWeight="Bold"
+                               HorizontalAlignment="Center"
+                               Foreground="{DynamicResource AppAccentBrush}"/>
+                    <TextBlock Text="{Binding RegionGenerationStatus}"
+                               Classes="Muted"
+                               HorizontalAlignment="Center" TextWrapping="Wrap"
+                               TextAlignment="Center"/>
+                    <ProgressBar IsIndeterminate="True" Height="6" Width="240"/>
+                    <TextBlock Text="AI достраивает регион — это займёт 20-60 секунд. Не закрывайте приложение."
+                               Classes="Muted Small"
+                               HorizontalAlignment="Center" TextWrapping="Wrap"
+                               TextAlignment="Center"/>
+                </StackPanel>
+            </Border>
+        </Border>
+
         <!-- KEYBOARD-SHORTCUTS (issue #51): F1 help overlay. Lists all
              shortcuts. Toggled via OnGlobalKeyDown (F1 or Esc).
              Click anywhere on the dim backdrop to dismiss. ZIndex 50

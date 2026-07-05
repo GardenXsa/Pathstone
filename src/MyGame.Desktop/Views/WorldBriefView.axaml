@@ -45,10 +45,88 @@
                     </WrapPanel>
                 </StackPanel>
 
+                <!-- Generation mode selector (issue #20). Full = planner
+                     designs the whole world. Chunked = planner designs
+                     only the start region; others are generated on-demand
+                     as the player travels toward them. -->
+                <StackPanel Spacing="6">
+                    <TextBlock Text="Режим генерации:" Classes="FieldLabel"/>
+                    <StackPanel Orientation="Horizontal" Spacing="20">
+                        <RadioButton Content="Полный (весь мир сразу)"
+                                     IsChecked="{Binding IsGenerationModeFull}"
+                                     ToolTip.Tip="Планировщик спроектирует все регионы сразу — дольше, но цельный мир"/>
+                        <RadioButton Content="По регионам (старт + расширение)"
+                                     IsChecked="{Binding IsGenerationModeChunked}"
+                                     ToolTip.Tip="Планировщик спроектирует только стартовую область; остальные регионы сгенерируются, когда игрок к ним приблизится"/>
+                    </StackPanel>
+                    <TextBlock Text="«По регионам» быстрее старта и дешевле по токенам, но мир достраивается на ходу при путешествиях."
+                               Classes="Muted Small" TextWrapping="Wrap"
+                               IsVisible="{Binding IsGenerationModeChunked}"/>
+                </StackPanel>
+
                 <CheckBox Content="Продвинутая генерация (pet-агенты: +30-60с, +токены)"
                           IsChecked="{Binding UsePetDelegations}"
                           Classes="Muted"
                           ToolTip.Tip="Запустить доп. AI-агентов для обогащения мира"/>
+
+                <!-- Editable pet-delegation list (issue #22).
+                     Shown only when UsePetDelegations is checked. Each
+                     row is a Label TextBox + multi-line Task TextBox +
+                     MaxIterations NumericUpDown + Remove button. The
+                     "Add" button at the bottom appends a blank row. -->
+                <Border Classes="InfoBox" Padding="10"
+                        IsVisible="{Binding UsePetDelegations}">
+                    <StackPanel Spacing="8">
+                        <Grid ColumnDefinitions="*,Auto">
+                            <TextBlock Grid.Column="0" Text="Pet-делегации" FontWeight="SemiBold"/>
+                            <Button Grid.Column="1" Content="+ Добавить"
+                                    Command="{Binding AddDelegationCommand}"
+                                    Classes="SmallButton"
+                                    ToolTip.Tip="Добавить пустую делегацию"/>
+                        </Grid>
+                        <TextBlock Text="Каждая делегация — отдельный AI-агент с доступом к инструментам мира. Отредактируйте задачи под свой мир или удалите лишние."
+                                   Classes="Muted Small" TextWrapping="Wrap"/>
+
+                        <ItemsControl ItemsSource="{Binding Delegations}">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate DataType="vm:PetDelegationViewModel">
+                                    <Border Margin="0,0,0,6" Padding="8"
+                                            BorderBrush="{DynamicResource AppBorderBrush}"
+                                            BorderThickness="1" CornerRadius="4">
+                                        <StackPanel Spacing="4">
+                                            <Grid ColumnDefinitions="*,Auto">
+                                                <TextBox Grid.Column="0" Text="{Binding Label}"
+                                                         PlaceholderText="Название (например: Фоновое население)"
+                                                         ToolTip.Tip="Отображается в прогресс-баре"/>
+                                                <Button Grid.Column="1" Content="Удалить"
+                                                        Command="{Binding $parent[ItemsControl].DataContext.RemoveDelegationCommand}"
+                                                        CommandParameter="{Binding}"
+                                                        Classes="SmallButton Danger"
+                                                        Margin="6,0,0,0"
+                                                        ToolTip.Tip="Удалить эту делегацию"/>
+                                            </Grid>
+                                            <TextBox Text="{Binding Task}"
+                                                     PlaceholderText="Задача для pet-агента (что именно сделать)"
+                                                     AcceptsReturn="True" TextWrapping="Wrap"
+                                                     Height="70" FontSize="12"
+                                                     ToolTip.Tip="Конкретная инструкция для pet-агента"/>
+                                            <StackPanel Orientation="Horizontal" Spacing="6">
+                                                <TextBlock Text="Итераций:" Classes="Muted Small" VerticalAlignment="Center"/>
+                                                <NumericUpDown Value="{Binding MaxIterations}"
+                                                               Minimum="1" Maximum="20"
+                                                               Width="90"
+                                                               ToolTip.Tip="Лимит итераций (1-20)"/>
+                                            </StackPanel>
+                                        </StackPanel>
+                                    </Border>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+
+                        <TextBlock Text="(нет делегаций — добавьте хотя бы одну)" Classes="Muted Small"
+                                   IsVisible="{Binding !Delegations.Count}"/>
+                    </StackPanel>
+                </Border>
 
                 <Button Content="Создать мир →" Command="{Binding BuildCommand}" Classes="MenuButton Primary"
                         HorizontalAlignment="Stretch"

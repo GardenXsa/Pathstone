@@ -46,6 +46,7 @@ public partial class WorldBuildViewModel : ViewModelBase
 
     private readonly string _brief;
     private readonly IReadOnlyCollection<MyGame.Core.AI.Agents.PetDelegation>? _petDelegations;
+    private readonly string? _generationMode;
     private CancellationTokenSource? _cts;
     private WorldBuilderResult? _result;
 
@@ -61,7 +62,8 @@ public partial class WorldBuildViewModel : ViewModelBase
         SaveManager saveManager,
         MainViewModel shell,
         string brief,
-        IReadOnlyCollection<MyGame.Core.AI.Agents.PetDelegation>? petDelegations = null)
+        IReadOnlyCollection<MyGame.Core.AI.Agents.PetDelegation>? petDelegations = null,
+        string? generationMode = null)
     {
         _profileStore = profileStore ?? throw new ArgumentNullException(nameof(profileStore));
         _settingsStore = settingsStore ?? throw new ArgumentNullException(nameof(settingsStore));
@@ -69,6 +71,7 @@ public partial class WorldBuildViewModel : ViewModelBase
         _shell = shell ?? throw new ArgumentNullException(nameof(shell));
         _brief = brief ?? string.Empty;
         _petDelegations = petDelegations;
+        _generationMode = generationMode;
 
         Title = "Создание мира";
 
@@ -353,7 +356,7 @@ public partial class WorldBuildViewModel : ViewModelBase
             });
 
             _result = await orchestrator.RunAsync(
-                new WorldPlanRequest { Brief = _brief },
+                new WorldPlanRequest { Brief = _brief, GenerationMode = _generationMode },
                 progress,
                 _cts.Token);
 
@@ -365,6 +368,23 @@ public partial class WorldBuildViewModel : ViewModelBase
                 var title = _result.Plan?.Title ?? "Новый мир";
                 var meta = _saveManager.CreateSave(title, world, profile.Id);
 
+                // Issue #20 (chunked generation): stash the original
+                // WorldPlan JSON on the save's meta so the travel handler
+                // can reload it + ask the AI to fill in cold regions
+                // on-demand. We serialize with the same options the
+                // orchestrator uses for parsing (camelCase).
+                if (_result.Plan is not null)
+                {
+                    var planJson = System.Text.Json.JsonSerializer.Serialize(
+                        _result.Plan,
+                        new System.Text.Json.JsonSerializerOptions
+                        {
+                            PropertyNamingPolicy = System.Text.Json.JsonNamingPolicy.CamelCase,
+                            WriteIndented = false,
+                        });
+                    meta = meta with { OriginalPlanJson = planJson };
+                }
+
                 if (!string.IsNullOrWhiteSpace(_result.OpeningNarration))
                 {
                     var log = new[]
@@ -372,6 +392,12 @@ public partial class WorldBuildViewModel : ViewModelBase
                         LogEntry.Narrative(_result.OpeningNarration, authorId: null),
                     };
                     _saveManager.SaveAll(meta.Id, world, meta, log);
+                }
+                else
+                {
+                    // No narration — still persist the meta update (the
+                    // OriginalPlanJson field was just set on the meta).
+                    _saveManager.SaveAll(meta.Id, world, meta, Array.Empty<LogEntry>());
                 }
 
                 FinalSummary = _result.Summary ?? "Мир готов.";

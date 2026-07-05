@@ -163,4 +163,23 @@ public sealed record SaveMeta
     /// </para>
     /// </summary>
     public string? HistorySummary { get; init; }
+
+    /// <summary>
+    /// Original <see cref="WorldPlan"/> JSON produced by the planner
+    /// during the world-build (issue #20 — chunked generation). When the
+    /// build ran in <c>chunked</c> mode, only the start region's
+    /// locations were committed; other regions are marked
+    /// <c>GenStatus="cold"</c> in the plan and are generated on-demand
+    /// when the player travels toward them. This field holds the full
+    /// plan JSON so <see cref="WorldBuilderOrchestrator.GenerateRegionAsync"/>
+    /// can reload it + ask the AI to fill in a specific region without
+    /// re-running the planner from scratch.
+    /// </summary>
+    /// <remarks>
+    /// <b>Backward compatibility:</b> old saves (written before issue #20)
+    /// don't have this field — they load with <c>null</c>, which the
+    /// travel handler treats as "no chunked regions to generate" (the
+    /// world was built full in the first pass). No migration needed.
+    /// </remarks>
+    public string? OriginalPlanJson { get; init; }
 }

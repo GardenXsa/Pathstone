@@ -284,6 +284,54 @@ public sealed record Ruleset
 
     /// <summary>Optional genre-specific subsystems to enable.</summary>
     public IReadOnlyList<string>? Modules { get; init; }
+
+    // ─── Custom-ruleset overlays (issue #21) ─────────────────────────────
+    //
+    // The desktop MVP's default ruleset is <see cref="Rulesets.DefaultDnd"/>
+    // (D&D 5e-flavoured). When the world-builder orchestrator's ruleset
+    // stage runs for a non-fantasy theme (cyberpunk / sci-fi / steampunk /
+    // postapoc / horror / modern), it asks the AI to design a lightweight
+    // overlay on top of the default — custom display names for the six
+    // standard attribute keys + custom resource-pool names + a custom skill
+    // list — without forcing the AI to design a full AttributeDef /
+    // ResourceDef schema. This keeps the ruleset design call short (cheap
+    // and reliable) while still letting a cyberpunk world call its
+    // attributes "Cool / Edge / Meat / Tech / Luck / Will" and its hp pool
+    // "Stress".
+    //
+    // All three fields are nullable — null means "use the defaults from
+    // <see cref="Attributes"/> / <see cref="Resources"/> / the standard
+    // D&D skill list". The orchestrator sets them after a successful
+    // ruleset-design AI call; the GM context block reads them so the GM
+    // knows what to call the attributes; the EntityFactory uses them when
+    // materialising fresh characters so a new player gets a "Cool" entry
+    // instead of "СИЛ".
+
+    /// <summary>
+    /// Optional map from standard attribute keys (<c>str</c>, <c>dex</c>,
+    /// <c>con</c>, <c>int</c>, <c>wis</c>, <c>cha</c>) to custom display
+    /// names for non-fantasy worlds. Set by the world-builder's ruleset
+    /// stage when the AI designs a custom overlay (issue #21). Null means
+    /// use the default attribute names from <see cref="Attributes"/>.
+    /// </summary>
+    public Dictionary<string, string>? AttributeNames { get; init; }
+
+    /// <summary>
+    /// Optional map from standard resource keys (<c>hp</c>, <c>ac</c>) to
+    /// custom display names. Set by the world-builder's ruleset stage
+    /// (issue #21). Null means use the default resource names from
+    /// <see cref="Resources"/>.
+    /// </summary>
+    public Dictionary<string, string>? ResourcePools { get; init; }
+
+    /// <summary>
+    /// Optional custom skill list for the world (e.g. <c>hacking</c>,
+    /// <c>gunnery</c>, <c>streetwise</c>). Set by the world-builder's
+    /// ruleset stage (issue #21). Null means use the default D&D skill
+    /// list. Players' <c>ProficientSkills</c> are matched by string, so a
+    /// custom list flows naturally into character creation.
+    /// </summary>
+    public IReadOnlyList<string>? Skills { get; init; }
 }
 
 /// <summary>
@@ -379,6 +427,39 @@ public static class Rulesets
     /// <summary>Find a resource def by key. Null if not present.</summary>
     public static ResourceDef? GetResource(Ruleset rs, string key) =>
         rs.Resources.FirstOrDefault(r => r.Key == key);
+
+    // ─── Custom-ruleset overlay helpers (issue #21) ──────────────────────
+
+    /// <summary>
+    /// Resolve the display name for an attribute key. When
+    /// <see cref="Ruleset.AttributeNames"/> is set and contains the key,
+    /// returns the custom name; otherwise falls back to the matching
+    /// <see cref="AttributeDef.Name"/> from the ruleset; otherwise
+    /// returns the key itself. Used by the GM context block (so the GM
+    /// knows what to call the attributes) and by the character panel UI.
+    /// </summary>
+    public static string GetAttributeName(Ruleset rs, string key)
+    {
+        if (rs is null) return key;
+        if (rs.AttributeNames is not null && rs.AttributeNames.TryGetValue(key, out var custom) && !string.IsNullOrWhiteSpace(custom))
+            return custom;
+        var def = GetAttribute(rs, key);
+        return def?.Name ?? key;
+    }
+
+    /// <summary>
+    /// Resolve the display name for a resource key (e.g. <c>hp</c> →
+    /// «Здоровье» or «Стресс» for a cyberpunk world). Falls back to the
+    /// <see cref="ResourceDef.Name"/>; finally to the key itself.
+    /// </summary>
+    public static string GetResourceName(Ruleset rs, string key)
+    {
+        if (rs is null) return key;
+        if (rs.ResourcePools is not null && rs.ResourcePools.TryGetValue(key, out var custom) && !string.IsNullOrWhiteSpace(custom))
+            return custom;
+        var def = GetResource(rs, key);
+        return def?.Name ?? key;
+    }
 
     // ─── Formula evaluation ────────────────────────────────────────────────
 

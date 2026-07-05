@@ -853,14 +853,37 @@ public sealed class GameMaster
         sb.AppendLine("## Персонаж игрока");
         sb.AppendLine($"- Имя: {p.Name} | Раса: {p.Race ?? "—"} | Класс: {p.Class ?? "—"} | Уровень: {p.Level ?? 1}");
         if (p.Attributes.Count > 0)
-            sb.AppendLine($"- Характеристики: {string.Join(", ", p.Attributes.OrderBy(kv => kv.Key).Select(kv => $"{kv.Key}={kv.Value}"))}");
+        {
+            // Issue #21 (custom ruleset): show custom attribute display
+            // names from the ruleset's AttributeNames overlay (e.g.
+            // "Cool" instead of "СИЛ" for a cyberpunk world) so the GM
+            // knows what to call them. Falls back to the bare key when
+            // no overlay is set (DefaultDnd behavior).
+            var attrs = string.Join(", ", p.Attributes.OrderBy(kv => kv.Key).Select(kv =>
+                $"{Rulesets.GetAttributeName(_world.Ruleset, kv.Key)}={kv.Value}"));
+            sb.AppendLine($"- Характеристики: {attrs}");
+        }
         if (p.Resources.Count > 0)
-            sb.AppendLine($"- Ресурсы: {string.Join(", ", p.Resources.OrderBy(kv => kv.Key).Select(kv => $"{kv.Key}={kv.Value}"))}");
+        {
+            // Same overlay treatment for resource pool names.
+            var res = string.Join(", ", p.Resources.OrderBy(kv => kv.Key).Select(kv =>
+                $"{Rulesets.GetResourceName(_world.Ruleset, kv.Key)}={kv.Value}"));
+            sb.AppendLine($"- Ресурсы: {res}");
+        }
         if (p.Equipped.Count > 0)
             sb.AppendLine($"- Экипировка: {string.Join(", ", p.Equipped.Select(kv => $"{kv.Key}: {kv.Value.Name}"))}");
         if (p.Inventory.Items.Count > 0)
             sb.AppendLine($"- Инвентарь: {string.Join(", ", p.Inventory.Items.Select(i => $"{i.Name} ×{i.Quantity}"))}");
         sb.AppendLine($"- Валюта: {p.Inventory.Currency}");
+
+        // Issue #21 — surface the custom skill list (if the ruleset
+        // designer set one) so the GM knows what skills exist in this
+        // world. Hidden when no overlay is set (DefaultDnd — the GM
+        // already knows the D&D skill list).
+        if (_world.Ruleset.Skills is { Count: > 0 } skills)
+        {
+            sb.AppendLine($"- Навыки мира: {string.Join(", ", skills)}");
+        }
 
         // Active status effects on the player (name + duration).
         if (p.Effects is { Count: > 0 })

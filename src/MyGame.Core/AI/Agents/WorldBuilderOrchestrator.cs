@@ -1,11 +1,16 @@
 using System.Diagnostics;
 using System.Text;
 using System.Text.Json;
+using System.Text.Json.Nodes;
 using MyGame.Core.AI.Prompts;
 using MyGame.Core.AI.Tools;
+using MyGame.Core.Common;
 using MyGame.Core.Saves;
 using MyGame.Core.World;
 
+// 'World' is both a namespace (MyGame.Core.World) and a type
+// (MyGame.Core.World.World). Alias to disambiguate the type reference.
+using GameWorld = MyGame.Core.World.World;
 
 namespace MyGame.Core.AI.Agents;
 
@@ -439,10 +444,13 @@ public sealed class WorldBuilderOrchestrator
         await WaitIfPausedAsync(ct).ConfigureAwait(false);
 
         // ── Stage 2: ruleset ──────────────────────────────────────────────
-        // The desktop MVP uses the default DnD 5e-style ruleset for every
-        // world. The TS source had a per-world ruleset design stage (via
-        // world-ruleset prompt + commit_ruleset tool); that's deferred. We
-        // still publish a progress tick so the UI shows the stage.
+        // Issue #21: design a custom ruleset overlay (attribute display
+        // names + resource pool names + skill list) for non-fantasy
+        // themes. For standard fantasy (the default) we keep DefaultDnd.
+        // The AI call is opt-in: it only fires when the plan's theme
+        // contains one of the non-fantasy genre keywords. Failures here
+        // are non-fatal — the world is still playable with the default
+        // ruleset; we just log the error.
         _currentStage = "ruleset";
         progress?.Report(new WorldBuildProgress
         {
@@ -453,13 +461,64 @@ public sealed class WorldBuilderOrchestrator
         });
         await Task.Yield();
         ct.ThrowIfCancellationRequested();
-        progress?.Report(new WorldBuildProgress
+        if (IsNonFantasyTheme(plan.Theme))
         {
-            Stage = "ruleset",
-            Status = ProgressStatus.Done,
-            Label = "Правила установлены (DnD 5e по умолчанию)",
-            Percent = 25,
-        });
+            try
+            {
+                var overlay = await RunRulesetDesignerAsync(plan, ct).ConfigureAwait(false);
+                if (overlay is not null)
+                {
+                    _world.Ruleset = _world.Ruleset with
+                    {
+                        AttributeNames = overlay.AttributeNames,
+                        ResourcePools = overlay.ResourcePools,
+                        Skills = overlay.Skills,
+                    };
+                    progress?.Report(new WorldBuildProgress
+                    {
+                        Stage = "ruleset",
+                        Status = ProgressStatus.Done,
+                        Label = "Правила мира: кастомная система",
+                        Detail = DescribeRulesetOverlay(overlay),
+                        Percent = 25,
+                    });
+                }
+                else
+                {
+                    progress?.Report(new WorldBuildProgress
+                    {
+                        Stage = "ruleset",
+                        Status = ProgressStatus.Done,
+                        Label = "Правила установлены (DnD 5e по умолчанию)",
+                        Detail = "AI вернул пустой ruleset — использованы стандартные правила.",
+                        Percent = 25,
+                    });
+                }
+            }
+            catch (OperationCanceledException) { throw; }
+            catch (AiException ex)
+            {
+                // Non-fatal: fall back to DefaultDnd.
+                progress?.Report(new WorldBuildProgress
+                {
+                    Stage = "ruleset",
+                    Status = ProgressStatus.Error,
+                    Label = "Не удалось спроектировать ruleset — использованы стандартные правила",
+                    Detail = ex.Message,
+                    Percent = 25,
+                });
+            }
+        }
+        else
+        {
+            progress?.Report(new WorldBuildProgress
+            {
+                Stage = "ruleset",
+                Status = ProgressStatus.Done,
+                Label = "Правила установлены (DnD 5e по умолчанию)",
+                Percent = 25,
+            });
+        }
 
         // Pause-checkpoint after ruleset.
         await WaitIfPausedAsync(ct).ConfigureAwait(false);
@@ -742,6 +801,743 @@ public sealed class WorldBuilderOrchestrator
         };
     }
 
+    // ─── Chunked generation: on-demand region fill (issue #20) ──────────
+
+    /// <summary>
+    /// Generate a cold region on-demand. Used by the travel handler when
+    /// the player crosses into a region that wasn't detailed by the
+    /// initial planner pass (chunked mode). Reuses the original
+    /// <see cref="WorldPlan"/> (stashed on the save's
+    /// <see cref="SaveMeta.OriginalPlanJson"/>) so the new region matches
+    /// the world's established lore; asks the AI to detail the region's
+    /// locations, NPCs, and buildings; commits via
+    /// <see cref="WorldBuilderCommitter"/> (idempotent — won't duplicate
+    /// existing locations); marks the region GenStatus="ready" in
+    /// <see cref="World.Flags"/>.
+    /// </summary>
+    /// <param name="regionName">Name of the cold region to generate
+    /// (must match a <see cref="PlanRegion.Name"/> in the original plan).</param>
+    /// <param name="originalPlan">The original <see cref="WorldPlan"/>
+    /// from the initial build (reloaded from
+    /// <see cref="SaveMeta.OriginalPlanJson"/> by the caller). Null
+    /// triggers a graceful no-op return — the travel handler logs the
+    /// skip.</param>
+    /// <param name="progress">Optional progress callback (the travel UI
+    /// shows a "Генерация региона…" overlay while this runs).</param>
+    /// <param name="ct">Cancellation token (travel overlay Cancel button).</param>
+    /// <returns>A <see cref="RegionGenerationResult"/> with the count of
+    /// new locations / NPCs / buildings committed and any errors. The
+    /// <see cref="RegionGenerationResult.Success"/> flag is false on AI
+    /// failure or when the region name doesn't match a cold region in
+    /// the plan.</returns>
+    public async Task<RegionGenerationResult> GenerateRegionAsync(
+        string regionName,
+        WorldPlan? originalPlan,
+        IProgress<WorldBuildProgress>? progress = null,
+        CancellationToken ct = default)
+    {
+        if (string.IsNullOrWhiteSpace(regionName))
+            return new RegionGenerationResult { Success = false, Error = "empty region name" };
+        if (originalPlan is null)
+            return new RegionGenerationResult { Success = false, Error = "no original plan available" };
+
+        // Find the region in the original plan. If it's already marked
+        // "ready", this is a no-op (idempotent — the travel handler may
+        // double-call after a race).
+        var region = (originalPlan.Regions ?? new())
+            .FirstOrDefault(r => string.Equals(r.Name, regionName, StringComparison.OrdinalIgnoreCase));
+        if (region is null)
+            return new RegionGenerationResult { Success = false, Error = $"region «{regionName}» not found in plan" };
+        if (string.Equals(region.GenStatus, "ready", StringComparison.OrdinalIgnoreCase))
+            return new RegionGenerationResult { Success = true, AlreadyReady = true, Summary = "region already ready" };
+
+        // Check World.Flags for an existing "ready" marker — the region
+        // may have been generated by a previous call in this session.
+        if (_world.Flags is not null
+            && _world.Flags.TryGetValue("readyRegions", out var rr)
+            && rr is System.Text.Json.JsonElement je && je.ValueKind == System.Text.Json.JsonValueKind.Array)
+        {
+            var existingReady = je.EnumerateArray()
+                .Select(e => e.GetString())
+                .Where(s => !string.IsNullOrWhiteSpace(s))
+                .ToList();
+            if (existingReady.Any(n => string.Equals(n, regionName, StringComparison.OrdinalIgnoreCase)))
+                return new RegionGenerationResult { Success = true, AlreadyReady = true, Summary = "region already ready" };
+        }
+
+        progress?.Report(new WorldBuildProgress
+        {
+            Stage = "region",
+            Status = ProgressStatus.Active,
+            Label = $"Генерация региона «{regionName}»",
+            Detail = "Запрос к планировщику…",
+            Percent = 30,
+        });
+
+        // Build the focused planner prompt. We give the AI:
+        //   - the world title + theme + setting + atmosphere
+        //   - the cold region's high-level description from the plan
+        //   - the names of existing locations on the boundary (so the
+        //     AI can connect new locations to them)
+        var worldTitle = originalPlan.Title;
+        var theme = originalPlan.Theme;
+        var boundaryLocs = _world.Locations
+            .Where(l => l.Discovered)
+            .Select(l => l.Name)
+            .Take(20)
+            .ToList();
+        var boundaryBlock = boundaryLocs.Count > 0
+            ? string.Join(", ", boundaryLocs)
+            : "(нет видимых пограничных локаций — соедини с любой существующей)";
+
+        var systemPrompt =
+            "Ты — Продолжатель Мира. Игрок подошёл к границе нового региона в уже существующем мире. " +
+            "Сгенерируй локации, NPC и здания для этого региона и соедини их с пограничными локациями. " +
+            "Работай на русском. Верни ТОЛЬКО JSON-объект PartialWorldPlan в блоке ```json ... ```. " +
+            "Без другого текста.\n\n" +
+            "Формат JSON:\n" +
+            "```json\n" +
+            "{\n" +
+            "  \"locations\": [{\"name\":\"...\",\"terrain\":\"...\",\"danger\":N,\"role\":\"settlement\", " +
+            "\"description\":\"...\",\"connections\":[\"<имя существующей пограничной локации>\"], " +
+            "\"directionFromHub\":\"<направление>\",\"region\":\"<имя региона>\"}],\n" +
+            "  \"npcs\": [{\"name\":\"...\",\"template\":\"<customNpcTemplate.Id или стандартный>\"," +
+            "\"location\":\"<имя локации из locations>\",\"role\":\"...\",\"disposition\":\"...\"," +
+            "\"behavior\":\"...\",\"level\":N,\"notes\":\"...\"}],\n" +
+            "  \"buildings\": [{\"template\":\"<customBuildingTemplate.Id или стандартный>\"," +
+            "\"location\":\"<имя локации>\",\"nameOverride\":\"...\"}],\n" +
+            "  \"customNpcTemplates\": [...],\n" +
+            "  \"customItemTemplates\": [...],\n" +
+            "  \"customBuildingTemplates\": [...]\n" +
+            "}\n" +
+            "```\n" +
+            "Все новые локации должны иметь field region равным имени генерируемого региона. " +
+            "В connections указывай ИМЕНА существующих локаций (из списка границы) — иначе выход не подключится.";
+
+        var userPrompt =
+            $"Сгенерируй локации, NPC, здания для региона «{regionName}» мира «{worldTitle}».\n" +
+            $"Тема мира: {theme}. Сеттинг: {originalPlan.Setting}. Атмосфера: {originalPlan.Atmosphere}.\n" +
+            $"Описание региона из плана: тип={region.Type}, климат={region.Climate}, " +
+            $"население={region.Population}, экономика={region.Economy}, политика={region.Politics}, " +
+            $"культура={region.Culture}.\n" +
+            $"Существующие локации на границе: {boundaryBlock}.\n" +
+            $"Соедини новые локации с границей (минимум один выход к существующей локации).\n" +
+            "Верни JSON-объект PartialWorldPlan в блоке ```json ... ```.";
+
+        var messages = new List<ChatMessage>
+        {
+            ChatMessage.System(systemPrompt),
+            ChatMessage.User(userPrompt),
+        };
+
+        var plannerAi = _aiSettings is null ? _ai : _ai.WithModel(_aiSettings.GetModelForRole(AiRole.Planner));
+        ChatResponse response;
+        try
+        {
+            response = await plannerAi.ChatAsync(messages, ct).ConfigureAwait(false);
+        }
+        catch (AiException ex)
+        {
+            return new RegionGenerationResult { Success = false, Error = $"planner AI: {ex.Message}" };
+        }
+
+        var json = ExtractJsonBlock(response.Content ?? string.Empty);
+        if (string.IsNullOrWhiteSpace(json))
+            return new RegionGenerationResult { Success = false, Error = "planner returned no JSON block" };
+
+        // Parse the partial plan. We deserialize into a WorldPlan (the
+        // partial plan only fills Locations/Npcs/Buildings/Custom* fields;
+        // the required Title/Theme/Setting/Atmosphere/StartingHook fields
+        // are missing, so we use a permissive parse + manual fill).
+        WorldPlan? partial;
+        try
+        {
+            var opts = new System.Text.Json.JsonSerializerOptions
+            {
+                PropertyNamingPolicy = System.Text.Json.JsonNamingPolicy.CamelCase,
+                PropertyNameCaseInsensitive = true,
+            };
+            // Wrap the partial JSON in a full-plan shell so the required
+            // fields are present. The wrapper's Title/Theme/etc. come from
+            // the original plan; the partial's Locations/Npcs/Buildings
+            // override the wrapper's empty lists via a merge step.
+            using var doc = System.Text.Json.JsonDocument.Parse(json);
+            var merged = new JsonObject();
+            merged["title"] = originalPlan.Title;
+            merged["theme"] = originalPlan.Theme;
+            merged["setting"] = originalPlan.Setting;
+            merged["atmosphere"] = originalPlan.Atmosphere;
+            merged["startingHook"] = originalPlan.StartingHook;
+            merged["generationMode"] = "chunked";
+            foreach (var prop in doc.RootElement.EnumerateObject())
+            {
+                merged[prop.Name] = JsonSerializer.Deserialize<JsonNode>(prop.Value.GetRawText());
+            }
+            partial = System.Text.Json.JsonSerializer.Deserialize<WorldPlan>(merged, opts);
+            if (partial is null)
+                return new RegionGenerationResult { Success = false, Error = "partial plan deserialized to null" };
+        }
+        catch (System.Text.Json.JsonException ex)
+        {
+            return new RegionGenerationResult { Success = false, Error = $"partial plan JSON malformed: {ex.Message}" };
+        }
+
+        // Tag all parsed locations with the target region (defensive —
+        // the planner should already set region=regionName, but LLMs
+        // don't always comply).
+        partial = partial with
+        {
+            Locations = (partial.Locations ?? new())
+                .Select(pl => string.IsNullOrWhiteSpace(pl.Region)
+                    ? pl with { Region = regionName }
+                    : pl)
+                .ToList(),
+        };
+
+        progress?.Report(new WorldBuildProgress
+        {
+            Stage = "region",
+            Status = ProgressStatus.Active,
+            Label = $"Генерация региона «{regionName}»",
+            Detail = $"Получено {partial.Locations.Count} локаций, {partial.Npcs.Count} NPC, {partial.Buildings.Count} зданий. Коммит…",
+            Percent = 70,
+        });
+
+        // Commit via the WorldBuilderCommitter. It's idempotent — won't
+        // duplicate locations/NPCs that already exist by name. We pass
+        // the partial plan with GenerationMode="chunked" so the
+        // committer's CommitLocations correctly filters (the region is
+        // not in coldRegions anymore since we'll mark it ready after
+        // commit; the committer's filter is: skip if Region is in
+        // coldRegions. Since regionName was in coldRegions, the filter
+        // would WRONGLY skip the new locations. So we clear
+        // coldRegions/readyRegions on the world BEFORE committing, then
+        // re-set them with regionName moved to readyRegions.)
+        if (_world.Flags is not null && _world.Flags.ContainsKey("coldRegions"))
+        {
+            var cold = ReadFlagStringList(_world.Flags, "coldRegions");
+            cold = cold.Where(n => !string.Equals(n, regionName, StringComparison.OrdinalIgnoreCase)).ToList();
+            _world.Flags["coldRegions"] = cold;
+        }
+
+        var committer = new WorldBuilderCommitter(_world);
+        var stats = new CommitStats();
+        // Re-set GenerationMode to null on the partial plan so the
+        // committer treats ALL locations as committable (we've already
+        // removed regionName from coldRegions; the partial plan's other
+        // regions don't matter here).
+        var commitPlan = partial with { GenerationMode = null };
+        committer.CommitCustomTemplates(commitPlan, stats);
+        committer.CommitLocations(commitPlan, stats);
+        committer.CommitPopulation(commitPlan, stats);
+        committer.CommitBuildings(commitPlan, stats);
+
+        // Mark the region ready in World.Flags (move it to readyRegions).
+        if (_world.Flags is null) _world.Flags = new();
+        var readyList = ReadFlagStringList(_world.Flags, "readyRegions");
+        if (!readyList.Any(n => string.Equals(n, regionName, StringComparison.OrdinalIgnoreCase)))
+            readyList.Add(regionName);
+        _world.Flags["readyRegions"] = readyList;
+
+        progress?.Report(new WorldBuildProgress
+        {
+            Stage = "region",
+            Status = ProgressStatus.Done,
+            Label = $"Регион «{regionName}» готов",
+            Detail = stats.Summary(),
+            Percent = 100,
+        });
+
+        return new RegionGenerationResult
+        {
+            Success = true,
+            LocationsAdded = stats.Locations,
+            NpcsAdded = stats.Npcs,
+            BuildingsAdded = stats.Buildings,
+            Errors = stats.Errors,
+            Summary = stats.Summary(),
+        };
+    }
+
+    /// <summary>
+    /// Result of <see cref="GenerateRegionAsync"/>. Returned to the
+    /// travel handler so it can log what was added (and surface any
+    /// errors to the player via the in-game log).
+    /// </summary>
+    public sealed record RegionGenerationResult
+    {
+        public bool Success { get; init; }
+        public bool AlreadyReady { get; init; }
+        public int LocationsAdded { get; init; }
+        public int NpcsAdded { get; init; }
+        public int BuildingsAdded { get; init; }
+        public List<string> Errors { get; init; } = new();
+        public string? Error { get; init; }
+        public string? Summary { get; init; }
+    }
+
+    /// <summary>
+    /// Read a <c>World.Flags</c> string-list entry into a fresh
+    /// <see cref="List{T}"/>. Tolerates values stored as either a
+    /// <see cref="string"/> (single-item, treated as a one-element list)
+    /// or a <see cref="System.Text.Json.JsonElement"/> array (the form
+    /// produced by JSON serialization). Returns an empty list when the
+    /// key is missing or the value shape is unrecognized.
+    /// </summary>
+    private static List<string> ReadFlagStringList(
+        System.Collections.Generic.Dictionary<string, object>? flags, string key)
+    {
+        if (flags is null) return new();
+        if (!flags.TryGetValue(key, out var v) || v is null) return new();
+        switch (v)
+        {
+            case string s:
+                return string.IsNullOrWhiteSpace(s) ? new() : new() { s };
+            case System.Collections.IEnumerable e when v is not string:
+                var result = new List<string>();
+                foreach (var item in e)
+                {
+                    if (item is string ss && !string.IsNullOrWhiteSpace(ss)) result.Add(ss);
+                    else if (item is System.Text.Json.JsonElement je && je.ValueKind == System.Text.Json.JsonValueKind.String)
+                    {
+                        var sv = je.GetString();
+                        if (!string.IsNullOrWhiteSpace(sv)) result.Add(sv);
+                    }
+                }
+                return result;
+            default:
+                return new();
+        }
+    }
+
+    // ─── Rebuild existing world (issue #23) ──────────────────────────────
+
+    /// <summary>
+    /// Rebuild options for <see cref="RebuildAsync"/>. Each flag selects
+    /// a category to regenerate. <see cref="FullRebuild"/> is the only
+    /// destructive option — it discards all existing entities and
+    /// regenerates from scratch. The partial flags are additive: the
+    /// existing world is preserved, the AI generates additional content
+    /// in the selected categories, and the committer (idempotent)
+    /// commits only the new entries.
+    /// </summary>
+    public sealed record RebuildOptions
+    {
+        /// <summary>Regenerate locations (additive — keeps existing).</summary>
+        public bool Locations { get; init; }
+        /// <summary>Regenerate population (additive — keeps existing NPCs).</summary>
+        public bool Npcs { get; init; }
+        /// <summary>Regenerate loot/items (additive — keeps existing).</summary>
+        public bool Items { get; init; }
+        /// <summary>Re-write the opening narration from the current state.</summary>
+        public bool Narration { get; init; }
+        /// <summary>
+        /// Full rebuild — discard all entities and regenerate from
+        /// scratch. The only destructive option.
+        /// </summary>
+        public bool FullRebuild { get; init; }
+    }
+
+    /// <summary>
+    /// Rebuild an existing world. Loads the save's World + meta, applies
+    /// the requested categories (additive for partial flags, destructive
+    /// for <see cref="RebuildOptions.FullRebuild"/>), runs the planner +
+    /// committer + narrator as needed, persists the result back to the
+    /// same saveId via the supplied <paramref name="saveManager"/>.
+    /// </summary>
+    /// <param name="saveManager">Save manager (used to load + persist the
+    /// world). Caller passes the live SaveManager so the orchestrator
+    /// doesn't take a direct dependency on the filesystem layout.</param>
+    /// <param name="saveId">Existing save id to rebuild.</param>
+    /// <param name="options">Which categories to regenerate.</param>
+    /// <param name="brief">Optional rebuild brief. When empty, the
+    /// orchestrator falls back to the world's original theme/setting
+    /// from <see cref="World.Flags"/>.</param>
+    /// <param name="log">Existing log entries (preserved on partial
+    /// rebuilds; replaced on full rebuild). Null = empty log.</param>
+    /// <param name="progress">Optional progress callback.</param>
+    /// <param name="ct">Cancellation token.</param>
+    /// <returns>A <see cref="RebuildResult"/> with the final plan (if
+    /// the planner ran), the new narration (if the narrator ran), the
+    /// commit stats, and a summary.</returns>
+    public async Task<RebuildResult> RebuildAsync(
+        SaveManager saveManager,
+        string saveId,
+        RebuildOptions options,
+        string? brief = null,
+        LogEntry[]? log = null,
+        IProgress<WorldBuildProgress>? progress = null,
+        CancellationToken ct = default)
+    {
+        if (saveManager is null) throw new ArgumentNullException(nameof(saveManager));
+        if (string.IsNullOrWhiteSpace(saveId))
+            return new RebuildResult { Success = false, Error = "empty saveId" };
+        if (options is null) throw new ArgumentNullException(nameof(options));
+
+        var loaded = saveManager.LoadAll(saveId);
+        if (loaded is null)
+            return new RebuildResult { Success = false, Error = $"save «{saveId}» not found" };
+        var (world, meta, existingLog) = loaded.Value;
+
+        // Resolve the rebuild brief: explicit > original theme/setting
+        // (stashed on World.Flags by CommitTitle) > generic fallback.
+        var rebuildBrief = string.IsNullOrWhiteSpace(brief)
+            ? ResolveOriginalBrief(world)
+            : brief.Trim();
+        var logEntries = log ?? existingLog ?? Array.Empty<LogEntry>();
+
+        // Full rebuild: discard all entities + reset the player. This is
+        // the only destructive path — it discards the player's progress.
+        if (options.FullRebuild)
+        {
+            progress?.Report(new WorldBuildProgress
+            {
+                Stage = "rebuild",
+                Status = ProgressStatus.Active,
+                Label = "Полный пересбор мира",
+                Detail = "Очистка существующего мира…",
+                Percent = 5,
+            });
+
+            var seed = world.Seed;
+            var registries = world.Registries;
+            world.Players.Clear();
+            world.Npcs.Clear();
+            world.Items.Clear();
+            world.Buildings.Clear();
+            world.Locations.Clear();
+            world.Quests.Clear();
+            world.Flags = new();
+            world.Combat = null;
+            world.Turn = 0;
+            world.Rng = Rng.FromState(seed);
+            world.Ruleset = Rulesets.DefaultDnd;
+
+            // Run a full build (planner → ruleset → committer → narrator)
+            // using the rebuild brief. We reuse RunAsync by setting up
+            // the orchestrator state to a fresh plan.
+            _currentPlan = null;
+            _currentStage = "planning";
+            _currentIteration = 0;
+            _loadedStage = null;
+
+            var request = new WorldPlanRequest { Brief = rebuildBrief };
+            var runResult = await RunAsync(request, progress, ct).ConfigureAwait(false);
+
+            if (runResult.Kind != WorldBuilderResultKind.Complete)
+            {
+                return new RebuildResult
+                {
+                    Success = false,
+                    Error = $"full rebuild failed: {runResult.Summary}",
+                };
+            }
+
+            // Persist the rebuilt world. Use the existing log (or empty).
+            var newNarration = runResult.OpeningNarration;
+            var newLog = newNarration is null
+                ? logEntries
+                : new[] { LogEntry.Narrative(newNarration, authorId: null) }
+                    .Concat(logEntries.Where(l => l.Kind != "narrative"))
+                    .ToArray();
+            var updatedMeta = meta with { BuildStatus = BuildStatus.Done };
+            saveManager.SaveAll(saveId, world, updatedMeta, newLog);
+
+            return new RebuildResult
+            {
+                Success = true,
+                Plan = runResult.Plan,
+                OpeningNarration = newNarration,
+                Stats = runResult.Stats,
+                Summary = $"Полный пересбор завершён. {runResult.Summary}",
+            };
+        }
+
+        // Partial rebuild: additive. Run the planner with a prompt that
+        // shows the existing state + asks for additions in the selected
+        // categories. The committer is idempotent — only new entries are
+        // added. Narration-only rebuild skips the planner entirely.
+        string? narration2 = null;
+        CommitStats? stats2 = null;
+        WorldPlan? plan2 = null;
+
+        if (options.Locations || options.Npcs || options.Items)
+        {
+            progress?.Report(new WorldBuildProgress
+            {
+                Stage = "rebuild",
+                Status = ProgressStatus.Active,
+                Label = "Партиальный пересбор",
+                Detail = "Запрос к планировщику…",
+                Percent = 20,
+            });
+
+            var cats = new List<string>();
+            if (options.Locations) cats.Add("новые локации");
+            if (options.Npcs) cats.Add("дополнительные NPC");
+            if (options.Items) cats.Add("новые предметы");
+            var catsBlock = string.Join(", ", cats);
+
+            var stateSummary = BuildRebuildStateSummary(world);
+            var systemPrompt =
+                "Ты — Достраиватель Мира. Игрок попросил дополнить существующий мир. " +
+                "Работай на русском. НЕ удаляй и не изменяй существующее — только добавляй. " +
+                "Верни ТОЛЬКО JSON-объект PartialWorldPlan в блоке ```json ... ```. " +
+                "Без другого текста.\n\n" +
+                "Формат JSON: {\"locations\":[...],\"npcs\":[...],\"buildings\":[...]," +
+                "\"customNpcTemplates\":[...],\"customItemTemplates\":[...]," +
+                "\"customBuildingTemplates\":[...],\"starterGear\":[...],\"starterCurrency\":N}.";
+
+            var userPrompt =
+                $"Существующий мир:\n{stateSummary}\n\n" +
+                $"Дополнительно сгенерируй: {catsBlock}.\n" +
+                $"Бриф для перестройки: {rebuildBrief}\n" +
+                "Не удаляй существующее. Новые локации соедини с существующими (укажи их имена в connections). " +
+                "Имена новых сущностей не должны совпадать с уже существующими. " +
+                "Верни JSON-объект PartialWorldPlan в блоке ```json ... ```.";
+
+            var messages = new List<ChatMessage>
+            {
+                ChatMessage.System(systemPrompt),
+                ChatMessage.User(userPrompt),
+            };
+
+            var plannerAi = _aiSettings is null ? _ai : _ai.WithModel(_aiSettings.GetModelForRole(AiRole.Planner));
+            ChatResponse response;
+            try
+            {
+                response = await plannerAi.ChatAsync(messages, ct).ConfigureAwait(false);
+            }
+            catch (AiException ex)
+            {
+                return new RebuildResult { Success = false, Error = $"planner AI: {ex.Message}" };
+            }
+
+            var json = ExtractJsonBlock(response.Content ?? string.Empty);
+            if (string.IsNullOrWhiteSpace(json))
+                return new RebuildResult { Success = false, Error = "planner returned no JSON block" };
+
+            try
+            {
+                var opts = new System.Text.Json.JsonSerializerOptions
+                {
+                    PropertyNamingPolicy = System.Text.Json.JsonNamingPolicy.CamelCase,
+                    PropertyNameCaseInsensitive = true,
+                };
+                // Wrap into a full-plan shell (same trick as
+                // GenerateRegionAsync — the partial JSON only fills the
+                // collection fields).
+                var worldTitle = (world.Flags is not null && world.Flags.TryGetValue("worldTitle", out var wt) && wt is string wts)
+                    ? wts : (meta.WorldTitle ?? "Мир");
+                var worldTheme = (world.Flags is not null && world.Flags.TryGetValue("worldTheme", out var th) && th is string ths)
+                    ? ths : "custom";
+                var worldSetting = (world.Flags is not null && world.Flags.TryGetValue("worldSetting", out var st) && st is string sts)
+                    ? sts : "";
+                var worldAtm = (world.Flags is not null && world.Flags.TryGetValue("worldAtmosphere", out var at) && at is string ats)
+                    ? ats : "";
+                var worldHook = (world.Flags is not null && world.Flags.TryGetValue("startingHook", out var hk) && hk is string hks)
+                    ? hks : "";
+
+                using var doc = System.Text.Json.JsonDocument.Parse(json);
+                var merged = new JsonObject();
+                merged["title"] = worldTitle;
+                merged["theme"] = worldTheme;
+                merged["setting"] = worldSetting;
+                merged["atmosphere"] = worldAtm;
+                merged["startingHook"] = worldHook;
+                foreach (var prop in doc.RootElement.EnumerateObject())
+                {
+                    merged[prop.Name] = JsonSerializer.Deserialize<JsonNode>(prop.Value.GetRawText());
+                }
+                plan2 = System.Text.Json.JsonSerializer.Deserialize<WorldPlan>(merged, opts);
+                if (plan2 is null)
+                    return new RebuildResult { Success = false, Error = "partial plan deserialized to null" };
+            }
+            catch (System.Text.Json.JsonException ex)
+            {
+                return new RebuildResult { Success = false, Error = $"partial plan JSON malformed: {ex.Message}" };
+            }
+
+            progress?.Report(new WorldBuildProgress
+            {
+                Stage = "rebuild",
+                Status = ProgressStatus.Active,
+                Label = "Коммит дополнений",
+                Detail = $"Получено: {plan2!.Locations.Count} локаций, {plan2.Npcs.Count} NPC, {plan2.Buildings.Count} зданий",
+                Percent = 60,
+            });
+
+            // Commit additively. The committer's idempotency (match by
+            // name) keeps existing entities intact; only new ones are added.
+            var committer = new WorldBuilderCommitter(world);
+            stats2 = new CommitStats();
+            committer.CommitCustomTemplates(plan2, stats2);
+            committer.CommitLocations(plan2, stats2);
+            committer.CommitPopulation(plan2, stats2);
+            committer.CommitBuildings(plan2, stats2);
+            if (options.Items)
+            {
+                committer.CommitContent(plan2, stats2);
+            }
+        }
+
+        if (options.Narration)
+        {
+            progress?.Report(new WorldBuildProgress
+            {
+                Stage = "rebuild",
+                Status = ProgressStatus.Active,
+                Label = "Переписываем вступление",
+                Percent = 80,
+            });
+
+            // Re-run the narrator with the current world state.
+            var narrPlan = plan2 ?? new WorldPlan
+            {
+                Title = meta.WorldTitle ?? "Мир",
+                Theme = TryGetFlag(world.Flags, "worldTheme") ?? "custom",
+                Setting = TryGetFlag(world.Flags, "worldSetting") ?? "",
+                Atmosphere = TryGetFlag(world.Flags, "worldAtmosphere") ?? "",
+                StartingHook = TryGetFlag(world.Flags, "startingHook") ?? "",
+            };
+            try
+            {
+                narration2 = await RunNarratorAsync(narrPlan, progress, ct).ConfigureAwait(false);
+            }
+            catch (OperationCanceledException) { throw; }
+            catch (AiException ex)
+            {
+                // Non-fatal — narration is best-effort.
+                progress?.Report(new WorldBuildProgress
+                {
+                    Stage = "rebuild",
+                    Status = ProgressStatus.Error,
+                    Label = "Не удалось переписать вступление",
+                    Detail = ex.Message,
+                    Percent = 90,
+                });
+            }
+        }
+
+        // Persist the rebuilt world. On a narration-only rebuild, the
+        // new narration replaces any existing narrative log entries.
+        LogEntry[] finalLog;
+        if (narration2 is null)
+        {
+            finalLog = logEntries;
+        }
+        else
+        {
+            finalLog = new[] { LogEntry.Narrative(narration2, authorId: null) }
+                .Concat(logEntries.Where(l => l.Kind != "narrative"))
+                .ToArray();
+        }
+
+        var rebuiltMeta = meta with { BuildStatus = BuildStatus.Done };
+        saveManager.SaveAll(saveId, world, rebuiltMeta, finalLog);
+
+        progress?.Report(new WorldBuildProgress
+        {
+            Stage = "rebuild",
+            Status = ProgressStatus.Done,
+            Label = "Перестройка завершена",
+            Detail = stats2?.Summary() ?? (narration2 is null ? "без изменений" : "только наррация"),
+            Percent = 100,
+        });
+
+        var summary = stats2 is null
+            ? (narration2 is null ? "Ничего не сделано." : "Наррация обновлена.")
+            : $"Добавлено: {stats2.Summary()}" + (narration2 is null ? "" : " Наррация обновлена.");
+        return new RebuildResult
+        {
+            Success = true,
+            Plan = plan2,
+            OpeningNarration = narration2,
+            Stats = stats2,
+            Summary = summary,
+        };
+    }
+
+    /// <summary>
+    /// Build a short text summary of the current world state for the
+    /// rebuild planner prompt. Lists existing location names, NPC names,
+    /// building names (capped at 20 each to keep the prompt bounded).
+    /// </summary>
+    private static string BuildRebuildStateSummary(GameWorld world)
+    {
+        var sb = new StringBuilder();
+        sb.AppendLine($"# Существующий мир");
+        sb.AppendLine($"Локаций: {world.Locations.Count} | NPC: {world.Npcs.Count} | Зданий: {world.Buildings.Count}");
+        if (world.Locations.Count > 0)
+        {
+            sb.AppendLine("Существующие локации:");
+            foreach (var l in world.Locations.Take(20))
+                sb.AppendLine($"- {l.Name} ({l.Terrain}, опасность {l.Danger})");
+        }
+        if (world.Npcs.Count > 0)
+        {
+            sb.AppendLine("Существующие NPC:");
+            foreach (var n in world.Npcs.Take(20))
+                sb.AppendLine($"- {n.Name} [{n.TemplateId}] @ {world.GetLocation(n.LocationId)?.Name ?? "?"}");
+        }
+        if (world.Buildings.Count > 0)
+        {
+            sb.AppendLine("Существующие здания:");
+            foreach (var b in world.Buildings.Take(20))
+                sb.AppendLine($"- {b.Name} [{b.TemplateId}] @ {world.GetLocation(b.LocationId)?.Name ?? "?"}");
+        }
+        return sb.ToString();
+    }
+
+    /// <summary>
+    /// Resolve the original brief from World.Flags. Reconstructs a
+    /// human-readable brief from the stashed worldTitle/worldTheme/
+    /// worldSetting/worldAtmosphere/startingHook flags (set by
+    /// CommitTitle). Used when the rebuild caller passes no explicit
+    /// brief — we want the rebuild to stay on-theme with the original.
+    /// </summary>
+    private static string ResolveOriginalBrief(GameWorld world)
+    {
+        var title = TryGetFlag(world.Flags, "worldTitle") ?? "";
+        var theme = TryGetFlag(world.Flags, "worldTheme") ?? "";
+        var setting = TryGetFlag(world.Flags, "worldSetting") ?? "";
+        var atmosphere = TryGetFlag(world.Flags, "worldAtmosphere") ?? "";
+        var hook = TryGetFlag(world.Flags, "startingHook") ?? "";
+        var sb = new StringBuilder();
+        if (!string.IsNullOrWhiteSpace(title)) sb.AppendLine($"Название мира: {title}");
+        if (!string.IsNullOrWhiteSpace(theme)) sb.AppendLine($"Тема: {theme}");
+        if (!string.IsNullOrWhiteSpace(setting)) sb.AppendLine($"Сеттинг: {setting}");
+        if (!string.IsNullOrWhiteSpace(atmosphere)) sb.AppendLine($"Атмосфера: {atmosphere}");
+        if (!string.IsNullOrWhiteSpace(hook)) sb.AppendLine($"Сюжетный крючок: {hook}");
+        return sb.Length == 0 ? "(без брифа — сгенерируй дополнения по своему усмотрению)" : sb.ToString();
+    }
+
+    /// <summary>
+    /// Best-effort string extraction from a World.Flags entry. Tolerates
+    /// both raw strings (in-memory) and JsonElement values (after a save
+    /// round-trip). Returns null when missing or non-string.
+    /// </summary>
+    private static string? TryGetFlag(System.Collections.Generic.Dictionary<string, object>? flags, string key)
+    {
+        if (flags is null) return null;
+        if (!flags.TryGetValue(key, out var v) || v is null) return null;
+        if (v is string s) return s;
+        if (v is System.Text.Json.JsonElement je && je.ValueKind == System.Text.Json.JsonValueKind.String)
+            return je.GetString();
+        return v.ToString();
+    }
+
+    /// <summary>Result of <see cref="RebuildAsync"/>.</summary>
+    public sealed record RebuildResult
+    {
+        public bool Success { get; init; }
+        public WorldPlan? Plan { get; init; }
+        public string? OpeningNarration { get; init; }
+        public CommitStats? Stats { get; init; }
+        public string? Summary { get; init; }
+        public string? Error { get; init; }
+    }
+
     /// <summary>
     /// Stage 1: call the planner. Loads the <c>world-planner.md</c> prompt,
     /// fills in <c>{{WORLD_BRIEF}}</c> + <c>{{WORLD_STATE}}</c> +
@@ -763,13 +1559,36 @@ public sealed class WorldBuilderOrchestrator
         CancellationToken ct)
     {
         var systemPrompt = BuildPlannerPrompt(request.Brief);
+
+        // Issue #20 (chunked generation): if the request specifies a
+        // generation mode, tell the planner. In chunked mode the planner
+        // should ONLY detail the start region's locations / NPCs / buildings;
+        // other regions go into plan.Regions with GenStatus="cold" (no
+        // locations). The committer skips cold-region locations; the
+        // travel handler generates them on-demand via
+        // GenerateRegionAsync.
+        var modeInstruction = string.Equals(request.GenerationMode, "chunked", StringComparison.OrdinalIgnoreCase)
+            ? "\n\nРЕЖИМ ГЕНЕРАЦИИ: по регионам (chunked). " +
+              "В плане подробно опиши ТОЛЬКО стартовую область: её локации, NPC, здания " +
+              "и выходы на границу региона. Остальные регионы перечисли в plan.regions с " +
+              "полем genStatus=\"cold\" — без локаций, только общее описание (тип, климат, " +
+              "население, экономика, политика, культура). Для стартового региона установи " +
+              "genStatus=\"ready\" и containsStart=true. Установи plan.generationMode=\"chunked\". " +
+              "Соедини стартовые локации выходами между собой. ДОПОЛНИТЕЛЬНО добавь 1-2 выхода " +
+              "из пограничных стартовых локаций на холодные регионы: в connections укажи ИМЯ " +
+              "региона (не локации) — движок создаст фантомный выход, который запустит " +
+              "генерацию региона когда игрок к нему приблизится."
+            : string.IsNullOrWhiteSpace(request.GenerationMode)
+                ? ""
+                : $"\n\nРЕЖИМ ГЕНЕРАЦИИ: {request.GenerationMode}.";
+
         var messages = new List<ChatMessage>
         {
             ChatMessage.System(systemPrompt),
             ChatMessage.User(
                 "Построй мир по следующему брифу. Верни результат как JSON-объект WorldPlan " +
                 "в блоке ```json ... ```. Без другого текста.\n\n" +
-                $"БРИФ:\n{request.Brief}"),
+                $"БРИФ:\n{request.Brief}{modeInstruction}"),
         };
 
         // Derive a role-specific client for the planner (issue #26).
@@ -791,6 +1610,18 @@ public sealed class WorldBuilderOrchestrator
             };
             var plan = System.Text.Json.JsonSerializer.Deserialize<WorldPlan>(planJson, opts)
                 ?? throw new AiException(AiErrorKind.Parse, "Planner JSON deserialized to null.");
+
+            // Issue #20: enforce the requested generation mode on the
+            // parsed plan. If the planner forgot to set GenerationMode
+            // (or set it wrong), we override it from the request so the
+            // committer + travel handler can rely on it. In chunked mode
+            // we also normalize region genStatus: the start region (the
+            // one with containsStart=true OR the first region if none is
+            // marked) becomes "ready"; all others become "cold".
+            if (string.Equals(request.GenerationMode, "chunked", StringComparison.OrdinalIgnoreCase))
+            {
+                plan = NormalizeChunkedPlan(plan);
+            }
             return plan;
         }
         catch (System.Text.Json.JsonException ex)
@@ -825,6 +1656,73 @@ public sealed class WorldBuilderOrchestrator
         // context to inform its plan structure.
         var guide = _prompts.Get("tools-guide");
         return prompt + "\n\n---\n\n" + guide;
+    }
+
+    /// <summary>
+    /// Normalize a chunked plan after parsing. Ensures:
+    /// <list type="bullet">
+    ///   <item><see cref="WorldPlan.GenerationMode"/> is set to "chunked".</item>
+    ///   <item>Exactly one region is marked <c>genStatus="ready"</c>
+    ///     (the start region). The start region is the one with
+    ///     <see cref="PlanRegion.ContainsStart"/>=true; if none is
+    ///     marked, the first region (if any) is promoted.</item>
+    ///   <item>All other regions are marked <c>genStatus="cold"</c>.</item>
+    ///   <item>Locations with a Region that's now cold are dropped from
+    ///     <see cref="WorldPlan.Locations"/> (the committer would skip
+    ///     them anyway, but dropping keeps the plan consistent for the
+    ///     narrator + saves).</item>
+    /// </list>
+    /// </summary>
+    /// <remarks>
+    /// This is defensive — the planner prompt asks for these invariants,
+    /// but LLMs don't always comply. Forcing them on the parsed plan
+    /// keeps the downstream committer + travel handler logic simple
+    /// (they can trust the markers).
+    /// </remarks>
+    private static WorldPlan NormalizeChunkedPlan(WorldPlan plan)
+    {
+        // Force the GenerationMode flag on the plan.
+        plan = plan with { GenerationMode = "chunked" };
+
+        var regions = (plan.Regions ?? new()).ToList();
+        if (regions.Count == 0)
+        {
+            // No regions in the plan — nothing to normalize. The plan
+            // is treated as "all start, no cold regions" (effectively
+            // a full build despite the chunked flag). This is a
+            // graceful fallback for malformed planner output.
+            return plan;
+        }
+
+        // Find the start region: prefer containsStart=true; else the
+        // first region that already has genStatus="ready"; else the
+        // first region in the list.
+        var startIdx = regions.FindIndex(r => (r.ContainsStart ?? false));
+        if (startIdx < 0)
+            startIdx = regions.FindIndex(r => string.Equals(r.GenStatus, "ready", StringComparison.OrdinalIgnoreCase));
+        if (startIdx < 0) startIdx = 0;
+
+        var coldNames = new HashSet<string>(StringComparer.Ordinal);
+        for (int i = 0; i < regions.Count; i++)
+        {
+            var r = regions[i];
+            var status = i == startIdx ? "ready" : "cold";
+            if (!string.Equals(r.GenStatus, status, StringComparison.OrdinalIgnoreCase))
+            {
+                regions[i] = r with { GenStatus = status };
+            }
+            if (i != startIdx && !string.IsNullOrWhiteSpace(regions[i].Name))
+                coldNames.Add(regions[i].Name);
+        }
+
+        // Drop locations that belong to a cold region (defensive — the
+        // committer would skip them anyway, but this keeps the plan
+        // consistent for the narrator + saves).
+        var filteredLocations = (plan.Locations ?? new())
+            .Where(pl => string.IsNullOrWhiteSpace(pl.Region) || !coldNames.Contains(pl.Region))
+            .ToList();
+
+        return plan with { Regions = regions, Locations = filteredLocations };
     }
 
     private string BuildMinimalWorldState()
@@ -1010,5 +1908,134 @@ public sealed class WorldBuilderOrchestrator
             : "нет";
         sb.AppendLine($"Здания: {buildings}");
         return sb.ToString();
+    }
+
+    // ─── Stage 2 helper: ruleset designer (issue #21) ──────────────────
+
+    /// <summary>
+    /// Heuristic: detect non-fantasy themes that warrant a custom ruleset
+    /// overlay. The list covers the genre keywords the planner prompt
+    /// uses (cyberpunk / sci-fi / steampunk / postapoc / horror / modern).
+    /// Standard fantasy themes (dark fantasy / sword &amp; sorcery / high
+    /// fantasy / etc.) fall through and use DefaultDnd as-is.
+    /// </summary>
+    private static bool IsNonFantasyTheme(string? theme)
+    {
+        if (string.IsNullOrWhiteSpace(theme)) return false;
+        var lower = theme.ToLowerInvariant();
+        return lower.Contains("cyber")
+            || lower.Contains("sci-fi") || lower.Contains("scifi") || lower.Contains("sci ")
+            || lower.Contains("steam")
+            || lower.Contains("postapoc") || lower.Contains("post-apoc") || lower.Contains("постапок")
+            || lower.Contains("horror") || lower.Contains("хоррор")
+            || lower.Contains("modern") || lower.Contains("современ")
+            || lower.Contains("space") || lower.Contains("косм")
+            || lower.Contains("cyberpunk") || lower.Contains("кибер");
+    }
+
+    /// <summary>
+    /// Call the ruleset-designer AI for a non-fantasy world. Asks the
+    /// model for a lightweight JSON overlay (custom attribute display
+    /// names + custom resource pool names + custom skill list). Returns
+    /// null when the model doesn't return a valid JSON block (non-fatal
+    /// — the caller falls back to DefaultDnd).
+    /// </summary>
+    private async Task<RulesetDesignOverlay?> RunRulesetDesignerAsync(
+        WorldPlan plan,
+        CancellationToken ct)
+    {
+        var systemPrompt =
+            "Ты — архитектор правил мира. Подбери подходящую систему для не-фэнтезийного мира. " +
+            "Работай на русском. Верни ТОЛЬКО JSON-объект в блоке ```json ... ```. Без другого текста.\n\n" +
+            "Формат JSON:\n" +
+            "```json\n" +
+            "{\n" +
+            "  \"attributeNames\": {\"str\": \"Сила\", \"dex\": \"Ловкость\", \"con\": \"Телосложение\", " +
+            "\"int\": \"Интеллект\", \"wis\": \"Восприятие\", \"cha\": \"Харизма\"},\n" +
+            "  \"resourcePools\": {\"hp\": \"Здоровье\"},\n" +
+            "  \"skills\": [\"атлетика\", \"обман\", \"история\", ...]\n" +
+            "}\n" +
+            "```\n\n" +
+            "Ключи в attributeNames/resourcePools — стандартные (str/dex/con/int/wis/cha и hp/ac). " +
+            "Значения — человекочитаемые имена для UI и для GM-контекста. " +
+            "Список skills — 6-15 ключевых навыков мира (например, для киберпанка: «хакинг», «стрельба», « streetwise», «техника», «обман», «запугивание»). " +
+            "Адаптируй под тему мира; не дублируй стандартный D&D-список вслепую.";
+
+        var userPrompt =
+            $"Разработай ruleset для мира темы «{plan.Theme}». " +
+            $"Название мира: «{plan.Title}». Сеттинг: {plan.Setting}. Атмосфера: {plan.Atmosphere}.\n\n" +
+            "Определи:\n" +
+            "1. Имена характеристик (вместо STR/DEX/CON/INT/WIS/CHA — например для киберпанка: Cool/Edge/Meat/Tech/Luck/Will).\n" +
+            "2. Пулы ресурсов (вместо hp/ac — например stress/cred/humanity для киберпанка, sanity для хоррора).\n" +
+            "3. Список навыков (6-15) под тему мира.\n\n" +
+            "Верни JSON-объект в блоке ```json ... ```.";
+
+        var messages = new List<ChatMessage>
+        {
+            ChatMessage.System(systemPrompt),
+            ChatMessage.User(userPrompt),
+        };
+
+        // Use the planner role's model for the ruleset design (creative
+        // single-shot call — same profile as the planner).
+        var rulesetAi = _aiSettings is null ? _ai : _ai.WithModel(_aiSettings.GetModelForRole(AiRole.Planner));
+        var response = await rulesetAi.ChatAsync(messages, ct).ConfigureAwait(false);
+        var json = ExtractJsonBlock(response.Content ?? string.Empty);
+        if (string.IsNullOrWhiteSpace(json)) return null;
+
+        try
+        {
+            var opts = new System.Text.Json.JsonSerializerOptions
+            {
+                PropertyNamingPolicy = System.Text.Json.JsonNamingPolicy.CamelCase,
+                PropertyNameCaseInsensitive = true,
+            };
+            return System.Text.Json.JsonSerializer.Deserialize<RulesetDesignOverlay>(json, opts);
+        }
+        catch (System.Text.Json.JsonException)
+        {
+            // Malformed JSON — return null so the caller falls back to DefaultDnd.
+            return null;
+        }
+    }
+
+    /// <summary>
+    /// Render a one-line summary of the applied ruleset overlay for the
+    /// progress UI (e.g. «Атрибуты: Cool/Edge/Meat/Tech/Luck/Will · Ресурсы: Stress · Навыков: 8»).
+    /// </summary>
+    private static string DescribeRulesetOverlay(RulesetDesignOverlay overlay)
+    {
+        var sb = new StringBuilder();
+        if (overlay.AttributeNames is { Count: > 0 } an)
+        {
+            sb.Append("Атрибуты: ");
+            sb.Append(string.Join("/", an.Values));
+        }
+        if (overlay.ResourcePools is { Count: > 0 } rp)
+        {
+            if (sb.Length > 0) sb.Append(" · ");
+            sb.Append("Ресурсы: ");
+            sb.Append(string.Join("/", rp.Values));
+        }
+        if (overlay.Skills is { Count: > 0 } sk)
+        {
+            if (sb.Length > 0) sb.Append(" · ");
+            sb.Append($"Навыков: {sk.Count}");
+        }
+        return sb.Length == 0 ? "кастомная система" : sb.ToString();
+    }
+
+    /// <summary>
+    /// Lightweight ruleset design returned by the ruleset-designer AI
+    /// call. Applied as an overlay on top of
+    /// <see cref="Rulesets.DefaultDnd"/> (the underlying attribute /
+    /// resource / formula structure stays D&amp;D 5e; only the display
+    /// names + skill list change). All fields optional.
+    /// </summary>
+    public sealed record RulesetDesignOverlay
+    {
+        public Dictionary<string, string>? AttributeNames { get; init; }
+        public Dictionary<string, string>? ResourcePools { get; init; }
+        public List<string>? Skills { get; init; }
     }
 }

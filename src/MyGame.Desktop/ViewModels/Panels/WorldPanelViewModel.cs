@@ -55,7 +55,19 @@ public partial class WorldPanelViewModel : ObservableObject
         {
             foreach (var exit in loc.Exits)
             {
-                var toName = world.GetLocation(exit.To)?.Name ?? exit.To.ToString();
+                // Issue #20 (chunked generation): phantom exits (cold-region
+                // boundaries) have To=EntityId.Empty and ToName set. Render
+                // them with the ToName + a "⚠" marker so the user knows
+                // clicking it triggers region generation.
+                string toName;
+                if (exit.To == EntityId.Empty && !string.IsNullOrWhiteSpace(exit.ToName))
+                {
+                    toName = exit.ToName + " ⚠";
+                }
+                else
+                {
+                    toName = world.GetLocation(exit.To)?.Name ?? exit.To.ToString();
+                }
                 Exits.Add(new ExitRow(exit.Direction, toName, exit.Locked == true));
             }
 

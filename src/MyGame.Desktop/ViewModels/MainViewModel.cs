@@ -177,9 +177,16 @@ public partial class MainViewModel : ObservableObject
     /// extra AI sub-tasks (mass NPC spawn, batch item creation) that run
     /// after the deterministic committer stage.
     /// </summary>
-    public void NavigateToWorldBuild(string brief, IReadOnlyCollection<MyGame.Core.AI.Agents.PetDelegation>? petDelegations = null)
+    /// <param name="generationMode">Optional generation mode override
+    /// (issue #20): "full" (default) or "chunked". When "chunked", the
+    /// planner only designs the start region; others are generated
+    /// on-demand as the player travels toward them.</param>
+    public void NavigateToWorldBuild(
+        string brief,
+        IReadOnlyCollection<MyGame.Core.AI.Agents.PetDelegation>? petDelegations = null,
+        string? generationMode = null)
     {
-        var vm = new WorldBuildViewModel(_profileStore, _settingsStore, _saveManager, this, brief, petDelegations);
+        var vm = new WorldBuildViewModel(_profileStore, _settingsStore, _saveManager, this, brief, petDelegations, generationMode);
         vm.Title = "Создание мира";
         CurrentView = vm;
         // Auto-start the build on navigation.
@@ -254,6 +261,21 @@ public partial class MainViewModel : ObservableObject
     public Task NavigateToGameAsHost(string saveId)
         => NavigateToGameInternal(saveId, isHost: true, standaloneSinglePlayer: false,
             host: null, port: 0);
+
+    /// <summary>
+    /// Navigate to the rebuild dialog (issue #23) for the given save.
+    /// The dialog lets the user pick which categories to regenerate
+    /// (locations / NPC / items / narration / full rebuild) and an
+    /// optional rebuild brief; on confirm it runs
+    /// <see cref="WorldBuilderOrchestrator.RebuildAsync"/> and then
+    /// navigates into the game with the rebuilt save.
+    /// </summary>
+    public void NavigateToRebuild(string saveId)
+    {
+        var vm = new RebuildViewModel(_profileStore, _settingsStore, _saveManager, this, saveId);
+        vm.Title = "Перестроить мир";
+        CurrentView = vm;
+    }
 
     // ─── Commands bound to menu buttons ──────────────────────────────
 
