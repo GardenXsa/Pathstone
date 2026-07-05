@@ -163,6 +163,9 @@ public sealed class GameClient
     /// is closed immediately after this event fires.</summary>
     public event Action<KickedMsg>? Kicked;
 
+    /// <summary>Issue #32: received log history from host (late joiner sync).</summary>
+    public event Action<LogSyncMsg>? LogSynced;
+
     /// <summary>
     /// Raised when the WebSocket connection drops (network failure, host
     /// shutdown, graceful close, kick, or user-initiated leave). The
@@ -495,9 +498,9 @@ public sealed class GameClient
                 });
                 break;
             case PongMsg:
-                // Currently we don't initiate pings from the client side,
-                // so pongs are ignored. Future: track RTT for connection
-                // health monitoring.
+                break;
+            case LogSyncMsg log:
+                RaiseEvent(LogSynced, log);
                 break;
             case HelloMsg:
             case RejectMsg:

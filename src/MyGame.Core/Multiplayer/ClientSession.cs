@@ -99,6 +99,7 @@ public sealed class ClientSession
         _client.TurnEnd += OnTurnEnd;
         _client.Error += e => RaiseEvent(Error, e);
         _client.Kicked += k => RaiseEvent(Kicked, k);
+        _client.LogSynced += log => RaiseEvent(LogSynced, log);
         _client.Disconnected += info => RaiseEvent(Disconnected, info);
     }
 
@@ -215,6 +216,9 @@ public sealed class ClientSession
 
     /// <summary>Host kicked this client.</summary>
     public event Action<KickedMsg>? Kicked;
+
+    /// <summary>Issue #32: log history from host (late joiner sync).</summary>
+    public event Action<LogSyncMsg>? LogSynced;
 
     /// <summary>WebSocket connection dropped. Carries the close reason
     /// (may be empty) and an <see cref="DisconnectedInfo.Intentional"/>

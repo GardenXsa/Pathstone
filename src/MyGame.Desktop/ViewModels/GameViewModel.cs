@@ -12,6 +12,7 @@ using MyGame.Core.AI.Agents;
 using MyGame.Core.AI.Prompts;
 using MyGame.Core.AI.Tools;
 using MyGame.Core.Common;
+using MyGame.Core.Engine;
 using MyGame.Core.Multiplayer;
 using MyGame.Core.Multiplayer.Protocol;
 using MyGame.Core.Profile;
@@ -546,6 +547,7 @@ public partial class GameViewModel : ViewModelBase
         session.TurnEnd += OnClientTurnEnd;
         session.Error += OnClientError;
         session.Kicked += OnClientKicked;
+        session.LogSynced += OnClientLogSynced;
         session.Disconnected += OnClientDisconnected;
         // Issue #77 — lobby events: another member toggled ready, or
         // the host transitioned the party to Playing. Used to refresh
@@ -625,7 +627,7 @@ public partial class GameViewModel : ViewModelBase
         }
     }
 
-    private bool CanSubmitAction() => CanSubmit && !IsWaiting && !IsLobby;
+    private bool CanSubmitAction() => CanSubmit && !IsWaiting && !IsLobby && !IsLocalSpectator;
 
     /// <summary>
     /// Send a chat message (lobby chat in multiplayer; in single-player
@@ -784,12 +786,53 @@ public partial class GameViewModel : ViewModelBase
     private bool CanStartGame()
     {
         if (!IsHost || !IsLobby || HostSession is null) return false;
-        // All non-spectator members must be Ready. The host is always
-        // Ready (set at HostServer.StartAsync). An empty roster (only
-        // the host) is allowed — the host can play solo.
         return Members
             .Where(m => m.Role != MemberRole.Spectator)
             .All(m => m.Status == MemberStatus.Ready || m.Status == MemberStatus.Playing);
+    }
+
+    /// <summary>
+    /// Issue #30: Kick a member from the party (host only). Sends KickedMsg
+    /// + closes the connection. The kicked client receives the Disconnected
+    /// event and sees the reconnect overlay (but with a "kicked" reason).
+    /// </summary>
+    [RelayCommand(CanExecute = nameof(CanKick))]
+    private async Task KickAsync(MemberInfo member)
+    {
+        if (HostSession is null || member is null) return;
+        try
+        {
+            await HostSession.KickAsync(member.ConnectionId, "Исключён хостом");
+            AppendLog(LogEntry.System($"{member.Nickname} исключён из партии."));
+        }
+        catch (Exception ex)
+        {
+            ErrorMessage = $"Не удалось исключить: {ex.Message}";
+        }
+    }
+
+    private bool CanKick(MemberInfo member)
+    {
+        if (!IsHost || member is null) return false;
+        if (HostSession is null) return false;
+        // Can't kick self or the host.
+        if (member.ConnectionId == HostSession.HostConnectionId) return false;
+        return true;
+    }
+
+    /// <summary>
+    /// Issue #31: True when the local player is a spectator (can see
+    /// everything but cannot submit actions). Drives the action-input
+    /// placeholder + a spectator badge in the UI.
+    /// </summary>
+    public bool IsLocalSpectator
+    {
+        get
+        {
+            if (!IsMultiplayer) return false;
+            var local = LocalMemberInfo;
+            return local?.Role == MemberRole.Spectator;
+        }
     }
 
     /// <summary>
@@ -1349,6 +1392,22 @@ public partial class GameViewModel : ViewModelBase
             InventoryPanel.RefreshFromWorld(_world);
             QuestPanel.RefreshFromWorld(_world);
             WorldPanel.RefreshFromWorld(_world);
+
+            // Issue #86: check achievement milestones after each refresh.
+            // Newly unlocked achievements get a system log entry (toast).
+            if (StandaloneSinglePlayer || IsHost)
+            {
+                var newAchievements = AchievementTracker.CheckMilestones(_world);
+                foreach (var ach in newAchievements)
+                {
+                    AppendLog(LogEntry.System($"🏆 Достижение: «{ach.Name}» — {ach.Description}"));
+                }
+            }
+
+            // Issue #31: refresh IsLocalSpectator so CanSubmitAction
+            // re-evaluates (spectators can't submit actions).
+            OnPropertyChanged(nameof(IsLocalSpectator));
+            SubmitActionCommand.NotifyCanExecuteChanged();
         });
     }
 
@@ -2501,6 +2560,19 @@ public partial class GameViewModel : ViewModelBase
         {
             ErrorMessage = $"Вас кикнули: {k.Reason}";
             AppendLog(LogEntry.System($"Кикнут: {k.Reason}"));
+        });
+
+    /// <summary>
+    /// Issue #32: late joiner log sync. Populate the local log with the
+    /// history sent by the host.
+    /// </summary>
+    private void OnClientLogSynced(LogSyncMsg msg) =>
+        Dispatcher.UIThread.Post(() =>
+        {
+            foreach (var entry in msg.Entries)
+            {
+                Log.Add(LogEntry.Narrative(entry));
+            }
         });
 
     private void OnClientDisconnected(DisconnectedInfo info) =>

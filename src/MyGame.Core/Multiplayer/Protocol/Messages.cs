@@ -344,3 +344,13 @@ public sealed record PongMsg : NetMessage
     /// <summary>UTC moment of the original ping.</summary>
     public required DateTimeOffset Ts { get; init; }
 }
+
+/// <summary>
+/// Host → Client. Sent to a late joiner after <see cref="WelcomeMsg"/>.
+/// Contains the last N log entries so the new client has context (issue #32).
+/// </summary>
+public sealed record LogSyncMsg : NetMessage
+{
+    /// <summary>Recent log entries (text only, oldest first). Max 20.</summary>
+    public required IReadOnlyList<string> Entries { get; init; }
+}

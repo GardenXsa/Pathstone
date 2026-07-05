@@ -66,6 +66,7 @@ namespace MyGame.Core.Multiplayer.Protocol;
 [JsonDerivedType(typeof(KickedMsg),           "kicked")]
 [JsonDerivedType(typeof(PingMsg),             "ping")]
 [JsonDerivedType(typeof(PongMsg),             "pong")]
+[JsonDerivedType(typeof(LogSyncMsg),          "log_sync")]
 public abstract record NetMessage;
 
 // ─────────────────────────────────────────────────────────────────────────

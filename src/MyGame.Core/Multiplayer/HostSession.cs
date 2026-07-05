@@ -178,6 +178,23 @@ public sealed class HostSession
         // HostServer already wraps dispatch in try/catch, so this is
         // belt-and-suspenders).
         _server.MemberJoined += m => RaiseEvent(MemberJoined, m);
+        // Issue #32: send last 20 log entries to the new joiner so they
+        // have context. Fire-and-forget (best-effort — if the send fails,
+        // the client just gets a shorter history).
+        _server.MemberJoined += async m =>
+        {
+            try
+            {
+                var tail = _log.Skip(Math.Max(0, _log.Count - 20))
+                    .Select(e => e.Text)
+                    .ToList();
+                if (tail.Count > 0)
+                {
+                    await _server.SendAsync(m.ConnectionId, new LogSyncMsg { Entries = tail }, default);
+                }
+            }
+            catch { /* best-effort */ }
+        };
         _server.MemberLeft += m => RaiseEvent(MemberLeft, m);
         _server.ChatReceived += c => RaiseEvent(ChatReceived, c);
         _server.ActionQueued += a => RaiseEvent(ActionQueued, a);
@@ -454,6 +471,13 @@ public sealed class HostSession
     /// </summary>
     public Task SetStatusAsync(PartyStatus status, CancellationToken ct = default) =>
         _server.SetStatusAsync(status, _saveId, _world.Turn, ct);
+
+    /// <summary>
+    /// Kick a member from the party (issue #30). Delegates to
+    /// <see cref="HostServer.KickAsync"/>.
+    /// </summary>
+    public Task KickAsync(Guid connectionId, string reason, CancellationToken ct = default) =>
+        _server.KickAsync(connectionId, reason, ct);
 
     // ─── GM turn ─────────────────────────────────────────────────────
 
