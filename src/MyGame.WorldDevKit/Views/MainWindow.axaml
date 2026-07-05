@@ -1,0 +1,135 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:MyGame.WorldDevKit.ViewModels"
+        xmlns:views="using:MyGame.WorldDevKit.Views"
+        x:Class="MyGame.WorldDevKit.Views.MainWindow"
+        x:DataType="vm:MainViewModel"
+        x:CompileBindings="False"
+        Title="Pathstone WorldDevKit"
+        Width="1280" Height="800"
+        MinWidth="1024" MinHeight="600">
+
+    <DockPanel LastChildFill="True">
+        <!-- Menu bar -->
+        <Border DockPanel.Dock="Top" Background="{StaticResource DevSurfaceBrush}" Padding="8,4">
+            <StackPanel Orientation="Horizontal" Spacing="8">
+                <Button Content="Файл" Classes="SmallButton"/>
+                <Button Content="Новое" Command="{Binding NewWorldCommand}" ToolTip.Tip="Создать пустой мир"/>
+                <Button Content="Открыть" Command="{Binding OpenWorldCommand}" ToolTip.Tip="Открыть сохранение для редактирования"/>
+                <Button Content="Сохранить" Command="{Binding SaveWorldCommand}" ToolTip.Tip="Сохранить мир в файл"/>
+                <Button Content="Экспорт" Command="{Binding ExportWorldCommand}" ToolTip.Tip="Экспорт в .pathstone-world"/>
+                <Button Content="Импорт" Command="{Binding ImportWorldCommand}" ToolTip.Tip="Импорт из .pathstone-world"/>
+            </StackPanel>
+        </Border>
+
+        <!-- Status bar -->
+        <Border DockPanel.Dock="Bottom" Background="{StaticResource DevSurfaceBrush}" Padding="8,2">
+            <TextBlock Text="{Binding StatusText}" Classes="Small Muted"/>
+        </Border>
+
+        <!-- Validation bar -->
+        <Border DockPanel.Dock="Bottom" Background="#3A1A1F" Padding="8,2"
+                IsVisible="{Binding HasValidationErrors}">
+            <TextBlock Text="{Binding ValidationSummary}" Classes="Small"
+                       Foreground="#F5C2C7"/>
+        </Border>
+
+        <!-- Main workspace: left sidebar (entity list) + center (editor) -->
+        <Grid ColumnDefinitions="280,*,0">
+            <!-- Left: entity list sidebar -->
+            <Border Grid.Column="0" Background="{StaticResource DevSurfaceBrush}" BorderBrush="{StaticResource DevBorderBrush}" BorderThickness="0,0,1,0">
+                <DockPanel LastChildFill="True">
+                    <TextBlock DockPanel.Dock="Top" Text="Сущности мира" Classes="SectionTitle" Margin="10,8,10,4"/>
+                    <ScrollViewer HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto">
+                        <StackPanel Spacing="2" Margin="8">
+                            <TextBlock Text="Локации" Classes="SectionTitle" Margin="0,8,0,2"/>
+                            <ItemsControl ItemsSource="{Binding Locations}">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate DataType="vm:LocationEditRow">
+                                        <Button Content="{Binding Name}" Command="{Binding $parent[Window].((vm:MainViewModel)DataContext).SelectLocationCommand}"
+                                                CommandParameter="{Binding}" Margin="0,1" Padding="8,3"
+                                                HorizontalAlignment="Stretch" HorizontalContentAlignment="Left"
+                                                Background="Transparent" BorderThickness="0"/>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                            <Button Content="+ Локация" Command="{Binding AddLocationCommand}" Margin="0,2" Padding="8,3"
+                                    HorizontalAlignment="Stretch" HorizontalContentAlignment="Left"
+                                    Background="Transparent" BorderThickness="0"/>
+
+                            <TextBlock Text="NPC" Classes="SectionTitle" Margin="0,12,0,2"/>
+                            <ItemsControl ItemsSource="{Binding Npcs}">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate DataType="vm:NpcEditRow">
+                                        <Button Content="{Binding Name}" Command="{Binding $parent[Window].((vm:MainViewModel)DataContext).SelectNpcCommand}"
+                                                CommandParameter="{Binding}" Margin="0,1" Padding="8,3"
+                                                HorizontalAlignment="Stretch" HorizontalContentAlignment="Left"
+                                                Background="Transparent" BorderThickness="0"/>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                            <Button Content="+ NPC" Command="{Binding AddNpcCommand}" Margin="0,2" Padding="8,3"
+                                    HorizontalAlignment="Stretch" HorizontalContentAlignment="Left"
+                                    Background="Transparent" BorderThickness="0"/>
+
+                            <TextBlock Text="Предметы" Classes="SectionTitle" Margin="0,12,0,2"/>
+                            <ItemsControl ItemsSource="{Binding Items}">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate DataType="vm:ItemEditRow">
+                                        <Button Content="{Binding Name}" Command="{Binding $parent[Window].((vm:MainViewModel)DataContext).SelectItemCommand}"
+                                                CommandParameter="{Binding}" Margin="0,1" Padding="8,3"
+                                                HorizontalAlignment="Stretch" HorizontalContentAlignment="Left"
+                                                Background="Transparent" BorderThickness="0"/>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                            <Button Content="+ Предмет" Command="{Binding AddItemCommand}" Margin="0,2" Padding="8,3"
+                                    HorizontalAlignment="Stretch" HorizontalContentAlignment="Left"
+                                    Background="Transparent" BorderThickness="0"/>
+
+                            <TextBlock Text="Здания" Classes="SectionTitle" Margin="0,12,0,2"/>
+                            <ItemsControl ItemsSource="{Binding Buildings}">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate DataType="vm:BuildingEditRow">
+                                        <Button Content="{Binding Name}" Command="{Binding $parent[Window].((vm:MainViewModel)DataContext).SelectBuildingCommand}"
+                                                CommandParameter="{Binding}" Margin="0,1" Padding="8,3"
+                                                HorizontalAlignment="Stretch" HorizontalContentAlignment="Left"
+                                                Background="Transparent" BorderThickness="0"/>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                            <Button Content="+ Здание" Command="{Binding AddBuildingCommand}" Margin="0,2" Padding="8,3"
+                                    HorizontalAlignment="Stretch" HorizontalContentAlignment="Left"
+                                    Background="Transparent" BorderThickness="0"/>
+
+                            <TextBlock Text="Квесты" Classes="SectionTitle" Margin="0,12,0,2"/>
+                            <ItemsControl ItemsSource="{Binding Quests}">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate DataType="vm:QuestEditRow">
+                                        <Button Content="{Binding Name}" Command="{Binding $parent[Window].((vm:MainViewModel)DataContext).SelectQuestCommand}"
+                                                CommandParameter="{Binding}" Margin="0,1" Padding="8,3"
+                                                HorizontalAlignment="Stretch" HorizontalContentAlignment="Left"
+                                                Background="Transparent" BorderThickness="0"/>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                            <Button Content="+ Квест" Command="{Binding AddQuestCommand}" Margin="0,2" Padding="8,3"
+                                    HorizontalAlignment="Stretch" HorizontalContentAlignment="Left"
+                                    Background="Transparent" BorderThickness="0"/>
+
+                            <TextBlock Text="Мир" Classes="SectionTitle" Margin="0,12,0,2"/>
+                            <Button Content="Свойства мира" Command="{Binding SelectWorldMetaCommand}" Margin="0,1" Padding="8,3"
+                                    HorizontalAlignment="Stretch" HorizontalContentAlignment="Left"
+                                    Background="Transparent" BorderThickness="0"/>
+                        </StackPanel>
+                    </ScrollViewer>
+                </DockPanel>
+            </Border>
+
+            <!-- Center: active editor -->
+            <ScrollViewer Grid.Column="1" HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto" Padding="16">
+                <ContentControl Content="{Binding CurrentEditor}"/>
+            </ScrollViewer>
+        </Grid>
+    </DockPanel>
+</Window>

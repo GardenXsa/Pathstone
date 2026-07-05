@@ -1,0 +1,87 @@
+<Application xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             x:Class="MyGame.WorldDevKit.App"
+             RequestedThemeVariant="Dark">
+
+    <Application.Styles>
+        <FluentTheme />
+    </Application.Styles>
+
+    <Application.Resources>
+        <Color x:Key="DevBackground">#0F1115</Color>
+        <Color x:Key="DevSurface">#171A21</Color>
+        <Color x:Key="DevSurfaceAlt">#1F2330</Color>
+        <Color x:Key="DevBorder">#2C3142</Color>
+        <Color x:Key="DevForeground">#E6E8EC</Color>
+        <Color x:Key="DevMuted">#8A93A6</Color>
+        <Color x:Key="DevAccent">#7C5CFF</Color>
+        <Color x:Key="DevAccentFg">#FFFFFF</Color>
+        <Color x:Key="DevDanger">#E5484D</Color>
+        <Color x:Key="DevSuccess">#3DD68C</Color>
+
+        <SolidColorBrush x:Key="DevBackgroundBrush" Color="{StaticResource DevBackground}" />
+        <SolidColorBrush x:Key="DevSurfaceBrush" Color="{StaticResource DevSurface}" />
+        <SolidColorBrush x:Key="DevSurfaceAltBrush" Color="{StaticResource DevSurfaceAlt}" />
+        <SolidColorBrush x:Key="DevBorderBrush" Color="{StaticResource DevBorder}" />
+        <SolidColorBrush x:Key="DevForegroundBrush" Color="{StaticResource DevForeground}" />
+        <SolidColorBrush x:Key="DevMutedBrush" Color="{StaticResource DevMuted}" />
+        <SolidColorBrush x:Key="DevAccentBrush" Color="{StaticResource DevAccent}" />
+        <SolidColorBrush x:Key="DevAccentFgBrush" Color="{StaticResource DevAccentFg}" />
+        <SolidColorBrush x:Key="DevDangerBrush" Color="{StaticResource DevDanger}" />
+        <SolidColorBrush x:Key="DevSuccessBrush" Color="{StaticResource DevSuccess}" />
+    </Application.Resources>
+
+    <Application.Styles>
+        <Style Selector="Window">
+            <Setter Property="Background" Value="{StaticResource DevBackgroundBrush}" />
+            <Setter Property="Foreground" Value="{StaticResource DevForegroundBrush}" />
+        </Style>
+        <Style Selector="UserControl">
+            <Setter Property="Background" Value="{StaticResource DevBackgroundBrush}" />
+            <Setter Property="Foreground" Value="{StaticResource DevForegroundBrush}" />
+        </Style>
+        <Style Selector="Button">
+            <Setter Property="Background" Value="{StaticResource DevSurfaceAltBrush}" />
+            <Setter Property="Foreground" Value="{StaticResource DevForegroundBrush}" />
+            <Setter Property="BorderBrush" Value="{StaticResource DevBorderBrush}" />
+            <Setter Property="Padding" Value="12,6" />
+            <Setter Property="CornerRadius" Value="4" />
+        </Style>
+        <Style Selector="Button.Primary">
+            <Setter Property="Background" Value="{StaticResource DevAccentBrush}" />
+            <Setter Property="Foreground" Value="{StaticResource DevAccentFgBrush}" />
+            <Setter Property="BorderBrush" Value="{StaticResource DevAccentBrush}" />
+        </Style>
+        <Style Selector="Button.Danger">
+            <Setter Property="Background" Value="#3A1A1F" />
+            <Setter Property="Foreground" Value="#F5C2C7" />
+            <Setter Property="BorderBrush" Value="{StaticResource DevDangerBrush}" />
+        </Style>
+        <Style Selector="TextBox">
+            <Setter Property="Background" Value="{StaticResource DevSurfaceAltBrush}" />
+            <Setter Property="Foreground" Value="{StaticResource DevForegroundBrush}" />
+            <Setter Property="BorderBrush" Value="{StaticResource DevBorderBrush}" />
+            <Setter Property="CornerRadius" Value="4" />
+            <Setter Property="Padding" Value="8,4" />
+        </Style>
+        <Style Selector="Border.Panel">
+            <Setter Property="Background" Value="{StaticResource DevSurfaceAltBrush}" />
+            <Setter Property="BorderBrush" Value="{StaticResource DevBorderBrush}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="CornerRadius" Value="4" />
+            <Setter Property="Padding" Value="10" />
+        </Style>
+        <Style Selector="TextBlock.SectionTitle">
+            <Setter Property="FontSize" Value="13" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="Foreground" Value="{StaticResource DevMutedBrush}" />
+            <Setter Property="Margin" Value="0,0,0,4" />
+        </Style>
+        <Style Selector="TextBlock.Small">
+            <Setter Property="FontSize" Value="12" />
+        </Style>
+        <Style Selector="TextBlock.Muted">
+            <Setter Property="Foreground" Value="{StaticResource DevMutedBrush}" />
+        </Style>
+    </Application.Styles>
+</Application>
