@@ -402,7 +402,142 @@ public partial class GameViewModel : ViewModelBase
         }
 
         ApplyLoadedSave(loaded.Value.world, loaded.Value.meta, loaded.Value.log, resetHistory: true);
-        await Task.CompletedTask;
+
+        // If this is a FRESH save (turn 0, empty story log), run the
+        // opening narration so the GM starts the game — not the player.
+        // Matches the TS source's createCharacter flow: runStartScene()
+        // then sendAction(buildOpeningAction, silent). Without this, the
+        // player lands in an empty story feed and has to make the first
+        // move themselves, which feels broken (the GM should open).
+        var isFresh = (loaded.Value.meta.Turn == 0)
+            && (loaded.Value.log is null || loaded.Value.log.Length == 0);
+        if (isFresh)
+        {
+            await RunOpeningNarrationAsync().ConfigureAwait(false);
+        }
+    }
+
+    /// <summary>
+    /// Run the opening narration for a fresh game. Mirrors the TS source's
+    /// createCharacter flow: (1) StartSceneAgent generates an atmospheric
+    /// opening scene description (no tools — just narration), appended to
+    /// the story feed; (2) the GameMaster runs one turn with a
+    /// directorial "opening action" so the GM establishes the scene,
+    /// places the character, and invites the player to act.
+    ///
+    /// <para>
+    /// This ensures the GM starts the game (not the player), which is the
+    /// expected TTRPG flow — the GM sets the scene, then players act.
+    /// Without this, the player lands in an empty story feed and has to
+    /// make the first move, which feels broken.
+    /// </para>
+    ///
+    /// <para>
+    /// Best-effort: if the AI call fails (no API key, network error), we
+    /// append a generic system "Игра началась" entry so the player still
+    /// has something to react to and can submit their first action.
+    /// </para>
+    /// </summary>
+    private async Task RunOpeningNarrationAsync()
+    {
+        if (_world is null || _gm is null) return;
+
+        IsWaiting = true;
+        StatusText = "Мастер игры готовит вступление…";
+        try
+        {
+            // 1) Start-scene agent: atmospheric opening description.
+            var settings = _settingsStore.Load();
+            var ai = new AiClient(settings.Ai);
+            var prompts = ServiceHost.Resolve<PromptLoader>();
+            var startScene = new StartSceneAgent(ai, _world, prompts);
+            var sceneResult = await startScene.RunAsync().ConfigureAwait(false);
+
+            if (sceneResult.Success && !string.IsNullOrWhiteSpace(sceneResult.SceneDescription))
+            {
+                AppendLog(LogEntry.Narrative(sceneResult.SceneDescription));
+            }
+
+            // 2) GM opening turn: a directorial brief that tells the GM
+            // to establish the scene and invite the player to act. This
+            // is the "buildOpeningAction" equivalent from the TS source.
+            var openingAction = BuildOpeningAction();
+            StartStreamingNarrative();
+            var progress = new Progress<string>(OnNarrativeDelta);
+            NarrativeResult? result = null;
+            try
+            {
+                result = await _gm.ProcessActionAsync(openingAction, progress).ConfigureAwait(false);
+            }
+            finally
+            {
+                // Final flush + clear so the streaming TextBlock disappears
+                // before the final narrative LogEntry is appended below.
+                FlushStreamingNarrative();
+                ClearStreamingNarrative();
+            }
+
+            if (result is { } r && !r.Failed && !string.IsNullOrEmpty(r.NarrativeText))
+            {
+                AppendLog(LogEntry.Narrative(r.NarrativeText));
+            }
+
+            // Persist the opening so a reload skips this (Turn > 0 after
+            // the GM turn, or the log is non-empty). Snapshot _log under
+            // lock — matches the save pattern used elsewhere in this VM.
+            if (_saveId is not null && _meta is not null && _world is not null)
+            {
+                PersistTokensToMeta();
+                LogEntry[] snapshot;
+                lock (_logLock) snapshot = _log.ToArray();
+                var world = _world; var meta = _meta; var saveId = _saveId;
+                _ = Task.Run(() =>
+                {
+                    try { _saveManager.SaveAll(saveId, world, meta, snapshot); }
+                    catch (Exception ex) { System.Diagnostics.Trace.WriteLine($"[save] {ex.Message}"); }
+                });
+            }
+        }
+        catch (Exception ex)
+        {
+            // Best-effort: if the AI fails (no key, network), don't block
+            // the game — let the player act. Log a system entry so the
+            // feed isn't empty.
+            AppendLog(LogEntry.System($"Вступительная наррация недоступна ({ex.Message}). Опишите первое действие."));
+        }
+        finally
+        {
+            IsWaiting = false;
+            StatusText = string.Empty;
+            CanSubmit = true;
+        }
+    }
+
+    /// <summary>
+    /// Build the directorial "opening action" sent to the GM for the first
+    /// turn of a fresh game. Tells the GM to establish the scene (place
+    /// the character, set the mood) and end with an open hook inviting the
+    /// player to act — without resolving any player action (there isn't
+    /// one yet). Port of <c>buildOpeningAction</c> from the TS source.
+    /// </summary>
+    private string BuildOpeningAction()
+    {
+        var p = _world?.ActivePlayer ?? _world?.Players.FirstOrDefault();
+        var identity = p is not null
+            ? $"Персонаж игрока: {p.Name}. " +
+              $"Раса: {p.Race ?? "—"}. Класс: {p.Class ?? "—"}. " +
+              (string.IsNullOrWhiteSpace(p.Background) ? "" : $"Предыстория: {p.Background}. ") +
+              "Не меняй расу, класс или имя. Относись к ним как к установленным фактам."
+            : "Используй каноническую личность персонажа из состояния мира.";
+
+        return
+            "ОТКРЫВАЮЩАЯ СЦЕНА (режиссёрский ход). " +
+            "Опиши стартовую сцену: где находится персонаж, что его окружает, " +
+            "что происходит поблизости. Заверши открытым крючком, приглашающим " +
+            "игрока действовать — но НЕ выполняй никакого действия за игрока. " +
+            "Не задавай вопрос «Что будешь делать?» — просто закончи наррацию " +
+            "так, чтобы игрок сам решил, как реагировать. " +
+            identity;
     }
 
     /// <summary>
@@ -792,6 +927,26 @@ public partial class GameViewModel : ViewModelBase
         {
             await HostSession.SetStatusAsync(PartyStatus.Playing);
             AppendLog(LogEntry.System("Игра началась!"));
+
+            // Fire the GM's opening turn so the GM starts the game (not
+            // the players). The host enqueues a directorial "opening
+            // action" via SubmitActionAsync; the HostSession's batching
+            // window will drain it and run the GM, broadcasting the
+            // resulting narration to all clients. This matches the
+            // single-player RunOpeningNarrationAsync flow and the TS
+            // source's createCharacter → buildOpeningAction sequence.
+            var openingAction = BuildOpeningAction();
+            _ = Task.Run(async () =>
+            {
+                try
+                {
+                    await HostSession.SubmitActionAsync(openingAction).ConfigureAwait(false);
+                }
+                catch (Exception ex)
+                {
+                    System.Diagnostics.Trace.WriteLine($"[StartGame] opening action failed: {ex.Message}");
+                }
+            });
         }
         catch (Exception ex)
         {
