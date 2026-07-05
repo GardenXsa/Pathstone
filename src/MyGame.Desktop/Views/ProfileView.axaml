@@ -1,0 +1,81 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:vm="using:MyGame.Desktop.ViewModels"
+             mc:Ignorable="d" d:DesignWidth="800" d:DesignHeight="600"
+             x:Class="MyGame.Desktop.Views.ProfileView"
+             x:DataType="vm:ProfileViewModel">
+
+    <DockPanel LastChildFill="True">
+
+        <!-- Top bar -->
+        <Border DockPanel.Dock="Top" Classes="TopBar">
+            <Grid ColumnDefinitions="Auto,*,Auto">
+                <Button Grid.Column="0" Content="← Назад" Command="{Binding CancelCommand}" Classes="SmallButton"/>
+                <TextBlock Grid.Column="1" Text="Профиль и настройки" Classes="AppTitle"
+                           HorizontalAlignment="Center"/>
+                <Button Grid.Column="2" Content="Сохранить" Command="{Binding SaveCommand}"
+                        Classes="SmallButton Primary"/>
+            </Grid>
+        </Border>
+
+        <!-- Error bar -->
+        <Border DockPanel.Dock="Top" Classes="ErrorBar"
+                IsVisible="{Binding ErrorMessage, Converter={x:Static StringConverters.IsNotNullOrEmpty}}">
+            <TextBlock Text="{Binding ErrorMessage}" />
+        </Border>
+
+        <ScrollViewer HorizontalScrollBarVisibility="Disabled">
+            <StackPanel Margin="32,24" Spacing="18" MaxWidth="640" HorizontalAlignment="Center">
+
+                <TextBlock Text="Профиль" Classes="SectionTitle"/>
+                <StackPanel Spacing="6">
+                    <TextBlock Text="Никнейм" Classes="FieldLabel"/>
+                    <TextBox Text="{Binding Nickname}" PlaceholderText="2-20 символов: буквы, цифры, пробелы, дефисы"/>
+                    <TextBlock Text="2-20 символов: буквы (латиница/кириллица), цифры, пробелы, дефисы, подчёркивания."
+                               Classes="Muted Small"/>
+                </StackPanel>
+
+                <Border Classes="Separator"/>
+
+                <TextBlock Text="Подключение к ИИ (OpenAI-совместимый API)" Classes="SectionTitle"/>
+                <StackPanel Spacing="12">
+                    <StackPanel Spacing="6">
+                        <TextBlock Text="Base URL" Classes="FieldLabel"/>
+                        <TextBox Text="{Binding BaseUrl}" PlaceholderText="https://api.openai.com/v1"/>
+                    </StackPanel>
+                    <StackPanel Spacing="6">
+                        <TextBlock Text="API Key" Classes="FieldLabel"/>
+                        <TextBox Text="{Binding ApiKey}" PlaceholderText="sk-… (оставьте пустым для локальных серверов)"
+                                 PasswordChar="•"/>
+                    </StackPanel>
+                    <StackPanel Spacing="6">
+                        <TextBlock Text="Модель" Classes="FieldLabel"/>
+                        <TextBox Text="{Binding Model}" PlaceholderText="gpt-4o-mini, deepseek-chat, llama3.1:8b…"/>
+                    </StackPanel>
+                    <Grid ColumnDefinitions="*,*">
+                        <StackPanel Grid.Column="0" Spacing="6">
+                            <TextBlock Text="Temperature" Classes="FieldLabel"/>
+                            <NumericUpDown Value="{Binding Temperature}" Minimum="0" Maximum="2"
+                                           Increment="0.1" FormatString="0.0"/>
+                        </StackPanel>
+                        <StackPanel Grid.Column="1" Spacing="6" Margin="12,0,0,0">
+                            <TextBlock Text="Max tokens" Classes="FieldLabel"/>
+                            <NumericUpDown Value="{Binding MaxTokens}" Minimum="64" Maximum="32000"
+                                           Increment="256"/>
+                        </StackPanel>
+                    </Grid>
+                </StackPanel>
+
+                <Border Classes="Separator"/>
+
+                <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Right">
+                    <Button Content="Отмена" Command="{Binding CancelCommand}" Classes="MenuButton"/>
+                    <Button Content="Сохранить" Command="{Binding SaveCommand}" Classes="MenuButton Primary"
+                            IsEnabled="{Binding !IsBusy}"/>
+                </StackPanel>
+            </StackPanel>
+        </ScrollViewer>
+    </DockPanel>
+</UserControl>

@@ -1,0 +1,97 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:vm="using:MyGame.Desktop.ViewModels.Panels"
+             mc:Ignorable="d" d:DesignWidth="320" d:DesignHeight="600"
+             x:Class="MyGame.Desktop.Views.Panels.QuestPanelView"
+             x:DataType="vm:QuestPanelViewModel">
+
+    <ScrollViewer HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto">
+        <StackPanel Spacing="10" Margin="12">
+
+            <!-- Empty state -->
+            <TextBlock Text="Нет квестов" Classes="Muted Small"
+                       HorizontalAlignment="Center" Margin="0,24,0,0"
+                       IsVisible="{Binding !HasAny}"/>
+
+            <!-- Active quests -->
+            <StackPanel Spacing="6" IsVisible="{Binding HasActive}">
+                <TextBlock Text="Активные" Classes="SectionTitle"/>
+                <ItemsControl ItemsSource="{Binding ActiveQuests}">
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate DataType="vm:QuestRow">
+                            <Border Classes="QuestRow Active" Padding="8" Margin="0,0,0,6">
+                                <StackPanel Spacing="3">
+                                    <Grid ColumnDefinitions="*,Auto">
+                                        <TextBlock Grid.Column="0" Text="{Binding Name}" FontWeight="SemiBold" Classes="Small"/>
+                                        <TextBlock Grid.Column="1" Classes="Small Muted">
+                                            <Run Text="{Binding CompletedObjectives}"/>
+                                            <Run Text="/"/>
+                                            <Run Text="{Binding TotalObjectives}"/>
+                                        </TextBlock>
+                                    </Grid>
+                                    <TextBlock Text="{Binding Description}" Classes="Muted Small" TextWrapping="Wrap"/>
+                                    <ItemsControl ItemsSource="{Binding Objectives}" Margin="0,2,0,0">
+                                        <ItemsControl.ItemTemplate>
+                                            <DataTemplate DataType="vm:QuestObjectiveRow">
+                                                <StackPanel Orientation="Horizontal" Spacing="6" Margin="0,1">
+                                                    <TextBlock Text="✓" Classes="Small" Foreground="#10b981"
+                                                               IsVisible="{Binding Done}"/>
+                                                    <TextBlock Text="○" Classes="Small Muted"
+                                                               IsVisible="{Binding !Done}"/>
+                                                    <TextBlock Text="{Binding Description}" Classes="Small"/>
+                                                </StackPanel>
+                                            </DataTemplate>
+                                        </ItemsControl.ItemTemplate>
+                                    </ItemsControl>
+                                    <Border Classes="RewardBox" Padding="6,3" Margin="0,3,0,0"
+                                            IsVisible="{Binding HasRewards}">
+                                        <TextBlock Classes="Small Muted">
+                                            <Run Text="Награда: "/>
+                                            <Run Text="{Binding RewardCurrency, StringFormat={}{0} зол.}"/>
+                                            <Run Text=", "/>
+                                            <Run Text="{Binding RewardExperience, StringFormat={}{0} опыта}"/>
+                                        </TextBlock>
+                                    </Border>
+                                </StackPanel>
+                            </Border>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+            </StackPanel>
+
+            <!-- Completed quests -->
+            <StackPanel Spacing="6" IsVisible="{Binding HasCompleted}" Margin="0,8,0,0">
+                <TextBlock Text="Завершённые" Classes="SectionTitle"/>
+                <ItemsControl ItemsSource="{Binding CompletedQuests}">
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate DataType="vm:QuestRow">
+                            <Border Classes="QuestRow Completed" Padding="6,4" Margin="0,0,0,4">
+                                <StackPanel Spacing="1">
+                                    <TextBlock Text="{Binding Name}" Classes="Small" FontWeight="SemiBold"/>
+                                    <TextBlock Text="{Binding Description}" Classes="Muted Small" TextWrapping="Wrap"/>
+                                </StackPanel>
+                            </Border>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+            </StackPanel>
+
+            <!-- Failed quests -->
+            <StackPanel Spacing="6" IsVisible="{Binding HasFailed}" Margin="0,8,0,0">
+                <TextBlock Text="Проваленные" Classes="SectionTitle"/>
+                <ItemsControl ItemsSource="{Binding FailedQuests}">
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate DataType="vm:QuestRow">
+                            <Border Classes="QuestRow Failed" Padding="6,4" Margin="0,0,0,4">
+                                <TextBlock Text="{Binding Name}" Classes="Small"/>
+                            </Border>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+            </StackPanel>
+
+        </StackPanel>
+    </ScrollViewer>
+</UserControl>

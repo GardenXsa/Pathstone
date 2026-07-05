@@ -1,0 +1,91 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:vm="using:MyGame.Desktop.ViewModels"
+             mc:Ignorable="d" d:DesignWidth="1280" d:DesignHeight="800"
+             x:Class="MyGame.Desktop.Views.MainMenuView"
+             x:DataType="vm:MainMenuViewModel">
+
+    <DockPanel LastChildFill="True">
+
+        <!-- Top bar: title + nickname -->
+        <Border DockPanel.Dock="Top" Classes="TopBar">
+            <Grid ColumnDefinitions="*,Auto">
+                <TextBlock Grid.Column="0" Text="MyGame" Classes="AppTitle" />
+                <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+                    <TextBlock Text="Профиль:" Classes="Muted" />
+                    <TextBlock Text="{Binding CurrentNickname}" FontWeight="SemiBold"
+                               ToolTip.Tip="Ваш ник (измените в «Профиль»)"/>
+                </StackPanel>
+            </Grid>
+        </Border>
+
+        <!-- Error bar -->
+        <Border DockPanel.Dock="Top" Classes="ErrorBar"
+                IsVisible="{Binding ErrorMessage, Converter={x:Static StringConverters.IsNotNullOrEmpty}}">
+            <TextBlock Text="{Binding ErrorMessage}" />
+        </Border>
+
+        <!-- Main content: centered menu + load panel -->
+        <ScrollViewer HorizontalScrollBarVisibility="Disabled">
+            <Grid RowDefinitions="*,Auto,*">
+                <StackPanel Grid.Row="1" HorizontalAlignment="Center" VerticalAlignment="Center"
+                            Spacing="10" MaxWidth="420">
+
+                    <TextBlock Text="Главное меню" Classes="ScreenTitle" HorizontalAlignment="Center"/>
+
+                    <Button Content="Новая игра" Command="{Binding NewGameCommand}" Classes="MenuButton" />
+                    <Button Content="✨ Создать мир (AI)" Command="{Binding CreateWorldCommand}" Classes="MenuButton Primary" />
+                    <Button Content="Хост игры" Command="{Binding HostGameCommand}" Classes="MenuButton" />
+                    <Button Content="Подключиться" Command="{Binding JoinGameCommand}" Classes="MenuButton" />
+                    <Button Content="Загрузить" Command="{Binding ToggleLoadCommand}" Classes="MenuButton" />
+                    <Button Content="Профиль" Command="{Binding OpenProfileCommand}" Classes="MenuButton" />
+                    <Button Content="Настройки" Command="{Binding OpenSettingsCommand}" Classes="MenuButton" />
+
+                    <!-- Saves list (collapsible) -->
+                    <Border Classes="LoadPanel" IsVisible="{Binding SavesLoaded}" Padding="10" Margin="0,12,0,0">
+                        <StackPanel Spacing="6">
+                            <Grid ColumnDefinitions="*,Auto">
+                                <TextBlock Grid.Column="0" Text="Сохранения" Classes="SectionTitle"/>
+                                <Button Grid.Column="1" Content="↻" Command="{Binding RefreshSavesCommand}"
+                                        Classes="TinyButton" ToolTip.Tip="Обновить"/>
+                            </Grid>
+
+                            <ItemsControl ItemsSource="{Binding Saves}">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate DataType="vm:SaveSlotViewModel">
+                                        <Border Classes="SaveRow" Padding="8">
+                                            <Grid ColumnDefinitions="*,Auto">
+                                                <StackPanel Grid.Column="0" Spacing="2">
+                                                    <TextBlock Text="{Binding Name}" FontWeight="SemiBold"/>
+                                                    <TextBlock Text="{Binding Character}" Classes="Muted"/>
+                                                    <StackPanel Orientation="Horizontal" Spacing="8">
+                                                        <TextBlock Text="{Binding World}" Classes="Muted"/>
+                                                        <TextBlock Text="{Binding TurnInfo}" Classes="Muted"/>
+                                                        <TextBlock Text="{Binding UpdatedAt}" Classes="Muted"/>
+                                                    </StackPanel>
+                                                </StackPanel>
+                                                <Button Grid.Column="1" Content="Играть"
+                                                        Command="{Binding LoadCommand}"
+                                                        Classes="SmallButton Primary"
+                                                        VerticalAlignment="Center"/>
+                                            </Grid>
+                                        </Border>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+
+                            <TextBlock Text="(нет сохранений)" Classes="Muted"
+                                       IsVisible="{Binding !Saves.Count}"/>
+                        </StackPanel>
+                    </Border>
+
+                    <TextBlock IsVisible="{Binding IsBusy}" Text="Загрузка…" Classes="Muted"
+                               HorizontalAlignment="Center" Margin="0,8,0,0"/>
+                </StackPanel>
+            </Grid>
+        </ScrollViewer>
+
+    </DockPanel>
+</UserControl>

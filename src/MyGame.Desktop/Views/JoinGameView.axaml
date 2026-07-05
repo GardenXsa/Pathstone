@@ -1,0 +1,53 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:vm="using:MyGame.Desktop.ViewModels"
+             mc:Ignorable="d" d:DesignWidth="800" d:DesignHeight="600"
+             x:Class="MyGame.Desktop.Views.JoinGameView"
+             x:DataType="vm:JoinGameViewModel">
+
+    <DockPanel LastChildFill="True">
+
+        <Border DockPanel.Dock="Top" Classes="TopBar">
+            <Grid ColumnDefinitions="Auto,*,Auto">
+                <Button Grid.Column="0" Content="← Назад" Command="{Binding BackCommand}" Classes="SmallButton"/>
+                <TextBlock Grid.Column="1" Text="Подключиться" Classes="AppTitle"
+                           HorizontalAlignment="Center"/>
+                <TextBlock Grid.Column="2" Text="" />
+            </Grid>
+        </Border>
+
+        <Border DockPanel.Dock="Top" Classes="ErrorBar"
+                IsVisible="{Binding ErrorMessage, Converter={x:Static StringConverters.IsNotNullOrEmpty}}">
+            <TextBlock Text="{Binding ErrorMessage}" />
+        </Border>
+
+        <ScrollViewer HorizontalScrollBarVisibility="Disabled">
+            <StackPanel Margin="32,24" Spacing="18" MaxWidth="640" HorizontalAlignment="Center">
+
+                <TextBlock Text="Подключение к хосту" Classes="ScreenTitle"
+                           HorizontalAlignment="Center"/>
+
+                <StackPanel Spacing="6">
+                    <TextBlock Text="Хост (IP или имя)" Classes="FieldLabel"/>
+                    <TextBox Text="{Binding Host}" PlaceholderText="localhost, 192.168.1.10, my-host.example.com"/>
+                </StackPanel>
+
+                <StackPanel Spacing="6">
+                    <TextBlock Text="Порт" Classes="FieldLabel"/>
+                    <NumericUpDown Value="{Binding Port}" Minimum="1" Maximum="65535"/>
+                </StackPanel>
+
+                <Button Content="Подключиться" Command="{Binding ConnectCommand}" Classes="MenuButton Primary"
+                        HorizontalAlignment="Stretch"/>
+
+                <TextBlock Text="Запросите IP:порт у хоста. Хост должен запустить «Хост игры» и поделиться адресом до того, как вы подключитесь."
+                           Classes="Muted Small" TextWrapping="Wrap"/>
+
+                <TextBlock IsVisible="{Binding IsBusy}" Text="Подключение…" Classes="Muted"
+                           HorizontalAlignment="Center"/>
+            </StackPanel>
+        </ScrollViewer>
+    </DockPanel>
+</UserControl>

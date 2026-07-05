@@ -1,0 +1,148 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:vm="using:MyGame.Desktop.ViewModels.Panels"
+             mc:Ignorable="d" d:DesignWidth="320" d:DesignHeight="600"
+             x:Class="MyGame.Desktop.Views.Panels.WorldPanelView"
+             x:DataType="vm:WorldPanelViewModel">
+
+    <ScrollViewer HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto">
+        <StackPanel Spacing="12" Margin="12">
+
+            <!-- World header -->
+            <Border Classes="PanelSection">
+                <StackPanel Spacing="2">
+                    <TextBlock Text="{Binding WorldTitle}" FontWeight="SemiBold" FontSize="14"/>
+                    <Grid ColumnDefinitions="*,Auto">
+                        <TextBlock Grid.Column="0" Text="{Binding ClockDisplay}" Classes="Muted Small"
+                                   FontFamily="Cascadia Mono,Consolas,Menlo,monospace"/>
+                        <TextBlock Grid.Column="1" Classes="Small Muted">
+                            <Run Text="Ход "/>
+                            <Run Text="{Binding Turn}"/>
+                        </TextBlock>
+                    </Grid>
+                </StackPanel>
+            </Border>
+
+            <!-- Current location -->
+            <Border Classes="PanelSection">
+                <StackPanel Spacing="4">
+                    <TextBlock Text="Текущая локация" Classes="SectionTitle"/>
+                    <TextBlock Text="{Binding CurrentLocationName}" FontWeight="SemiBold" Classes="Small"/>
+                    <TextBlock Classes="Small Muted">
+                        <Run Text="{Binding CurrentLocationTerrain}"/>
+                        <Run Text=" · оп. "/>
+                        <Run Text="{Binding CurrentLocationDanger}"/>
+                        <Run Text="/10"/>
+                    </TextBlock>
+                    <TextBlock Text="{Binding CurrentLocationDescription}" Classes="Small" TextWrapping="Wrap"
+                               IsVisible="{Binding CurrentLocationDescription, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"/>
+                </StackPanel>
+            </Border>
+
+            <!-- Exits -->
+            <Border Classes="PanelSection" IsVisible="{Binding HasExits}">
+                <StackPanel Spacing="3">
+                    <TextBlock Text="Выходы" Classes="SectionTitle"/>
+                    <ItemsControl ItemsSource="{Binding Exits}">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate DataType="vm:ExitRow">
+                                <Grid ColumnDefinitions="Auto,*,Auto" Margin="0,1">
+                                    <TextBlock Grid.Column="0" Text="→" Classes="Small Muted" Margin="0,0,6,0"/>
+                                    <TextBlock Grid.Column="1" Text="{Binding Direction}" Classes="Small"/>
+                                    <TextBlock Grid.Column="2" Text="{Binding ToName}" Classes="Small Muted"
+                                               IsVisible="{Binding !Locked}"/>
+                                    <TextBlock Grid.Column="2" Text="🔒" Classes="Small"
+                                               IsVisible="{Binding Locked}"/>
+                                </Grid>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </StackPanel>
+            </Border>
+
+            <!-- Inhabitants -->
+            <Border Classes="PanelSection" IsVisible="{Binding HasInhabitants}">
+                <StackPanel Spacing="3">
+                    <TextBlock Text="Обитатели" Classes="SectionTitle"/>
+                    <ItemsControl ItemsSource="{Binding Inhabitants}">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate DataType="vm:NpcRow">
+                                <StackPanel Margin="0,1">
+                                    <TextBlock Text="{Binding Name}" Classes="Small" FontWeight="SemiBold"/>
+                                    <TextBlock Classes="Small Muted">
+                                        <Run Text="{Binding Race}"/>
+                                        <Run Text=" / "/>
+                                        <Run Text="{Binding Class}"/>
+                                        <Run Text=" · ур. "/>
+                                        <Run Text="{Binding Level}"/>
+                                    </TextBlock>
+                                </StackPanel>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </StackPanel>
+            </Border>
+
+            <!-- Buildings -->
+            <Border Classes="PanelSection" IsVisible="{Binding HasBuildings}">
+                <StackPanel Spacing="3">
+                    <TextBlock Text="Здания" Classes="SectionTitle"/>
+                    <ItemsControl ItemsSource="{Binding BuildingsHere}">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate DataType="vm:BuildingRow">
+                                <StackPanel Margin="0,1">
+                                    <TextBlock Text="{Binding Name}" Classes="Small" FontWeight="SemiBold"/>
+                                    <TextBlock Text="{Binding Description}" Classes="Muted Small" TextWrapping="Wrap"/>
+                                </StackPanel>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </StackPanel>
+            </Border>
+
+            <!-- Ground items -->
+            <Border Classes="PanelSection" IsVisible="{Binding HasGroundItems}">
+                <StackPanel Spacing="3">
+                    <TextBlock Text="На земле" Classes="SectionTitle"/>
+                    <ItemsControl ItemsSource="{Binding GroundItems}">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate DataType="vm:GroundItemRow">
+                                <Grid ColumnDefinitions="*,Auto" Margin="0,1">
+                                    <TextBlock Grid.Column="0" Text="{Binding Name}" Classes="Small"/>
+                                    <TextBlock Grid.Column="1" Classes="Small Muted">
+                                        <Run Text="×"/>
+                                        <Run Text="{Binding Quantity}"/>
+                                    </TextBlock>
+                                </Grid>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </StackPanel>
+            </Border>
+
+            <!-- All locations (discovered map) -->
+            <Border Classes="PanelSection" IsVisible="{Binding HasLocations}">
+                <StackPanel Spacing="3">
+                    <TextBlock Text="Карта мира" Classes="SectionTitle"/>
+                    <ItemsControl ItemsSource="{Binding AllLocations}">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate DataType="vm:LocationRow">
+                                <Grid ColumnDefinitions="Auto,*,Auto" Margin="0,1">
+                                    <TextBlock Grid.Column="0" Text="●" Classes="Small" Foreground="#10b981"
+                                               IsVisible="{Binding Visited}"/>
+                                    <TextBlock Grid.Column="0" Text="○" Classes="Small" Foreground="#6b7280"
+                                               IsVisible="{Binding !Visited}"/>
+                                    <TextBlock Grid.Column="1" Text="{Binding Name}" Classes="Small" Margin="6,0,0,0"/>
+                                    <TextBlock Grid.Column="2" Text="{Binding Terrain}" Classes="Small Muted"/>
+                                </Grid>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </StackPanel>
+            </Border>
+
+        </StackPanel>
+    </ScrollViewer>
+</UserControl>

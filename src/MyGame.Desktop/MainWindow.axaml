@@ -1,0 +1,18 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:vm="using:MyGame.Desktop.ViewModels"
+        mc:Ignorable="d" d:DesignWidth="1280" d:DesignHeight="800"
+        x:Class="MyGame.Desktop.MainWindow"
+        x:DataType="vm:MainViewModel"
+        Title="{Binding CurrentView.Title, FallbackValue='MyGame'}"
+        MinWidth="1024" MinHeight="700"
+        Width="1280" Height="800"
+        WindowStartupLocation="CenterScreen">
+
+    <!-- The content is whatever ViewModel is currently set on the
+         shell's MainViewModel.CurrentView. The ViewLocator DataTemplate
+         (registered in App.axaml) resolves it to the matching *View. -->
+    <ContentControl Content="{Binding CurrentView}" />
+</Window>

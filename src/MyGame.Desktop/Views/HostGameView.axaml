@@ -1,0 +1,71 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:vm="using:MyGame.Desktop.ViewModels"
+             mc:Ignorable="d" d:DesignWidth="800" d:DesignHeight="600"
+             x:Class="MyGame.Desktop.Views.HostGameView"
+             x:DataType="vm:HostGameViewModel">
+
+    <DockPanel LastChildFill="True">
+
+        <Border DockPanel.Dock="Top" Classes="TopBar">
+            <Grid ColumnDefinitions="Auto,*,Auto">
+                <Button Grid.Column="0" Content="← Назад" Command="{Binding BackCommand}" Classes="SmallButton"/>
+                <TextBlock Grid.Column="1" Text="Хост игры" Classes="AppTitle"
+                           HorizontalAlignment="Center"/>
+                <TextBlock Grid.Column="2" Text="" />
+            </Grid>
+        </Border>
+
+        <Border DockPanel.Dock="Top" Classes="ErrorBar"
+                IsVisible="{Binding ErrorMessage, Converter={x:Static StringConverters.IsNotNullOrEmpty}}">
+            <TextBlock Text="{Binding ErrorMessage}" />
+        </Border>
+
+        <ScrollViewer HorizontalScrollBarVisibility="Disabled">
+            <StackPanel Margin="32,24" Spacing="18" MaxWidth="640" HorizontalAlignment="Center">
+
+                <TextBlock Text="Создать сетевую игру" Classes="ScreenTitle"
+                           HorizontalAlignment="Center"/>
+
+                <StackPanel Spacing="6">
+                    <TextBlock Text="Название игры" Classes="FieldLabel"/>
+                    <TextBox Text="{Binding GameName}" PlaceholderText="Новая партия"/>
+                </StackPanel>
+
+                <StackPanel Spacing="6">
+                    <TextBlock Text="Максимум игроков (1-8)" Classes="FieldLabel"/>
+                    <NumericUpDown Value="{Binding MaxPlayers}" Minimum="1" Maximum="8"/>
+                </StackPanel>
+
+                <CheckBox Content="Сгенерировать мир через AI (вместо стандартного)" IsChecked="{Binding UseAiWorldBuild}"
+                          Classes="Muted"/>
+
+                <StackPanel Spacing="6" IsVisible="{Binding UseAiWorldBuild}">
+                    <TextBlock Text="Бриф мира (пусто = тёмное фэнтези по умолчанию)" Classes="FieldLabel"/>
+                    <TextBox Text="{Binding WorldBrief}" PlaceholderText="Например: киберпанк-район мегаполиса, фиксер собирает команду…"
+                             AcceptsReturn="True" TextWrapping="Wrap" Height="100" FontSize="13"/>
+                    <TextBlock Text="Понадобится API-ключ (Профиль → Настройки AI). Займёт 30-90 секунд."
+                               Classes="Muted Small" TextWrapping="Wrap"/>
+                </StackPanel>
+
+                <Button Content="Начать хостинг" Command="{Binding StartCommand}" Classes="MenuButton Primary"
+                        HorizontalAlignment="Stretch"/>
+
+                <TextBlock Text="Запустится локальный WebSocket-сервер на свободном порту. Поделитесь IP:портом с друзьями, чтобы они могли подключиться."
+                           Classes="Muted Small" TextWrapping="Wrap"/>
+
+                <Border Classes="InfoBox" Padding="12" IsVisible="{Binding ShareAddress, Converter={x:Static StringConverters.IsNotNullOrEmpty}}">
+                    <StackPanel Spacing="4">
+                        <TextBlock Text="Адрес для подключения:" Classes="Muted Small"/>
+                        <TextBlock Text="{Binding ShareAddress}" FontFamily="Cascadia Mono,Consolas,Menlo,monospace"/>
+                    </StackPanel>
+                </Border>
+
+                <TextBlock IsVisible="{Binding IsBusy}" Text="Запуск…" Classes="Muted"
+                           HorizontalAlignment="Center"/>
+            </StackPanel>
+        </ScrollViewer>
+    </DockPanel>
+</UserControl>

@@ -1,0 +1,56 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:vm="using:MyGame.Desktop.ViewModels"
+             mc:Ignorable="d" d:DesignWidth="800" d:DesignHeight="600"
+             x:Class="MyGame.Desktop.Views.WorldBriefView"
+             x:DataType="vm:WorldBriefViewModel">
+
+    <DockPanel LastChildFill="True">
+
+        <Border DockPanel.Dock="Top" Classes="TopBar">
+            <Grid ColumnDefinitions="Auto,*,Auto">
+                <Button Grid.Column="0" Content="← Назад" Command="{Binding BackCommand}" Classes="SmallButton"/>
+                <TextBlock Grid.Column="1" Text="Создать мир" Classes="AppTitle"
+                           HorizontalAlignment="Center"/>
+                <TextBlock Grid.Column="2" Text="" />
+            </Grid>
+        </Border>
+
+        <ScrollViewer HorizontalScrollBarVisibility="Disabled">
+            <StackPanel Margin="32,24" Spacing="18" MaxWidth="720" HorizontalAlignment="Center">
+
+                <TextBlock Text="Опишите мир, который хотите увидеть" Classes="ScreenTitle"
+                           HorizontalAlignment="Center"/>
+
+                <TextBlock Text="Жанр, тон, ключевые места, стартовая ситуация. Чем конкретнее — тем точнее результат. Пустое поле = планировщик создаст мир по умолчанию (тёмное фэнтези)."
+                           Classes="Muted Small" TextWrapping="Wrap"/>
+
+                <TextBox Text="{Binding Brief}" PlaceholderText="Например: тёмное фэнтези, изолированная деревня в горах, окружённая волчьими лесами. Старейшина просит найти пропавший караван…"
+                         AcceptsReturn="True" TextWrapping="Wrap"
+                         Height="180" FontSize="13"/>
+
+                <StackPanel Spacing="6">
+                    <TextBlock Text="Или начните с шаблона:" Classes="FieldLabel"/>
+                    <WrapPanel>
+                        <Button Content="Тёмное фэнтези" Command="{Binding UsePresetDarkFantasyCommand}" Classes="SmallButton" Margin="0,0,6,0"/>
+                        <Button Content="Киберпанк" Command="{Binding UsePresetCyberpunkCommand}" Classes="SmallButton" Margin="0,0,6,0"/>
+                        <Button Content="Постапокалипсис" Command="{Binding UsePresetPostapocCommand}" Classes="SmallButton"/>
+                    </WrapPanel>
+                </StackPanel>
+
+                <CheckBox Content="Продвинутая генерация (pet-агенты: +30-60с, +токены)"
+                          IsChecked="{Binding UsePetDelegations}"
+                          Classes="Muted"
+                          ToolTip.Tip="После основного билда запустит 2 pet-агента: фоновое население + лут/сокровища"/>
+
+                <Button Content="Создать мир →" Command="{Binding BuildCommand}" Classes="MenuButton Primary"
+                        HorizontalAlignment="Stretch"/>
+
+                <TextBlock Text="Процесс займёт 30-90 секунд (без pet-агентов) или 60-150 секунд (с pet-агентами). Понадобится API-ключ (Профиль → Настройки AI)."
+                           Classes="Muted Small" TextWrapping="Wrap" TextAlignment="Center"/>
+            </StackPanel>
+        </ScrollViewer>
+    </DockPanel>
+</UserControl>

@@ -1,0 +1,36 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <LangVersion>latest</LangVersion>
+    <!-- Make internals visible to Desktop project for DI wiring -->
+    <InternalsVisibleTo>MyGame.Desktop</InternalsVisibleTo>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- SQLite for local persistence (profile metadata, save index). -->
+    <PackageReference Include="Microsoft.Data.Sqlite" Version="8.0.10" />
+    <!-- Markdig: markdown → plain text / AST for narrative rendering. -->
+    <PackageReference Include="Markdig" Version="0.37.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Default content pack (items/NPCs/buildings) embedded as a resource.
+         Loaded at runtime by ContentRegistry.LoadEmbedded(). The resource
+         name (MyGame.Core.World.Content.data.json) reflects the project
+         default namespace + the file's folder path. -->
+    <EmbeddedResource Include="World\Content\data.json" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- AI prompt templates. Embedded as resources so they ship with the
+         assembly (no on-disk dependency). Loaded at runtime by
+         PromptLoader.Get(name). Resource names follow the convention
+         MyGame.Core.AI.Prompts.<name>.md (project default namespace + the
+         file's folder path with dots). -->
+    <EmbeddedResource Include="AI\Prompts\*.md" />
+  </ItemGroup>
+
+</Project>

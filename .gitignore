@@ -1,0 +1,65 @@
+# ─── Build output ────────────────────────────────────────────────────
+bin/
+obj/
+[Bb]uild/
+[Bb]uild[Ll]og/
+*.dll
+*.exe
+*.pdb
+*.cache
+*.user
+*.suo
+*.userprefs
+*.pidb
+*.swp
+
+# ─── .NET / Visual Studio ────────────────────────────────────────────
+.vs/
+.vscode/
+.idea/
+*.sln.docstates
+*.sln.metaproj
+*.project.lock.json
+project.fragment.lock.json
+artifacts/
+
+# ─── Avalonia / XAML compiled output ────────────────────────────────
+*.g.cs
+*.g.i.cs
+*.baml
+
+# ─── Runtime data / local DBs / secrets ─────────────────────────────
+# Profile, settings, saves, jwt-secret — all generated per-install.
+db/
+*.db
+*.db-shm
+*.db-wal
+*.sqlite
+*.sqlite3
+jwt-secret.key
+
+# ─── Logs ────────────────────────────────────────────────────────────
+*.log
+logs/
+trace-*.txt
+
+# ─── OS junk ─────────────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+desktop.ini
+ehthumbs.db
+
+# ─── Editor / IDE ────────────────────────────────────────────────────
+*.swp
+*~
+.ionide/
+
+# ─── Backup / merge artifacts ────────────────────────────────────────
+*.orig
+*.rej
+*.bak
+
+# ─── Local environment ───────────────────────────────────────────────
+.env
+.env.local
+.env.*.local

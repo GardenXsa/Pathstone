@@ -1,0 +1,103 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:vm="using:MyGame.Desktop.ViewModels.Panels"
+             mc:Ignorable="d" d:DesignWidth="320" d:DesignHeight="600"
+             x:Class="MyGame.Desktop.Views.Panels.InventoryPanelView"
+             x:Name="Root"
+             x:CompileBindings="False">
+
+    <DockPanel LastChildFill="True">
+
+        <!-- Header: currency + carrying capacity -->
+        <Border DockPanel.Dock="Top" Classes="PanelSection" Margin="12,12,12,6">
+            <StackPanel Spacing="6">
+                <Grid ColumnDefinitions="*,Auto">
+                    <TextBlock Grid.Column="0" Text="Золото" Classes="SectionTitle"/>
+                    <TextBlock Grid.Column="1" Text="{Binding Currency}" FontWeight="SemiBold"
+                               FontFamily="Cascadia Mono,Consolas,Menlo,monospace"/>
+                </Grid>
+                <Grid ColumnDefinitions="*,Auto">
+                    <TextBlock Grid.Column="0" Text="Переносимый вес" Classes="Small Muted"/>
+                    <TextBlock Grid.Column="1" Classes="Small"
+                               FontFamily="Cascadia Mono,Consolas,Menlo,monospace">
+                        <Run Text="{Binding CarriedWeight}"/>
+                        <Run Text=" / "/>
+                        <Run Text="{Binding Capacity}"/>
+                    </TextBlock>
+                </Grid>
+                <ProgressBar Value="{Binding WeightPercent}" Maximum="100" Height="4"/>
+            </StackPanel>
+        </Border>
+
+        <ScrollViewer HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto">
+            <StackPanel Spacing="8" Margin="12,0,12,12">
+
+                <!-- Carried items -->
+                <TextBlock Text="Сумка" Classes="SectionTitle" IsVisible="{Binding HasItems}"/>
+                <ItemsControl ItemsSource="{Binding Items}" IsVisible="{Binding HasItems}">
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate DataType="vm:InventoryItemRow">
+                            <Border Classes="ItemRow" Padding="6,4" Margin="0,0,0,4">
+                                <StackPanel Spacing="2">
+                                    <Grid ColumnDefinitions="*,Auto">
+                                        <TextBlock Grid.Column="0" Text="{Binding Name}" FontWeight="SemiBold" Classes="Small"/>
+                                        <TextBlock Grid.Column="1" Classes="Small Muted">
+                                            <Run Text="×"/>
+                                            <Run Text="{Binding Quantity}"/>
+                                        </TextBlock>
+                                    </Grid>
+                                    <TextBlock Text="{Binding Description}" Classes="Muted Small" TextWrapping="Wrap"
+                                               IsVisible="{Binding Description, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"/>
+                                    <!-- Inline action buttons. Commands live on the parent VM;
+                                         RelativeSource walks up to the UserControl. -->
+                                    <StackPanel Orientation="Horizontal" Spacing="4" Margin="0,3,0,0">
+                                        <Button Content="Исп." Classes="TinyButton"
+                                                Command="{Binding DataContext.UseCommand, ElementName=Root}"
+                                                CommandParameter="{Binding}"
+                                                IsVisible="{Binding CanUse}"/>
+                                        <Button Content="Экип." Classes="TinyButton"
+                                                Command="{Binding DataContext.EquipCommand, ElementName=Root}"
+                                                CommandParameter="{Binding}"
+                                                IsVisible="{Binding CanEquip}"/>
+                                        <Button Content="Бросить" Classes="TinyButton Danger"
+                                                Command="{Binding DataContext.DropCommand, ElementName=Root}"
+                                                CommandParameter="{Binding}"/>
+                                    </StackPanel>
+                                </StackPanel>
+                            </Border>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+
+                <TextBlock Text="(сумка пуста)" Classes="Muted Small" IsVisible="{Binding !HasItems}"/>
+
+                <!-- Equipped items -->
+                <TextBlock Text="Надето" Classes="SectionTitle" Margin="0,8,0,0" IsVisible="{Binding HasEquipped}"/>
+                <ItemsControl ItemsSource="{Binding Equipped}" IsVisible="{Binding HasEquipped}">
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate DataType="vm:InventoryItemRow">
+                            <Border Classes="ItemRow EquippedRow" Padding="6,4" Margin="0,0,0,4">
+                                <StackPanel Spacing="1">
+                                    <TextBlock Classes="Small">
+                                        <Run Text="{Binding Slot}" Foreground="{DynamicResource SystemControlForegroundChromeMediumBrush}"/>
+                                        <Run Text=": "/>
+                                        <Run Text="{Binding Name}" FontWeight="SemiBold"/>
+                                    </TextBlock>
+                                    <TextBlock Text="{Binding Description}" Classes="Muted Small" TextWrapping="Wrap"
+                                               IsVisible="{Binding Description, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"/>
+                                    <Button Content="Снять" Classes="TinyButton"
+                                            Command="{Binding DataContext.UnequipCommand, ElementName=Root}"
+                                            CommandParameter="{Binding}"
+                                            Margin="0,3,0,0"/>
+                                </StackPanel>
+                            </Border>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+
+            </StackPanel>
+        </ScrollViewer>
+    </DockPanel>
+</UserControl>

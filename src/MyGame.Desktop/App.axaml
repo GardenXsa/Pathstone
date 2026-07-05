@@ -1,0 +1,288 @@
+<Application xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:local="using:MyGame.Desktop"
+             x:Class="MyGame.Desktop.App"
+             RequestedThemeVariant="Dark">
+
+    <Application.Styles>
+        <FluentTheme />
+    </Application.Styles>
+
+    <!-- ViewLocator maps MyGame.Desktop.ViewModels.*ViewModel →
+         MyGame.Desktop.Views.*View. Registered application-wide so any
+         ContentControl bound to a ViewModel auto-renders its view. -->
+    <Application.DataTemplates>
+        <local:ViewLocator />
+    </Application.DataTemplates>
+
+    <Application.Resources>
+        <!-- Color palette (dark theme, matches the TS source's mood). -->
+        <Color x:Key="AppBackground">#0F1115</Color>
+        <Color x:Key="AppSurface">#171A21</Color>
+        <Color x:Key="AppSurfaceAlt">#1F2330</Color>
+        <Color x:Key="AppBorder">#2C3142</Color>
+        <Color x:Key="AppForeground">#E6E8EC</Color>
+        <Color x:Key="AppMuted">#8A93A6</Color>
+        <Color x:Key="AppAccent">#7C5CFF</Color>
+        <Color x:Key="AppAccentFg">#FFFFFF</Color>
+        <Color x:Key="AppDanger">#E5484D</Color>
+        <Color x:Key="AppSuccess">#3DD68C</Color>
+
+        <SolidColorBrush x:Key="AppBackgroundBrush" Color="{StaticResource AppBackground}" />
+        <SolidColorBrush x:Key="AppSurfaceBrush" Color="{StaticResource AppSurface}" />
+        <SolidColorBrush x:Key="AppSurfaceAltBrush" Color="{StaticResource AppSurfaceAlt}" />
+        <SolidColorBrush x:Key="AppBorderBrush" Color="{StaticResource AppBorder}" />
+        <SolidColorBrush x:Key="AppForegroundBrush" Color="{StaticResource AppForeground}" />
+        <SolidColorBrush x:Key="AppMutedBrush" Color="{StaticResource AppMuted}" />
+        <SolidColorBrush x:Key="AppAccentBrush" Color="{StaticResource AppAccent}" />
+        <SolidColorBrush x:Key="AppAccentFgBrush" Color="{StaticResource AppAccentFg}" />
+        <SolidColorBrush x:Key="AppDangerBrush" Color="{StaticResource AppDanger}" />
+        <SolidColorBrush x:Key="AppSuccessBrush" Color="{StaticResource AppSuccess}" />
+    </Application.Resources>
+
+    <!-- Per-control style overrides for the dark game look. -->
+    <Application.Styles>
+        <Style Selector="Window">
+            <Setter Property="Background" Value="{StaticResource AppBackgroundBrush}" />
+            <Setter Property="Foreground" Value="{StaticResource AppForegroundBrush}" />
+        </Style>
+        <Style Selector="UserControl">
+            <Setter Property="Background" Value="{StaticResource AppBackgroundBrush}" />
+            <Setter Property="Foreground" Value="{StaticResource AppForegroundBrush}" />
+        </Style>
+        <Style Selector="TextBlock">
+            <Setter Property="Foreground" Value="{StaticResource AppForegroundBrush}" />
+        </Style>
+
+        <!-- Top bar -->
+        <Style Selector="Border.TopBar">
+            <Setter Property="Background" Value="{StaticResource AppSurfaceBrush}" />
+            <Setter Property="BorderBrush" Value="{StaticResource AppBorderBrush}" />
+            <Setter Property="BorderThickness" Value="0,0,0,1" />
+            <Setter Property="Padding" Value="12,6" />
+        </Style>
+        <Style Selector="Border.StatusBar">
+            <Setter Property="Background" Value="{StaticResource AppSurfaceBrush}" />
+            <Setter Property="BorderBrush" Value="{StaticResource AppBorderBrush}" />
+            <Setter Property="BorderThickness" Value="0,0,0,1" />
+            <Setter Property="Padding" Value="12,3" />
+        </Style>
+        <Style Selector="Border.ErrorBar">
+            <Setter Property="Background" Value="#3A1A1F" />
+            <Setter Property="Padding" Value="12,6" />
+            <Setter Property="BorderBrush" Value="{StaticResource AppDangerBrush}" />
+            <Setter Property="BorderThickness" Value="0,0,0,1" />
+        </Style>
+        <Style Selector="Border.ErrorBar TextBlock">
+            <Setter Property="Foreground" Value="#F5C2C7" />
+        </Style>
+        <Style Selector="Border.SidePanel">
+            <Setter Property="Background" Value="{StaticResource AppSurfaceBrush}" />
+            <Setter Property="BorderBrush" Value="{StaticResource AppBorderBrush}" />
+            <Setter Property="BorderThickness" Value="0,0,1,0" />
+            <Setter Property="Padding" Value="12,10" />
+        </Style>
+        <Style Selector="Border.CenterPanel">
+            <Setter Property="Background" Value="{StaticResource AppBackgroundBrush}" />
+            <Setter Property="Padding" Value="0" />
+        </Style>
+        <Style Selector="Border.ChatPanel">
+            <Setter Property="Background" Value="{StaticResource AppSurfaceAltBrush}" />
+            <Setter Property="BorderBrush" Value="{StaticResource AppBorderBrush}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="Padding" Value="8" />
+            <Setter Property="CornerRadius" Value="4" />
+        </Style>
+        <Style Selector="Border.InputBar">
+            <Setter Property="Background" Value="{StaticResource AppSurfaceBrush}" />
+            <Setter Property="BorderBrush" Value="{StaticResource AppBorderBrush}" />
+            <Setter Property="BorderThickness" Value="0,1,0,0" />
+        </Style>
+        <Style Selector="Border.LoadPanel">
+            <Setter Property="Background" Value="{StaticResource AppSurfaceAltBrush}" />
+            <Setter Property="BorderBrush" Value="{StaticResource AppBorderBrush}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="CornerRadius" Value="4" />
+        </Style>
+        <Style Selector="Border.InfoBox">
+            <Setter Property="Background" Value="{StaticResource AppSurfaceAltBrush}" />
+            <Setter Property="BorderBrush" Value="{StaticResource AppBorderBrush}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="CornerRadius" Value="4" />
+        </Style>
+        <Style Selector="Border.Separator">
+            <Setter Property="BorderBrush" Value="{StaticResource AppBorderBrush}" />
+            <Setter Property="BorderThickness" Value="0,1,0,0" />
+            <Setter Property="Height" Value="1" />
+            <Setter Property="Margin" Value="0,4" />
+        </Style>
+
+        <Style Selector="Border.MemberRow">
+            <Setter Property="Background" Value="{StaticResource AppSurfaceAltBrush}" />
+            <Setter Property="CornerRadius" Value="3" />
+            <Setter Property="Margin" Value="0,0,0,2" />
+        </Style>
+        <Style Selector="Border.ActionRow">
+            <Setter Property="Background" Value="{StaticResource AppSurfaceAltBrush}" />
+            <Setter Property="CornerRadius" Value="3" />
+            <Setter Property="Margin" Value="0,0,0,2" />
+        </Style>
+        <Style Selector="Border.SaveRow">
+            <Setter Property="Background" Value="{StaticResource AppSurfaceAltBrush}" />
+            <Setter Property="BorderBrush" Value="{StaticResource AppBorderBrush}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="CornerRadius" Value="4" />
+            <Setter Property="Margin" Value="0,0,0,4" />
+        </Style>
+        <Style Selector="Border.LogEntry">
+            <Setter Property="Margin" Value="0,0,0,4" />
+        </Style>
+
+        <!-- Typography -->
+        <Style Selector="TextBlock.AppTitle">
+            <Setter Property="FontSize" Value="14" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+        </Style>
+        <Style Selector="TextBlock.ScreenTitle">
+            <Setter Property="FontSize" Value="22" />
+            <Setter Property="FontWeight" Value="Bold" />
+            <Setter Property="Margin" Value="0,0,0,8" />
+        </Style>
+        <Style Selector="TextBlock.SectionTitle">
+            <Setter Property="FontSize" Value="13" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="Foreground" Value="{StaticResource AppMutedBrush}" />
+            <Setter Property="Margin" Value="0,0,0,4" />
+        </Style>
+        <Style Selector="TextBlock.FieldLabel">
+            <Setter Property="FontSize" Value="12" />
+            <Setter Property="Foreground" Value="{StaticResource AppMutedBrush}" />
+            <Setter Property="Margin" Value="0,0,0,2" />
+        </Style>
+        <Style Selector="TextBlock.Muted">
+            <Setter Property="Foreground" Value="{StaticResource AppMutedBrush}" />
+        </Style>
+        <Style Selector="TextBlock.Small">
+            <Setter Property="FontSize" Value="11" />
+        </Style>
+
+        <!-- Buttons -->
+        <Style Selector="Button.MenuButton">
+            <Setter Property="HorizontalContentAlignment" Value="Center" />
+            <Setter Property="HorizontalAlignment" Value="Stretch" />
+            <Setter Property="Padding" Value="14,10" />
+            <Setter Property="Margin" Value="0,2" />
+            <Setter Property="FontSize" Value="14" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="CornerRadius" Value="6" />
+            <Setter Property="Background" Value="{StaticResource AppSurfaceAltBrush}" />
+            <Setter Property="Foreground" Value="{StaticResource AppForegroundBrush}" />
+            <Setter Property="BorderBrush" Value="{StaticResource AppBorderBrush}" />
+            <Setter Property="BorderThickness" Value="1" />
+        </Style>
+        <Style Selector="Button.MenuButton.Primary">
+            <Setter Property="Background" Value="{StaticResource AppAccentBrush}" />
+            <Setter Property="Foreground" Value="{StaticResource AppAccentFgBrush}" />
+            <Setter Property="BorderBrush" Value="{StaticResource AppAccentBrush}" />
+        </Style>
+        <Style Selector="Button.MenuButton.Primary:pointerover /template/ ContentPresenter">
+            <Setter Property="Background" Value="#6B4FE6" />
+        </Style>
+        <Style Selector="Button.SmallButton">
+            <Setter Property="Padding" Value="10,5" />
+            <Setter Property="FontSize" Value="12" />
+            <Setter Property="CornerRadius" Value="4" />
+            <Setter Property="Background" Value="{StaticResource AppSurfaceAltBrush}" />
+            <Setter Property="Foreground" Value="{StaticResource AppForegroundBrush}" />
+            <Setter Property="BorderBrush" Value="{StaticResource AppBorderBrush}" />
+            <Setter Property="BorderThickness" Value="1" />
+        </Style>
+        <Style Selector="Button.SmallButton.Primary">
+            <Setter Property="Background" Value="{StaticResource AppAccentBrush}" />
+            <Setter Property="Foreground" Value="{StaticResource AppAccentFgBrush}" />
+            <Setter Property="BorderBrush" Value="{StaticResource AppAccentBrush}" />
+        </Style>
+        <Style Selector="Button.SmallButton.Danger">
+            <Setter Property="Background" Value="#3A1A1F" />
+            <Setter Property="Foreground" Value="#F5C2C7" />
+            <Setter Property="BorderBrush" Value="{StaticResource AppDangerBrush}" />
+        </Style>
+        <Style Selector="Button.TinyButton">
+            <Setter Property="Padding" Value="6,2" />
+            <Setter Property="FontSize" Value="12" />
+            <Setter Property="CornerRadius" Value="3" />
+        </Style>
+
+        <!-- Inputs -->
+        <Style Selector="TextBox">
+            <Setter Property="Background" Value="{StaticResource AppSurfaceAltBrush}" />
+            <Setter Property="Foreground" Value="{StaticResource AppForegroundBrush}" />
+            <Setter Property="BorderBrush" Value="{StaticResource AppBorderBrush}" />
+            <Setter Property="CornerRadius" Value="4" />
+            <Setter Property="Padding" Value="8,4" />
+        </Style>
+        <Style Selector="NumericUpDown">
+            <Setter Property="Background" Value="{StaticResource AppSurfaceAltBrush}" />
+            <Setter Property="Foreground" Value="{StaticResource AppForegroundBrush}" />
+            <Setter Property="BorderBrush" Value="{StaticResource AppBorderBrush}" />
+        </Style>
+
+        <!-- Narrative log: monospace so it reads like a journal. -->
+        <Style Selector="Border.LogEntry TextBlock">
+            <Setter Property="FontFamily" Value="Cascadia Mono,Consolas,Menlo,monospace" />
+            <Setter Property="FontSize" Value="13" />
+            <Setter Property="LineHeight" Value="18" />
+        </Style>
+
+        <!-- ─── Panel-specific styles (Character/Inventory/Quest/World) ─── -->
+        <Style Selector="Border.PanelSection">
+            <Setter Property="Background" Value="{StaticResource AppSurfaceAltBrush}" />
+            <Setter Property="BorderBrush" Value="{StaticResource AppBorderBrush}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="CornerRadius" Value="4" />
+            <Setter Property="Padding" Value="10" />
+        </Style>
+        <Style Selector="Border.ItemRow">
+            <Setter Property="Background" Value="{StaticResource AppSurfaceAltBrush}" />
+            <Setter Property="BorderBrush" Value="{StaticResource AppBorderBrush}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="CornerRadius" Value="3" />
+        </Style>
+        <Style Selector="Border.ItemRow.EquippedRow">
+            <Setter Property="BorderBrush" Value="{StaticResource AppAccentBrush}" />
+            <Setter Property="BorderThickness" Value="1" />
+        </Style>
+        <Style Selector="Border.QuestRow">
+            <Setter Property="Background" Value="{StaticResource AppSurfaceAltBrush}" />
+            <Setter Property="BorderBrush" Value="{StaticResource AppBorderBrush}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="CornerRadius" Value="4" />
+        </Style>
+        <Style Selector="Border.QuestRow.Active">
+            <Setter Property="BorderBrush" Value="{StaticResource AppAccentBrush}" />
+        </Style>
+        <Style Selector="Border.QuestRow.Completed">
+            <Setter Property="Opacity" Value="0.6" />
+        </Style>
+        <Style Selector="Border.QuestRow.Failed">
+            <Setter Property="BorderBrush" Value="{StaticResource AppDangerBrush}" />
+            <Setter Property="Opacity" Value="0.6" />
+        </Style>
+        <Style Selector="Border.RewardBox">
+            <Setter Property="Background" Value="{StaticResource AppSurfaceBrush}" />
+            <Setter Property="CornerRadius" Value="3" />
+        </Style>
+        <Style Selector="Border.Chip">
+            <Setter Property="Background" Value="{StaticResource AppSurfaceBrush}" />
+            <Setter Property="BorderBrush" Value="{StaticResource AppBorderBrush}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="CornerRadius" Value="10" />
+        </Style>
+        <Style Selector="TextBlock.Small">
+            <Setter Property="FontSize" Value="12" />
+        </Style>
+        <Style Selector="TextBlock.Muted">
+            <Setter Property="Foreground" Value="{StaticResource AppMutedBrush}" />
+        </Style>
+    </Application.Styles>
+</Application>

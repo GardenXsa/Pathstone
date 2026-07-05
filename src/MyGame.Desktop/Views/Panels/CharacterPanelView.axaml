@@ -1,0 +1,119 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:vm="using:MyGame.Desktop.ViewModels.Panels"
+             mc:Ignorable="d" d:DesignWidth="320" d:DesignHeight="600"
+             x:Class="MyGame.Desktop.Views.Panels.CharacterPanelView"
+             x:DataType="vm:CharacterPanelViewModel">
+
+    <ScrollViewer HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto">
+        <StackPanel Spacing="12" Margin="12">
+
+            <!-- Identity -->
+            <Border Classes="PanelSection">
+                <StackPanel Spacing="3">
+                    <TextBlock Text="{Binding Name}" FontWeight="SemiBold" FontSize="16"/>
+                    <TextBlock Classes="Muted Small">
+                        <Run Text="{Binding Race}"/>
+                        <Run Text=" · "/>
+                        <Run Text="{Binding Class}"/>
+                        <Run Text=" · ур. "/>
+                        <Run Text="{Binding Level}"/>
+                    </TextBlock>
+                    <TextBlock Classes="Muted Small" Text="{Binding Background}" TextWrapping="Wrap"/>
+                    <TextBlock Classes="Muted Small">
+                        <Run Text="Скорость: "/>
+                        <Run Text="{Binding Speed}"/>
+                    </TextBlock>
+                </StackPanel>
+            </Border>
+
+            <!-- Attributes -->
+            <Border Classes="PanelSection" IsVisible="{Binding HasAttributes}">
+                <StackPanel Spacing="4">
+                    <TextBlock Text="Характеристики" Classes="SectionTitle"/>
+                    <ItemsControl ItemsSource="{Binding Attributes}">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate DataType="vm:AttributeRow">
+                                <Grid ColumnDefinitions="*,Auto" Margin="0,1">
+                                    <TextBlock Grid.Column="0" Text="{Binding Name}" Classes="Small"/>
+                                    <TextBlock Grid.Column="1" Text="{Binding Value}" Classes="Small"
+                                               FontFamily="Cascadia Mono,Consolas,Menlo,monospace"/>
+                                </Grid>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </StackPanel>
+            </Border>
+
+            <!-- Resources -->
+            <Border Classes="PanelSection" IsVisible="{Binding HasResources}">
+                <StackPanel Spacing="4">
+                    <TextBlock Text="Ресурсы" Classes="SectionTitle"/>
+                    <ItemsControl ItemsSource="{Binding Resources}">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate DataType="vm:ResourceRow">
+                                <Grid ColumnDefinitions="*,Auto" Margin="0,1">
+                                    <TextBlock Grid.Column="0" Text="{Binding Name}" Classes="Small"/>
+                                    <TextBlock Grid.Column="1" Text="{Binding Value}" Classes="Small"
+                                               FontFamily="Cascadia Mono,Consolas,Menlo,monospace"/>
+                                </Grid>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </StackPanel>
+            </Border>
+
+            <!-- Equipped -->
+            <Border Classes="PanelSection" IsVisible="{Binding HasEquipped}">
+                <StackPanel Spacing="4">
+                    <TextBlock Text="Экипировка" Classes="SectionTitle"/>
+                    <ItemsControl ItemsSource="{Binding Equipped}">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate DataType="vm:EquippedRow">
+                                <StackPanel Margin="0,1" Spacing="1">
+                                    <TextBlock Classes="Small">
+                                        <Run Text="{Binding Slot}" Classes="Muted"/>
+                                        <Run Text=": "/>
+                                        <Run Text="{Binding ItemName}" FontWeight="SemiBold"/>
+                                    </TextBlock>
+                                    <TextBlock Text="{Binding Description}" Classes="Muted Small" TextWrapping="Wrap"
+                                               IsVisible="{Binding Description, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"/>
+                                </StackPanel>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </StackPanel>
+            </Border>
+
+            <!-- Skills -->
+            <Border Classes="PanelSection" IsVisible="{Binding HasSkills}">
+                <StackPanel Spacing="4">
+                    <TextBlock Text="Владения" Classes="SectionTitle"/>
+                    <WrapPanel>
+                        <ItemsControl ItemsSource="{Binding ProficientSkills}">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate DataType="x:String">
+                                    <Border Classes="Chip" Padding="6,2" Margin="0,0,4,4">
+                                        <TextBlock Text="{Binding}" Classes="Small"/>
+                                    </Border>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </WrapPanel>
+                </StackPanel>
+            </Border>
+
+            <!-- Currency -->
+            <Border Classes="PanelSection">
+                <Grid ColumnDefinitions="*,Auto">
+                    <TextBlock Grid.Column="0" Text="Золото" Classes="Small"/>
+                    <TextBlock Grid.Column="1" Text="{Binding Currency}" Classes="Small"
+                               FontFamily="Cascadia Mono,Consolas,Menlo,monospace"/>
+                </Grid>
+            </Border>
+
+        </StackPanel>
+    </ScrollViewer>
+</UserControl>

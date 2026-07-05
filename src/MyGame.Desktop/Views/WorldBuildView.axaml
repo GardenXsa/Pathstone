@@ -1,0 +1,72 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:vm="using:MyGame.Desktop.ViewModels"
+             mc:Ignorable="d" d:DesignWidth="800" d:DesignHeight="600"
+             x:Class="MyGame.Desktop.Views.WorldBuildView"
+             x:DataType="vm:WorldBuildViewModel">
+
+    <DockPanel LastChildFill="True">
+
+        <Border DockPanel.Dock="Top" Classes="TopBar">
+            <Grid ColumnDefinitions="Auto,*,Auto">
+                <Button Grid.Column="0" Content="← Назад" Command="{Binding BackCommand}" Classes="SmallButton"
+                        IsVisible="{Binding !IsBusy}"/>
+                <TextBlock Grid.Column="1" Text="Создание мира" Classes="AppTitle"
+                           HorizontalAlignment="Center"/>
+                <TextBlock Grid.Column="2" Text="" />
+            </Grid>
+        </Border>
+
+        <Border DockPanel.Dock="Top" Classes="ErrorBar"
+                IsVisible="{Binding ErrorMessage, Converter={x:Static StringConverters.IsNotNullOrEmpty}}">
+            <TextBlock Text="{Binding ErrorMessage}" />
+        </Border>
+
+        <ScrollViewer HorizontalScrollBarVisibility="Disabled">
+            <StackPanel Margin="40,32" Spacing="20" MaxWidth="680" HorizontalAlignment="Center" VerticalAlignment="Center">
+
+                <TextBlock Text="Построение мира" Classes="ScreenTitle"
+                           HorizontalAlignment="Center"/>
+
+                <!-- Big percent + current stage label -->
+                <StackPanel Spacing="6" HorizontalAlignment="Center">
+                    <TextBlock Text="{Binding Percent, StringFormat={}{0}%}"
+                               FontSize="48" FontWeight="SemiBold"
+                               HorizontalAlignment="Center"/>
+                    <TextBlock Text="{Binding StageLabel}" Classes="Muted"
+                               HorizontalAlignment="Center" TextAlignment="Center" TextWrapping="Wrap"/>
+                    <TextBlock Text="{Binding StageDetail}" Classes="Muted Small"
+                               HorizontalAlignment="Center" TextAlignment="Center" TextWrapping="Wrap"
+                               IsVisible="{Binding StageDetail, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"/>
+                </StackPanel>
+
+                <!-- Progress bar -->
+                <ProgressBar Value="{Binding Percent}" Maximum="100"
+                             Height="8" MinWidth="400"/>
+
+                <!-- Final summary (success or failure) -->
+                <Border Classes="InfoBox" Padding="14" IsVisible="{Binding FinalSummary, Converter={x:Static StringConverters.IsNotNullOrEmpty}}">
+                    <TextBlock Text="{Binding FinalSummary}" TextWrapping="Wrap"
+                               FontFamily="Cascadia Mono,Consolas,Menlo,monospace"/>
+                </Border>
+
+                <!-- Action buttons -->
+                <StackPanel Spacing="10" HorizontalAlignment="Center">
+                    <Button Content="Отмена" Command="{Binding CancelCommand}" Classes="MenuButton"
+                            IsVisible="{Binding IsBusy}"/>
+                    <Button Content="Продолжить →" Command="{Binding EnterGameCommand}" Classes="MenuButton Primary"
+                            IsVisible="{Binding Completed}"/>
+                    <Button Content="Повторить" Command="{Binding StartCommand}" Classes="MenuButton"
+                            IsVisible="{Binding Failed}"/>
+                    <Button Content="В меню" Command="{Binding BackCommand}" Classes="SmallButton"
+                            IsVisible="{Binding Failed}"/>
+                </StackPanel>
+
+                <TextBlock Text="Планировщик AI создаёт структуру мира, затем детерминированный строитель материализует локации, NPC, здания и снаряжение, и наконец нарратор пишет вступление. Это занимает 30-90 секунд."
+                           Classes="Muted Small" TextWrapping="Wrap" TextAlignment="Center"/>
+            </StackPanel>
+        </ScrollViewer>
+    </DockPanel>
+</UserControl>

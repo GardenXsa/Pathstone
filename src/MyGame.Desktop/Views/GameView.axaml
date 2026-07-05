@@ -1,0 +1,189 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:vm="using:MyGame.Desktop.ViewModels"
+             xmlns:panels="using:MyGame.Desktop.Views.Panels"
+             xmlns:core="using:MyGame.Core.Saves"
+             xmlns:mp="using:MyGame.Core.Multiplayer"
+             mc:Ignorable="d" d:DesignWidth="1280" d:DesignHeight="800"
+             x:Class="MyGame.Desktop.Views.GameView"
+             x:DataType="vm:GameViewModel">
+
+    <DockPanel LastChildFill="True">
+
+        <!-- Top bar -->
+        <Border DockPanel.Dock="Top" Classes="TopBar">
+            <Grid ColumnDefinitions="Auto,*,Auto,Auto,Auto">
+                <TextBlock Grid.Column="0" Text="{Binding GameName}" Classes="AppTitle"
+                           VerticalAlignment="Center" Margin="0,0,12,0"/>
+                <TextBlock Grid.Column="1" Text="{Binding ShareAddress}" Classes="Muted Small"
+                           VerticalAlignment="Center" IsVisible="{Binding IsMultiplayer}"/>
+                <TextBlock Grid.Column="2" Text="{Binding ClockDisplay}" Classes="Muted Small"
+                           VerticalAlignment="Center" Margin="12,0"
+                           FontFamily="Cascadia Mono,Consolas,Menlo,monospace"/>
+                <Button Grid.Column="3" Content="💾 Сохранить" Command="{Binding SaveCommand}"
+                        Classes="SmallButton" Margin="0,0,6,0"
+                        IsVisible="{Binding CanSave}"
+                        ToolTip.Tip="Сохранить текущее состояние"/>
+                <Button Grid.Column="4" Content="Выйти" Command="{Binding LeaveGameCommand}"
+                        Classes="SmallButton Danger"/>
+            </Grid>
+        </Border>
+
+        <!-- Status bar (below top bar) -->
+        <Border DockPanel.Dock="Top" Classes="StatusBar">
+            <Grid ColumnDefinitions="*,Auto">
+                <TextBlock Grid.Column="0" Text="{Binding StatusText}" Classes="Muted Small"/>
+                <TextBlock Grid.Column="1" Text="⏳" IsVisible="{Binding IsWaiting}"
+                           Margin="6,0,0,0"/>
+            </Grid>
+        </Border>
+
+        <!-- Error bar -->
+        <Border DockPanel.Dock="Top" Classes="ErrorBar"
+                IsVisible="{Binding ErrorMessage, Converter={x:Static StringConverters.IsNotNullOrEmpty}}">
+            <TextBlock Text="{Binding ErrorMessage}" />
+        </Border>
+
+        <!-- 3-column body. Right column collapses to 0 width in single-player. -->
+        <Grid ColumnDefinitions="320,*,Auto">
+
+            <!-- LEFT column: members (multiplayer) OR tabbed panels (single-player) -->
+            <Border Grid.Column="0" Classes="SidePanel">
+                <DockPanel LastChildFill="True">
+                    <!-- Multiplayer: members list -->
+                    <StackPanel DockPanel.Dock="Top" IsVisible="{Binding IsMultiplayer}">
+                        <TextBlock Text="Участники" Classes="SectionTitle" Margin="0,0,0,6"/>
+                        <ItemsControl ItemsSource="{Binding Members}">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate DataType="mp:MemberInfo">
+                                    <Border Classes="MemberRow" Padding="6,4">
+                                        <StackPanel Spacing="1">
+                                            <TextBlock Text="{Binding Nickname}" FontWeight="SemiBold"/>
+                                            <TextBlock Text="{Binding Role}" Classes="Muted Small"/>
+                                        </StackPanel>
+                                    </Border>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </StackPanel>
+
+                    <!-- Single-player: tabbed side panels (Character / Inventory / Quests / World) -->
+                    <TabControl IsVisible="{Binding !IsMultiplayer}" Padding="0">
+                        <TabItem Header="Персонаж">
+                            <panels:CharacterPanelView DataContext="{Binding CharacterPanel}"/>
+                        </TabItem>
+                        <TabItem Header="Сумка">
+                            <panels:InventoryPanelView DataContext="{Binding InventoryPanel}"/>
+                        </TabItem>
+                        <TabItem Header="Квесты">
+                            <panels:QuestPanelView DataContext="{Binding QuestPanel}"/>
+                        </TabItem>
+                        <TabItem Header="Мир">
+                            <panels:WorldPanelView DataContext="{Binding WorldPanel}"/>
+                        </TabItem>
+                    </TabControl>
+
+                    <!-- Bottom: chat panel (multiplayer only) -->
+                    <Border DockPanel.Dock="Bottom" Classes="ChatPanel"
+                            IsVisible="{Binding IsMultiplayer}" Margin="0,8,0,0">
+                        <DockPanel LastChildFill="True">
+                            <TextBlock DockPanel.Dock="Top" Text="Чат" Classes="SectionTitle" Margin="0,0,0,4"/>
+                            <Button DockPanel.Dock="Bottom" Content="Отправить"
+                                    Command="{Binding SendChatCommand}" Classes="SmallButton"
+                                    Margin="0,4,0,0"/>
+                            <TextBox DockPanel.Dock="Bottom" Text="{Binding ChatInput}"
+                                     PlaceholderText="Сообщение…"
+                                     Margin="0,4,0,0"/>
+                            <ScrollViewer HorizontalScrollBarVisibility="Disabled"
+                                          VerticalScrollBarVisibility="Auto">
+                                <ItemsControl ItemsSource="{Binding Chat}">
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate DataType="vm:ChatLine">
+                                            <StackPanel Margin="0,2">
+                                                <TextBlock>
+                                                    <Run Text="{Binding Author}" FontWeight="SemiBold"/>
+                                                    <Run Text=": " />
+                                                    <Run Text="{Binding Text}" />
+                                                </TextBlock>
+                                            </StackPanel>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                            </ScrollViewer>
+                        </DockPanel>
+                    </Border>
+
+                    <!-- Spacer to fill remaining height -->
+                    <TextBlock Text="" />
+                </DockPanel>
+            </Border>
+
+            <!-- CENTER column: narrative log + input -->
+            <Border Grid.Column="1" Classes="CenterPanel">
+                <DockPanel LastChildFill="True">
+                    <!-- Input box at bottom -->
+                    <Border DockPanel.Dock="Bottom" Classes="InputBar" Padding="8">
+                        <Grid ColumnDefinitions="*,Auto">
+                            <TextBox Grid.Column="0" Text="{Binding CurrentAction}"
+                                     PlaceholderText="Опишите действие вашего персонажа…"
+                                     IsEnabled="{Binding CanSubmit}"
+                                     KeyDown="OnActionKeyDown"/>
+                            <Button Grid.Column="1" Content="Отправить"
+                                    Command="{Binding SubmitActionCommand}"
+                                    Classes="SmallButton Primary"
+                                    Margin="6,0,0,0"
+                                    IsEnabled="{Binding CanSubmit}"/>
+                        </Grid>
+                    </Border>
+
+                    <!-- Narrative stream -->
+                    <ScrollViewer x:Name="NarrativeScroll"
+                                  HorizontalScrollBarVisibility="Disabled"
+                                  VerticalScrollBarVisibility="Auto"
+                                  Padding="8">
+                        <ItemsControl ItemsSource="{Binding Log}">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate DataType="core:LogEntry">
+                                    <Border Classes="LogEntry" Padding="6,4">
+                                        <TextBlock Text="{Binding Text}" TextWrapping="Wrap"/>
+                                    </Border>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </ScrollViewer>
+                </DockPanel>
+            </Border>
+
+            <!-- RIGHT column: multiplayer-only pending-actions queue. Hidden in single-player. -->
+            <Border Grid.Column="2" Classes="SidePanel" Width="260"
+                    IsVisible="{Binding IsMultiplayer}">
+                <DockPanel LastChildFill="True">
+                    <!-- Multiplayer: pending actions -->
+                    <StackPanel DockPanel.Dock="Top">
+                        <TextBlock Text="Очередь действий" Classes="SectionTitle" Margin="0,0,0,6"/>
+                        <ItemsControl ItemsSource="{Binding PendingActions}">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate DataType="mp:PlayerAction">
+                                    <Border Classes="ActionRow" Padding="6,4">
+                                        <StackPanel Spacing="1">
+                                            <TextBlock Text="{Binding PlayerNickname}" FontWeight="SemiBold"/>
+                                            <TextBlock Text="{Binding Text}" TextWrapping="Wrap"
+                                                       Classes="Small Muted"/>
+                                        </StackPanel>
+                                    </Border>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                        <TextBlock Text="(пусто)" Classes="Muted Small" Margin="0,4,0,0"
+                                   IsVisible="{Binding !PendingActions.Count}"/>
+                    </StackPanel>
+
+                    <TextBlock Text="" />
+                </DockPanel>
+            </Border>
+
+        </Grid>
+    </DockPanel>
+</UserControl>
