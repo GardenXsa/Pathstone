@@ -182,24 +182,35 @@ public static class ThemeService
         resolved["AppAccent"]   = accentColor;
         resolved["AppAccentFg"] = accentFgColor;
 
-        // 4) Rebuild the SolidColorBrush resources. We replace the brush
-        //    instances outright (rather than mutating brush.Color) so
-        //    DynamicResource bindings see a fresh reference and re-read.
-        //    Mutating brush.Color wouldn't propagate because brushes
-        //    aren't observable on Color.
-        static SolidColorBrush Brush(IReadOnlyDictionary<string, Color> map, string key, Color fallback) =>
-            new SolidColorBrush(map.TryGetValue(key, out var c) ? c : fallback);
+        // 4) Rebuild the SolidColorBrush resources. In Avalonia,
+        //    SolidColorBrush.Color IS observable (StyledProperty), so we
+        //    can mutate the existing brush instances in place. This is
+        //    SAFER than replacing the brush instances outright —
+        //    replacing can crash if a brush is mid-render. Mutating
+        //    Color propagates to all DynamicResource bindings correctly.
+        static void ApplyBrush(IResourceDictionary resources, string brushKey, string colorKey, IReadOnlyDictionary<string, Color> map, Color fallback)
+        {
+            var color = map.TryGetValue(colorKey, out var c) ? c : fallback;
+            if (resources[brushKey] is SolidColorBrush brush)
+            {
+                brush.Color = color;
+            }
+            else
+            {
+                resources[brushKey] = new SolidColorBrush(color);
+            }
+        }
 
-        app.Resources["AppBackgroundBrush"]  = Brush(resolved, "AppBackground",  Colors.Black);
-        app.Resources["AppSurfaceBrush"]     = Brush(resolved, "AppSurface",     Colors.Black);
-        app.Resources["AppSurfaceAltBrush"]  = Brush(resolved, "AppSurfaceAlt",  Colors.Black);
-        app.Resources["AppBorderBrush"]      = Brush(resolved, "AppBorder",      Colors.Black);
-        app.Resources["AppForegroundBrush"]  = Brush(resolved, "AppForeground",  Colors.White);
-        app.Resources["AppMutedBrush"]       = Brush(resolved, "AppMuted",       Colors.Gray);
-        app.Resources["AppAccentBrush"]      = new SolidColorBrush(accentColor);
-        app.Resources["AppAccentFgBrush"]    = new SolidColorBrush(accentFgColor);
-        app.Resources["AppDangerBrush"]      = Brush(resolved, "AppDanger",      Colors.Red);
-        app.Resources["AppSuccessBrush"]     = Brush(resolved, "AppSuccess",     Colors.Green);
+        ApplyBrush(app.Resources, "AppBackgroundBrush",  "AppBackground",  resolved, Color.FromRgb(0x0F, 0x11, 0x15));
+        ApplyBrush(app.Resources, "AppSurfaceBrush",     "AppSurface",     resolved, Color.FromRgb(0x17, 0x1A, 0x21));
+        ApplyBrush(app.Resources, "AppSurfaceAltBrush",  "AppSurfaceAlt",  resolved, Color.FromRgb(0x1F, 0x23, 0x30));
+        ApplyBrush(app.Resources, "AppBorderBrush",      "AppBorder",      resolved, Color.FromRgb(0x2C, 0x31, 0x42));
+        ApplyBrush(app.Resources, "AppForegroundBrush",  "AppForeground",  resolved, Color.FromRgb(0xE6, 0xE8, 0xEC));
+        ApplyBrush(app.Resources, "AppMutedBrush",       "AppMuted",       resolved, Color.FromRgb(0x8A, 0x93, 0xA6));
+        ApplyBrush(app.Resources, "AppAccentBrush",      "AppAccent",      resolved, accentColor);
+        ApplyBrush(app.Resources, "AppAccentFgBrush",    "AppAccentFg",    resolved, accentFgColor);
+        ApplyBrush(app.Resources, "AppDangerBrush",      "AppDanger",      resolved, Color.FromRgb(0xE5, 0x48, 0x4D));
+        ApplyBrush(app.Resources, "AppSuccessBrush",     "AppSuccess",     resolved, Color.FromRgb(0x3D, 0xD6, 0x8C));
 
         // 5) Animations gate. Toggling the class on the main window
         //    enables/disables every Window.Anim-scoped transition style.

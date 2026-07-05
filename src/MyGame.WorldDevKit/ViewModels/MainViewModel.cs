@@ -40,24 +40,26 @@ public partial class MainViewModel : ObservableObject
     }
 
     [RelayCommand]
-    private async Task OpenWorld() => StatusText = "Открытие мира.";
+    private Task OpenWorldAsync() { StatusText = "Открытие мира."; return Task.CompletedTask; }
 
     [RelayCommand]
-    private async Task SaveWorld()
+    private Task SaveWorld()
     {
-        if (_world is null) { StatusText = "Нет мира для сохранения."; return; }
+        if (_world is null) { StatusText = "Нет мира для сохранения."; return Task.CompletedTask; }
         StatusText = "Мир сохранён.";
+        return Task.CompletedTask;
     }
 
     [RelayCommand]
-    private async Task ExportWorld()
+    private Task ExportWorld()
     {
-        if (_world is null) { StatusText = "Нет мира для экспорта."; return; }
+        if (_world is null) { StatusText = "Нет мира для экспорта."; return Task.CompletedTask; }
         StatusText = "Мир экспортирован.";
+        return Task.CompletedTask;
     }
 
     [RelayCommand]
-    private async Task ImportWorld() => StatusText = "Импорт мира.";
+    private Task ImportWorldAsync() { StatusText = "Импорт мира."; return Task.CompletedTask; }
 
     [RelayCommand]
     private void SelectLocation(LocationEditRow row)

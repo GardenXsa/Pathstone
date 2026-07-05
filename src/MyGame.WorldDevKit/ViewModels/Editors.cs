@@ -280,7 +280,7 @@ public partial class WorldMetaEditorViewModel : ObservableObject
     partial void OnSettingChanged(string value) => _world.Flags!["worldSetting"] = value;
     partial void OnAtmosphereChanged(string value) => _world.Flags!["worldAtmosphere"] = value;
     partial void OnStartingHookChanged(string value) => _world.Flags!["startingHook"] = value;
-    partial void OnDayChanged(int value) => _world.Clock = new GameTime(value, _hour, _minute);
-    partial void OnHourChanged(int value) => _world.Clock = new GameTime(_day, value, _minute);
-    partial void OnMinuteChanged(int value) => _world.Clock = new GameTime(_day, _hour, value);
+    partial void OnDayChanged(int value) { _world.Clock = new GameTime(value, Hour, Minute); }
+    partial void OnHourChanged(int value) { _world.Clock = new GameTime(Day, value, Minute); }
+    partial void OnMinuteChanged(int value) { _world.Clock = new GameTime(Day, Hour, value); }
 }

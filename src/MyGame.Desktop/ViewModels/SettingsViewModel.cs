@@ -289,8 +289,17 @@ public partial class SettingsViewModel : ViewModelBase
     /// by the property setters above for live preview. ThemeService is
     /// idempotent so calling it on every keystroke is fine.
     /// </summary>
-    private void ApplyLiveTheme() =>
-        ThemeService.ApplyTheme(_themeMode, _accentColor, _enableAnimations);
+    private void ApplyLiveTheme()
+    {
+        try
+        {
+            ThemeService.ApplyTheme(_themeMode ?? "Dark", _accentColor ?? "Indigo", _enableAnimations);
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Trace.WriteLine($"[SettingsViewModel] ApplyLiveTheme failed: {ex}");
+        }
+    }
 
     /// <summary>
     /// Apply the accent preset matching the given name and update the
