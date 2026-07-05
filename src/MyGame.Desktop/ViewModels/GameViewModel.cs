@@ -1967,9 +1967,14 @@ public partial class GameViewModel : ViewModelBase
         {
             // Persist session-tokens before the save.
             PersistTokensToMeta();
+            // Snapshot _log under lock + capture locals so the background
+            // serialize doesn't race with UI-thread mutations (Bug #3).
+            LogEntry[] snapshot;
+            lock (_logLock) snapshot = _log.ToArray();
+            var world = _world; var meta = _meta; var saveId = _saveId;
             _ = Task.Run(() =>
             {
-                try { _saveManager.SaveAll(_saveId, _world, _meta, Log.ToArray()); }
+                try { _saveManager.SaveAll(saveId, world, meta, snapshot); }
                 catch (Exception ex) { System.Diagnostics.Trace.WriteLine($"[save] {ex.Message}"); }
             });
         }

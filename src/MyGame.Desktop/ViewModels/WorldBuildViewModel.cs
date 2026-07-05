@@ -12,9 +12,11 @@ using MyGame.Core.AI;
 using MyGame.Core.AI.Agents;
 using MyGame.Core.AI.Prompts;
 using MyGame.Core.AI.Tools;
+using MyGame.Core.Common;
 using MyGame.Core.Profile;
 using MyGame.Core.Saves;
 using MyGame.Core.World;
+using MyGame.Core.World.Content;
 using MyGame.Desktop.Services;
 
 namespace MyGame.Desktop.ViewModels;

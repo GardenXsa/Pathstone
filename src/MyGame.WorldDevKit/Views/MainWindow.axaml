@@ -13,7 +13,6 @@
         <!-- Menu bar -->
         <Border DockPanel.Dock="Top" Background="{StaticResource DevSurfaceBrush}" Padding="8,4">
             <StackPanel Orientation="Horizontal" Spacing="8">
-                <Button Content="Файл" Classes="SmallButton"/>
                 <Button Content="Новое" Command="{Binding NewWorldCommand}" ToolTip.Tip="Создать пустой мир"/>
                 <Button Content="Открыть" Command="{Binding OpenWorldCommand}" ToolTip.Tip="Открыть сохранение для редактирования"/>
                 <Button Content="Сохранить" Command="{Binding SaveWorldCommand}" ToolTip.Tip="Сохранить мир в файл"/>

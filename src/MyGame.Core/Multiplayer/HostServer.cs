@@ -256,9 +256,7 @@ public sealed class HostServer
 
         try
         {
-                    {
-                    {
-                        _listener.Start();
+            _listener.Start();
         }
         catch (HttpListenerException ex)
         {
