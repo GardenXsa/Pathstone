@@ -236,6 +236,38 @@
         <Style Selector="Button.ExitButton:disabled /template/ ContentPresenter">
             <Setter Property="Opacity" Value="0.55" />
         </Style>
+        <!-- Quest-row header button (issue #69): flat, transparent,
+             full-width so the user can click anywhere on the row
+             header to fold/unfold. Same look as ExitButton but tighter
+             padding for the panel. -->
+        <Style Selector="Button.QuestHeaderButton">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="Foreground" Value="{StaticResource AppForegroundBrush}" />
+            <Setter Property="BorderBrush" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="CornerRadius" Value="3" />
+            <Setter Property="Padding" Value="2,2" />
+            <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+        </Style>
+        <Style Selector="Button.QuestHeaderButton:pointerover /template/ ContentPresenter">
+            <Setter Property="Background" Value="{StaticResource AppSurfaceAltBrush}" />
+        </Style>
+        <!-- Pet-progress section header button (issue #76): flat header
+             for the collapsible «Pet-агенты» block in the world-build
+             progress dialog. Full-width so the click target spans the
+             whole header row. -->
+        <Style Selector="Button.PetSectionHeader">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="Foreground" Value="{StaticResource AppForegroundBrush}" />
+            <Setter Property="BorderBrush" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="CornerRadius" Value="3" />
+            <Setter Property="Padding" Value="4,3" />
+            <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+        </Style>
+        <Style Selector="Button.PetSectionHeader:pointerover /template/ ContentPresenter">
+            <Setter Property="Background" Value="{StaticResource AppSurfaceAltBrush}" />
+        </Style>
 
         <!-- Inputs -->
         <Style Selector="TextBox">

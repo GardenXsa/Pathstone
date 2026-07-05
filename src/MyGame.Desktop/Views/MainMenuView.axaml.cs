@@ -1,6 +1,10 @@
+using System;
+using System.Linq;
+using System.Threading.Tasks;
 using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Markup.Xaml;
+using Avalonia.Platform.Storage;
 using MyGame.Desktop.ViewModels;
 
 namespace MyGame.Desktop.Views;
@@ -8,7 +12,10 @@ namespace MyGame.Desktop.Views;
 /// <summary>
 /// Code-behind for the main menu view. Mostly data-bound; the nickname
 /// TextBox uses KeyDown / LostFocus handlers to trigger save-on-Enter /
-/// save-on-blur without needing a separate Save button.
+/// save-on-blur without needing a separate Save button. The
+/// «Импорт персонажа» button uses a code-behind Click handler because
+/// the file picker needs Avalonia's StorageProvider API, which requires
+/// the TopLevel — the VM can't reach it directly (issue #62).
 /// </summary>
 public partial class MainMenuView : UserControl
 {
@@ -37,5 +44,53 @@ public partial class MainMenuView : UserControl
     {
         if (DataContext is not MainMenuViewModel vm) return;
         vm.SaveNicknameCommand.Execute(null);
+    }
+
+    /// <summary>
+    /// Open the Avalonia StorageProvider file picker, filtered to
+    /// Pathstone character sheets (.json / .pathstone-char). On
+    /// selection, hand the path to the VM's
+    /// <see cref="MainMenuViewModel.ImportCharacterFromFileAsync"/>
+    /// which loads the sheet, builds a fresh world with the imported
+    /// player, saves it, and navigates to the game. Picker cancellation
+    /// is a silent no-op.
+    /// </summary>
+    private async void OnImportCharacterClick(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
+    {
+        if (DataContext is not MainMenuViewModel vm) return;
+        var topLevel = TopLevel.GetTopLevel(this);
+        if (topLevel is null) return;
+
+        // The actual character-sheet files are written as
+        // `char_{Guid:N}.json` by CharacterSheetStore, so the picker
+        // accepts `*.json`. We also accept the conceptual
+        // `*.pathstone-char` extension (registered in the Windows NSIS
+        // installer as a file association) so a renamed file still loads.
+        var files = await topLevel.StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions
+        {
+            Title = "Импорт персонажа Pathstone",
+            AllowMultiple = false,
+            FileTypeFilter = new[]
+            {
+                new FilePickerFileType("Персонаж Pathstone")
+                {
+                    Patterns = new[] { "*.json", "*.pathstone-char" }
+                },
+                FilePickerFileTypes.All,
+            },
+        });
+
+        if (files is null || files.Count == 0) return;
+        try
+        {
+            var path = files[0].Path.LocalPath;
+            await vm.ImportCharacterFromFileAsync(path);
+        }
+        catch (Exception ex)
+        {
+            // The VM surfaces errors via ErrorMessage; this catch is just
+            // a safety net for unexpected StorageProvider exceptions.
+            System.Diagnostics.Trace.WriteLine($"[MainMenuView] import picker failed: {ex.Message}");
+        }
     }
 }

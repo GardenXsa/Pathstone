@@ -179,6 +179,44 @@ public sealed class AiClient
         _http = http ?? throw new ArgumentNullException(nameof(http));
     }
 
+    /// <summary>
+    /// The settings this client was constructed with. Exposed (rare for a
+    /// fields-as-state class) so callers that hold an <see cref="AiClient"/>
+    /// can read back the resolved <see cref="AiSettings.Model"/> etc. without
+    /// also keeping a separate settings reference.
+    /// </summary>
+    public AiSettings Settings => _settings;
+
+    /// <summary>
+    /// Return a NEW <see cref="AiClient"/> that shares this client's
+    /// <see cref="HttpClient"/> (socket pool, handler chain) but uses the
+    /// given <paramref name="model"/> id instead of
+    /// <see cref="AiSettings.Model"/>. Used by the agent layer
+    /// (<see cref="Agents.GameMaster"/>,
+    /// <see cref="Agents.WorldBuilderOrchestrator"/>,
+    /// <see cref="Agents.PetAgent"/>) to derive a role-specific client from
+    /// a single shared base client (issue #26: multi-model support).
+    ///
+    /// <para>
+    /// The returned client is a thin wrapper — it doesn't open a new socket
+    /// pool, doesn't allocate a new handler, and reuses the same retry /
+    /// streaming / parsing logic. Calling <c>WithModel</c> on a client that
+    /// already has a role-specific model just produces another derived
+    /// client (the latest <paramref name="model"/> wins).
+    /// </para>
+    /// </summary>
+    /// <param name="model">
+    /// Model id to use on the derived client. If null/empty, the derived
+    /// client keeps this client's model (no-op derivation — useful when
+    /// the caller is conditionally overriding: <c>ai.WithModel(roleModel ?? ai.Settings.Model)</c>).
+    /// </param>
+    public AiClient WithModel(string? model)
+    {
+        if (string.IsNullOrWhiteSpace(model) || model == _settings.Model)
+            return this;
+        return new AiClient(_settings with { Model = model }, _http);
+    }
+
     // ── Public API ────────────────────────────────────────────────────────
 
     /// <summary>

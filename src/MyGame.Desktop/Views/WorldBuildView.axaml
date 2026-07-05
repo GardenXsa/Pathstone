@@ -47,6 +47,75 @@
                 <ProgressBar Value="{Binding Percent}" Maximum="100"
                              Height="8" MinWidth="400"/>
 
+                <!-- Pet-agent progress section (issue #76).
+                     Shown only when pet delegations are queued. Each
+                     delegation gets a row: status glyph (▶ running / ✓
+                     done / ✗ error) + label + summary/error. The
+                     section auto-expands when the first delegation
+                     starts; the user can also toggle it via the header
+                     button. The section stays visible after build
+                     completes so the user can review what each pet
+                     did. -->
+                <Border Classes="InfoBox" Padding="10" MinWidth="500"
+                        IsVisible="{Binding HasPetProgress}">
+                    <StackPanel Spacing="6">
+                        <Button Command="{Binding TogglePetSectionCommand}"
+                                Classes="PetSectionHeader"
+                                HorizontalAlignment="Stretch"
+                                HorizontalContentAlignment="Stretch"
+                                ToolTip.Tip="Показать/скрыть детали Pet-агентов">
+                            <Grid ColumnDefinitions="Auto,*,Auto">
+                                <TextBlock Grid.Column="0" Text="▼" Classes="Small"
+                                           IsVisible="{Binding IsPetSectionExpanded}"/>
+                                <TextBlock Grid.Column="0" Text="▶" Classes="Small"
+                                           IsVisible="{Binding !IsPetSectionExpanded}"/>
+                                <TextBlock Grid.Column="1" Text="Pet-агенты" FontWeight="SemiBold"
+                                           Margin="6,0,0,0"/>
+                                <TextBlock Grid.Column="2" Classes="Small Muted"
+                                           Text="{Binding PetProgress.Count, StringFormat={}{0} делегаций}"/>
+                            </Grid>
+                        </Button>
+
+                        <ItemsControl ItemsSource="{Binding PetProgress}"
+                                      IsVisible="{Binding IsPetSectionExpanded}">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate DataType="vm:PetDelegationProgress">
+                                    <Border Margin="0,0,0,4" Padding="6,4"
+                                            BorderBrush="{StaticResource AppBorderBrush}"
+                                            BorderThickness="1" CornerRadius="3">
+                                        <StackPanel Spacing="2">
+                                            <Grid ColumnDefinitions="Auto,*,Auto">
+                                                <!-- Status glyph: ▶ running / ✓ done / ✗ error / … pending -->
+                                                <TextBlock Grid.Column="0" Text="▶" Classes="Small"
+                                                           Foreground="#FBBF24"
+                                                           IsVisible="{Binding IsRunning}"/>
+                                                <TextBlock Grid.Column="0" Text="✓" Classes="Small"
+                                                           Foreground="#10B981"
+                                                           IsVisible="{Binding IsDone}"/>
+                                                <TextBlock Grid.Column="0" Text="✗" Classes="Small"
+                                                           Foreground="#F5C2C7"
+                                                           IsVisible="{Binding IsError}"/>
+                                                <TextBlock Grid.Column="0" Text="…" Classes="Small Muted"
+                                                           IsVisible="{Binding IsPending}"/>
+                                                <TextBlock Grid.Column="1" Text="{Binding Label}"
+                                                           FontWeight="SemiBold" Classes="Small"
+                                                           Margin="6,0,0,0"/>
+                                            </Grid>
+                                            <!-- Summary shown when done; error shown when failed. -->
+                                            <TextBlock Text="{Binding Summary}" Classes="Muted Small"
+                                                       TextWrapping="Wrap" Margin="14,0,0,0"
+                                                       IsVisible="{Binding Summary, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"/>
+                                            <TextBlock Text="{Binding Error}" Classes="Small"
+                                                       Foreground="#F5C2C7" TextWrapping="Wrap" Margin="14,0,0,0"
+                                                       IsVisible="{Binding Error, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"/>
+                                        </StackPanel>
+                                    </Border>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </StackPanel>
+                </Border>
+
                 <!-- Final summary (success or failure) -->
                 <Border Classes="InfoBox" Padding="14" IsVisible="{Binding FinalSummary, Converter={x:Static StringConverters.IsNotNullOrEmpty}}">
                     <TextBlock Text="{Binding FinalSummary}" TextWrapping="Wrap"

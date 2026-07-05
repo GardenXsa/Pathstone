@@ -121,6 +121,14 @@ public partial class GameViewModel : ViewModelBase
         // destination visited/discovered, log the trip, persist, and
         // (if the destination is dangerous) roll a random encounter.
         WorldPanel.TravelRequested += OnTravel;
+
+        // Wire character-panel export → CharacterSheetStore.Export (issue
+        // #62). The panel raises ExportRequested (no payload — the panel
+        // doesn't know the save id); this VM resolves the save id + active
+        // player id, calls Export, and writes the result path / error back
+        // to the panel's ExportStatus property so the user sees inline
+        // feedback under the «Экспорт» button.
+        CharacterPanel.ExportRequested += OnCharacterExportRequested;
     }
 
     // ─── Observable props ────────────────────────────────────────────
@@ -267,8 +275,9 @@ public partial class GameViewModel : ViewModelBase
 
     /// <summary>
     /// Write the current session-tokens into <see cref="_meta"/>. Called
-    /// before every save so the totals persist across reloads. No-op when
-    /// <see cref="_meta"/> is null.
+    /// before every save so the totals persist across reloads. Also copies
+    /// the GM's conversation-history summary (issue #25) so the GM doesn't
+    /// lose context across save/load. No-op when <see cref="_meta"/> is null.
     /// </summary>
     private void PersistTokensToMeta()
     {
@@ -277,6 +286,10 @@ public partial class GameViewModel : ViewModelBase
         {
             SessionPromptTokens = SessionPromptTokens,
             SessionCompletionTokens = SessionCompletionTokens,
+            // Persist the conversation-history summary (issue #25). Null
+            // when no summarization has happened yet — saves load with
+            // null and the GM will start fresh summarization when needed.
+            HistorySummary = _gm?.HistorySummary ?? _meta.HistorySummary,
         };
     }
 
@@ -391,9 +404,16 @@ public partial class GameViewModel : ViewModelBase
         var ai = new AiClient(settings.Ai);
         var prompts = ServiceHost.Resolve<PromptLoader>();
         var tools = new ToolRegistry(_world);
-        _gm = new GameMaster(ai, _world, prompts, tools, settings.MaxToolIterations);
+        _gm = new GameMaster(
+            ai, _world, prompts, tools, settings.MaxToolIterations,
+            aiSettings: settings.Ai,
+            maxContextTokens: settings.MaxContextTokens);
         if (resetHistory)
             _gm.ResetHistory();
+        // Restore the conversation-history summary from the save so the
+        // GM doesn't lose context across reload (issue #25). The summary
+        // was persisted on the previous SaveAll; null on a fresh save.
+        _gm.HistorySummary = _meta?.HistorySummary;
 
         GameName = _meta?.Name ?? "Игра";
         CanSave = true;
@@ -1351,6 +1371,63 @@ public partial class GameViewModel : ViewModelBase
                 try { _saveManager.SaveAll(_saveId, _world, _meta, Log.ToArray()); }
                 catch (Exception ex) { System.Diagnostics.Trace.WriteLine($"[save] {ex.Message}"); }
             });
+        }
+    }
+
+    /// <summary>
+    /// Handle the character panel's ExportRequested event (issue #62).
+    /// Resolves the active save id + player id from this VM's runtime
+    /// state, calls <see cref="CharacterSheetStore.Export"/> (which writes
+    /// a portable .json sheet under <c>{ProfileDirectory}/characters/</c>),
+    /// and surfaces the result path / error back to the panel via
+    /// <see cref="CharacterPanelViewModel.ExportStatus"/>.
+    /// </summary>
+    /// <remarks>
+    /// Single-player + host modes only — clients have no save authority,
+    /// so the export would fail anyway. The button is still visible to
+    /// clients (so they see the affordance) but a click yields a friendly
+    /// «no save» error instead of a silent no-op.
+    /// </remarks>
+    private void OnCharacterExportRequested()
+    {
+        if (_world is null)
+        {
+            CharacterPanel.ExportStatus = "Мир не загружен — экспорт невозможен.";
+            return;
+        }
+        if (string.IsNullOrEmpty(_saveId))
+        {
+            CharacterPanel.ExportStatus = "Нет активного сохранения — экспорт невозможен.";
+            return;
+        }
+        var player = _world.ActivePlayer ?? _world.Players.FirstOrDefault();
+        if (player is null)
+        {
+            CharacterPanel.ExportStatus = "Нет активного персонажа для экспорта.";
+            return;
+        }
+
+        try
+        {
+            var store = ServiceHost.Resolve<CharacterSheetStore>();
+            var sheet = store.Export(_saveId, player.Id);
+            if (sheet is null)
+            {
+                CharacterPanel.ExportStatus = "Не удалось экспортировать персонажа (см. лог).";
+                return;
+            }
+            // Compose the on-disk path the same way PathFor does, so the
+            // user gets a copyable path they can find in their file
+            // manager. We don't expose PathFor publicly (it's an internal
+            // helper); reconstructing it here keeps the store API tight.
+            var path = System.IO.Path.Combine(
+                store.CharactersDirectory,
+                $"{CharacterSheetStore.CharIdToString(sheet.Id)}.json");
+            CharacterPanel.ExportStatus = $"Персонаж экспортирован в:\n{path}";
+        }
+        catch (Exception ex)
+        {
+            CharacterPanel.ExportStatus = $"Ошибка экспорта: {ex.Message}";
         }
     }
 

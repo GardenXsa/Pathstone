@@ -54,6 +54,9 @@
                             ToolTip.Tip="Подключиться к сетевой игре по IP:порт"/>
                     <Button Content="Загрузить" Command="{Binding ToggleLoadCommand}" Classes="MenuButton"
                             ToolTip.Tip="Открыть список сохранений"/>
+                    <Button Content="📥 Импорт персонажа" Click="OnImportCharacterClick" Classes="MenuButton"
+                            IsEnabled="{Binding !IsBusy}"
+                            ToolTip.Tip="Импортировать персонажа из файла .json экспорта Pathstone (BG3-style перенос между мирами)"/>
                     <Button Content="Настройки" Command="{Binding OpenSettingsCommand}" Classes="MenuButton"
                             ToolTip.Tip="Настроить подключение к AI"/>
 

@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using CommunityToolkit.Mvvm.ComponentModel;
@@ -51,6 +52,22 @@ public partial class WorldBuildViewModel : ViewModelBase
         _petDelegations = petDelegations;
 
         Title = "Создание мира";
+
+        // Pre-populate the pet-progress rows so the user sees the
+        // upcoming delegations immediately (issue #76). Each starts in
+        // "pending" status; the orchestrator's pet-stage progress events
+        // flip them to running/done/error as the build progresses.
+        if (_petDelegations is not null)
+        {
+            foreach (var del in _petDelegations)
+            {
+                PetProgress.Add(new PetDelegationProgress
+                {
+                    Label = del.Label,
+                    Status = "pending",
+                });
+            }
+        }
     }
 
     // ─── Live progress state ─────────────────────────────────────────
@@ -117,6 +134,54 @@ public partial class WorldBuildViewModel : ViewModelBase
         private set => SetProperty(ref _finalSummary, value);
     }
 
+    // ─── Pet-agent progress (issue #76) ──────────────────────────────
+    //
+    // When the user opts into pet delegations (WorldBrief screen), the
+    // orchestrator runs each as a separate AI sub-task after the
+    // deterministic committer stage. The progress dialog shows a
+    // collapsible «Pet-агенты» section with one row per delegation, so
+    // the user can see exactly what each sub-agent is doing (and review
+    // the result after the build completes).
+    //
+    // PetProgress is pre-populated at construction time (one entry per
+    // delegation, status="pending"). The orchestrator's progress callback
+    // translates each Stage=="pet" event into an update on the matching
+    // row (matched by the delegation label embedded in the event's Label
+    // field). The section auto-expands when the first delegation starts.
+
+    /// <summary>
+    /// One row per <c>PetDelegation</c> passed to the orchestrator.
+    /// Pre-populated at construction; updated by the progress callback as
+    /// each delegation moves from pending → running → done/error.
+    /// </summary>
+    public ObservableCollection<PetDelegationProgress> PetProgress { get; } = new();
+
+    /// <summary>True when there's at least one pet delegation to show.</summary>
+    public bool HasPetProgress => PetProgress.Count > 0;
+
+    private bool _isPetSectionExpanded;
+    /// <summary>
+    /// Whether the «Pet-агенты» section is expanded. Auto-set to true
+    /// when the first delegation moves to <c>running</c> status. Bound to
+    /// a toggle button so the user can fold/unfold the section manually.
+    /// </summary>
+    public bool IsPetSectionExpanded
+    {
+        get => _isPetSectionExpanded;
+        private set => SetProperty(ref _isPetSectionExpanded, value);
+    }
+
+    /// <summary>
+    /// Toggle the pet-progress section's expanded state. Bound to the
+    /// section header button (so the user can fold/unfold it manually
+    /// after the auto-expand on first Active event).
+    /// </summary>
+    [RelayCommand]
+    private void TogglePetSection()
+    {
+        IsPetSectionExpanded = !IsPetSectionExpanded;
+    }
+
     // ─── Commands ────────────────────────────────────────────────────
 
     /// <summary>
@@ -157,7 +222,8 @@ public partial class WorldBuildViewModel : ViewModelBase
             var tools = new ToolRegistry(world);
 
             var orchestrator = new WorldBuilderOrchestrator(
-                ai, world, prompts, tools, petDelegations: _petDelegations);
+                ai, world, prompts, tools, petDelegations: _petDelegations,
+                aiSettings: settings.Ai);
 
             // Progress marshals to UI thread via Avalonia's dispatcher.
             var progress = new Progress<WorldBuildProgress>(p =>
@@ -167,6 +233,19 @@ public partial class WorldBuildViewModel : ViewModelBase
                     Percent = p.Percent;
                     StageLabel = p.Label;
                     StageDetail = p.Detail;
+
+                    // Translate pet-stage events into per-delegation row
+                    // updates (issue #76). The orchestrator emits one
+                    // Active event per delegation at the start, then a
+                    // Done or Error event when it finishes. We match by
+                    // the delegation label embedded in the event's Label
+                    // field (format: "Pet-агент: {label}" for Active,
+                    // "Pet: {label} — готово" / "Pet: {label} — ошибка"
+                    // for Done/Error).
+                    if (p.Stage == "pet")
+                    {
+                        UpdatePetProgress(p);
+                    }
                 });
             });
 
@@ -268,4 +347,83 @@ public partial class WorldBuildViewModel : ViewModelBase
     /// <summary>Back to the main menu (also used after failure).</summary>
     [RelayCommand]
     private void Back() => _shell.NavigateToMenu();
+
+    // ─── Pet-progress helpers (issue #76) ────────────────────────────
+
+    /// <summary>
+    /// Translate a <c>Stage == "pet"</c> progress event into an update
+    /// on the matching <see cref="PetProgress"/> row. Matched by the
+    /// delegation label embedded in the event's Label field — the
+    /// orchestrator formats these as
+    /// <list type="bullet">
+    ///   <item><c>"Pet-агент: {label}"</c> (Active)</item>
+    ///   <item><c>"Pet: {label} — готово"</c> (Done)</item>
+    ///   <item><c>"Pet: {label} — ошибка"</c> (Error)</item>
+    /// </list>
+    /// so we extract the <c>{label}</c> portion and look it up by
+    /// <see cref="PetDelegationProgress.Label"/>.
+    /// </summary>
+    private void UpdatePetProgress(WorldBuildProgress p)
+    {
+        var label = ExtractPetDelegationLabel(p.Label);
+        if (label is null) return;
+        var row = PetProgress.FirstOrDefault(r => r.Label == label);
+        if (row is null) return;
+
+        switch (p.Status)
+        {
+            case ProgressStatus.Active:
+                row.SetStatus("running");
+                row.Summary = null;
+                row.Error = null;
+                // Auto-expand the section on the first Active event so
+                // the user immediately sees what's running.
+                if (!IsPetSectionExpanded) IsPetSectionExpanded = true;
+                break;
+
+            case ProgressStatus.Done:
+                row.SetStatus("done");
+                row.Summary = p.Detail;
+                row.Error = null;
+                break;
+
+            case ProgressStatus.Error:
+                row.SetStatus("error");
+                row.Error = p.Detail;
+                row.Summary = null;
+                break;
+
+            case ProgressStatus.Skipped:
+                // The orchestrator doesn't currently emit Skipped for the
+                // pet stage (it just runs each delegation or fails it),
+                // but handle it defensively: mark as done with no
+                // summary so the row doesn't stay "running" forever.
+                row.SetStatus("done");
+                row.Summary = "(пропущено)";
+                row.Error = null;
+                break;
+        }
+    }
+
+    /// <summary>
+    /// Extract the underlying <c>PetDelegation.Label</c> from a
+    /// pet-stage progress event's Label field. Returns null if the input
+    /// doesn't match either of the orchestrator's two label formats.
+    /// </summary>
+    private static string? ExtractPetDelegationLabel(string? eventLabel)
+    {
+        if (string.IsNullOrEmpty(eventLabel)) return null;
+        string? rest = null;
+        if (eventLabel.StartsWith("Pet-агент: ", StringComparison.Ordinal))
+            rest = eventLabel["Pet-агент: ".Length..];
+        else if (eventLabel.StartsWith("Pet: ", StringComparison.Ordinal))
+            rest = eventLabel["Pet: ".Length..];
+        if (rest is null) return null;
+        // Strip the trailing " — готово" / " — ошибка" suffix the Done /
+        // Error events append. Use IndexOf (not Split) so a label
+        // legitimately containing " — " keeps its earlier segment.
+        var dashIdx = rest.IndexOf(" — ", StringComparison.Ordinal);
+        if (dashIdx >= 0) rest = rest[..dashIdx];
+        return rest.Trim();
+    }
 }

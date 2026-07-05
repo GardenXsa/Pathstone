@@ -107,12 +107,53 @@ public sealed class GameMaster
     /// </summary>
     public const int DefaultMaxIterations = 8;
 
+    /// <summary>
+    /// When the in-memory conversation history exceeds this many messages,
+    /// the oldest half is sent to the summarizer and replaced with a
+    /// short text summary (issue #25). 30 messages ≈ 5–10 turns of
+    /// back-and-forth (each turn = one user action + one assistant
+    /// narration, occasionally split by tool calls). The threshold is
+    /// deliberately conservative: we'd rather summarise a bit early than
+    /// blow the context window mid-turn.
+    /// </summary>
+    public const int SummarizeAfterMessages = 30;
+
+    /// <summary>
+    /// Hard cap on completion tokens for the summarization call itself.
+    /// The summary is meant to be a short recap (~300 words ≈ 400 tokens),
+    /// so 500 leaves headroom for the model's preamble / formatting
+    /// without burning the full <see cref="AiSettings.MaxTokens"/> budget.
+    /// </summary>
+    public const int SummaryMaxTokens = 500;
+
+    /// <summary>
+    /// Default cap on the total estimated prompt size (system + summary +
+    /// history + world state), in tokens. When the estimate exceeds 80%
+    /// of this value, summarization is triggered EARLY — before the
+    /// <see cref="SummarizeAfterMessages"/> threshold is reached. 12000 is
+    /// conservative for the typical 16k-context model class (gpt-4o-mini,
+    /// deepseek-chat, llama3.1:8b); larger-context models can override
+    /// this via <see cref="Profile.Settings.MaxContextTokens"/>.
+    /// </summary>
+    public const int DefaultMaxContextTokens = 12000;
+
     private readonly AiClient _ai;
+    private readonly AiSettings? _aiSettings;
     private readonly MyGame.Core.World.World _world;
     private readonly PromptLoader _prompts;
     private readonly ToolRegistry _tools;
     private readonly int _maxIterations;
+    private readonly int _maxContextTokens;
     private readonly List<ChatMessage> _history = new();
+
+    /// <summary>
+    /// Running text summary of the older (already-summarised) portion of
+    /// the conversation. Null until the first summarization pass completes
+    /// (issue #25). Persisted on <see cref="Saves.SaveMeta.HistorySummary"/>
+    /// so the GM doesn't lose context across save/load — see
+    /// <see cref="HistorySummary"/>.
+    /// </summary>
+    private string? _summary;
 
     /// <summary>
     /// Per-turn tool-call loop detector. Reset at the start of each
@@ -128,26 +169,64 @@ public sealed class GameMaster
     /// across turns so the in-memory conversation history accumulates
     /// (call <see cref="ResetHistory"/> to clear it, e.g. on save load).
     /// </summary>
+    /// <param name="ai">Base AI client used for all GM calls. When
+    /// <paramref name="aiSettings"/> is provided, a role-specific client
+    /// is derived via <see cref="AiClient.WithModel"/> for the
+    /// <see cref="AiRole.GM"/> model override (issue #26).</param>
+    /// <param name="aiSettings">Optional AI settings — used to derive a
+    /// role-specific model (issue #26) and read per-role overrides. When
+    /// null, the base <paramref name="ai"/> client is used as-is.</param>
+    /// <param name="maxContextTokens">Optional override for the
+    /// context-window threshold used by the early-summarization trigger
+    /// (issue #25). Defaults to <see cref="DefaultMaxContextTokens"/>.</param>
     public GameMaster(
         AiClient ai,
         MyGame.Core.World.World world,
         PromptLoader prompts,
         ToolRegistry tools,
-        int? maxIterations = null)
+        int? maxIterations = null,
+        AiSettings? aiSettings = null,
+        int? maxContextTokens = null)
     {
         _ai = ai ?? throw new ArgumentNullException(nameof(ai));
         _world = world ?? throw new ArgumentNullException(nameof(world));
         _prompts = prompts ?? throw new ArgumentNullException(nameof(prompts));
         _tools = tools ?? throw new ArgumentNullException(nameof(tools));
         _maxIterations = Math.Max(1, Math.Min(50, maxIterations ?? DefaultMaxIterations));
+        _aiSettings = aiSettings;
+        _maxContextTokens = Math.Max(1024, maxContextTokens ?? DefaultMaxContextTokens);
     }
 
     /// <summary>
     /// In-memory conversation history (excluding the system prompt, which
     /// is rebuilt each turn). Trimmed to the last
     /// <see cref="MessagesConstants.MaxConversationMessages"/> messages.
+    /// Older history may also be summarized into <see cref="HistorySummary"/>
+    /// when it exceeds <see cref="SummarizeAfterMessages"/> or when the
+    /// estimated prompt size approaches the context-window threshold
+    /// (issue #25).
     /// </summary>
     public IReadOnlyList<ChatMessage> History => _history;
+
+    /// <summary>
+    /// Text summary of the older (already-summarised) portion of the
+    /// conversation, or null when no summarization has happened yet (issue #25).
+    ///
+    /// <para>
+    /// Persisted on <see cref="Saves.SaveMeta.HistorySummary"/> so the GM
+    /// doesn't lose context across save/load: on save, the host copies
+    /// this property into <c>meta.HistorySummary</c>; on load, the host
+    /// restores it by assigning back here. The summary is then prepended
+    /// to the working message list as a user message
+    /// (<c>## Предыдущие события (изложение)</c>) so the model sees the
+    /// compressed history before the recent turns.
+    /// </para>
+    /// </summary>
+    public string? HistorySummary
+    {
+        get => _summary;
+        set => _summary = string.IsNullOrWhiteSpace(value) ? null : value;
+    }
 
     /// <summary>Clear the in-memory conversation history.</summary>
     public void ResetHistory() => _history.Clear();
@@ -224,6 +303,12 @@ public sealed class GameMaster
         // across turns.
         _loopDetector.Reset();
 
+        // Derive a role-specific client for the GM role (issue #26). When
+        // _aiSettings is null OR no GMModel override is set, WithModel
+        // returns the same client (no allocation). Otherwise it produces a
+        // thin wrapper that shares the base client's HttpClient.
+        var gmAi = _aiSettings is null ? _ai : _ai.WithModel(_aiSettings.GetModelForRole(AiRole.GM));
+
         // Build the STATIC system prompt (system.md + narrator.md +
         // tools-guide.md + STATIC_WORLD_LORE). Identical across turns
         // within a session → eligible for provider-side prompt caching.
@@ -242,9 +327,27 @@ public sealed class GameMaster
         // system prefix untouched.
         var worldStateBlock = "## ТЕКУЩЕЕ СОСТОЯНИЕ МИРА\n" + BuildWorldStateBlock();
 
+        // Context-window management (issue #25): if the in-memory history
+        // exceeds the summarization threshold, OR the estimated total
+        // prompt size approaches the context-window limit, fold the oldest
+        // half of the history into a short text summary. The summary is
+        // stored in _summary and prepended to the working message list as
+        // a user message. Failures are non-fatal — the turn continues
+        // with the unsummarized history (we'll try again next turn).
+        await MaybeSummarizeAsync(gmAi, systemPrompt, worldStateBlock, ct).ConfigureAwait(false);
+
         var toolDefs = _tools.Definitions.ToList();
         var working = new List<ChatMessage>();
         working.Add(ChatMessage.System(systemPrompt));
+        // If a summary from a prior summarization pass exists, surface it
+        // as a user message right after the system prompt — the model
+        // sees the compressed history before the recent turns. Marked as
+        // context (not a player command) via the heading.
+        if (!string.IsNullOrWhiteSpace(_summary))
+        {
+            working.Add(ChatMessage.User(
+                "## Предыдущие события (изложение)\n" + _summary));
+        }
         // Trim history to the most recent N messages so the prompt doesn't
         // blow past the provider's context window on long sessions.
         var trimmedHistory = _history.Count > MessagesConstants.MaxConversationMessages
@@ -278,7 +381,7 @@ public sealed class GameMaster
                 // ChatResponse (content + tool_calls + finish_reason +
                 // token usage) in the holder for processing below.
                 var holder = new StreamChatResult();
-                await foreach (var delta in _ai.StreamChatWithToolsAsync(
+                await foreach (var delta in gmAi.StreamChatWithToolsAsync(
                     working, toolDefs, holder, ct).ConfigureAwait(false))
                 {
                     narrativeDelta?.Report(delta);
@@ -400,6 +503,200 @@ public sealed class GameMaster
     {
         if (_history.Count > MessagesConstants.MaxConversationMessages)
             _history.RemoveRange(0, _history.Count - MessagesConstants.MaxConversationMessages);
+    }
+
+    // ── Context-window management (issue #25) ──────────────────────────
+
+    /// <summary>
+    /// Decide whether to summarize the oldest portion of the conversation
+    /// history, and if so, do it. Two triggers (either fires):
+    ///
+    /// <list type="bullet">
+    ///   <item><b>Message-count trigger:</b> <c>_history.Count &gt;</c>
+    ///     <see cref="SummarizeAfterMessages"/>. 30 messages ≈ 5–10 turns;
+    ///     past that, the older turns are increasingly stale and worth
+    ///     compressing.</item>
+    ///   <item><b>Token-estimate trigger:</b> the estimated total prompt
+    ///     size (system + summary + history + world state) exceeds 80% of
+    ///     <see cref="_maxContextTokens"/>. This catches long narrations
+    ///     (single turns can be 1000+ tokens) before they blow the
+    ///     provider's context window.</item>
+    /// </list>
+    ///
+    /// <para>
+    /// When triggered, the OLDEST HALF of <c>_history</c> is sent to
+    /// <see cref="SummarizeHistoryAsync"/>. If a summary already exists
+    /// (from a prior pass), it's prepended to the messages being
+    /// summarized so the new summary is cumulative ("previous summary +
+    /// new events") rather than a fresh recap each time. The summarized
+    /// messages are then removed from <c>_history</c> and the new summary
+    /// is stored in <see cref="_summary"/>.
+    /// </para>
+    ///
+    /// <para>
+    /// <b>Failure handling:</b> if the summarization AI call throws an
+    /// <see cref="AiException"/> (network, auth, etc.), the turn proceeds
+    /// with the unsummarized history — the GM continues, the user sees
+    /// their action resolved, and we'll try again next turn. This is
+    /// preferable to bricking the game because the summarizer hit a rate
+    /// limit. The exception is logged to <c>Trace</c>.
+    /// </para>
+    /// </summary>
+    private async Task MaybeSummarizeAsync(
+        AiClient gmAi,
+        string systemPrompt,
+        string worldStateBlock,
+        CancellationToken ct)
+    {
+        if (_history.Count == 0) return;
+
+        // Token-estimate trigger: total prompt size approaching 80% of the
+        // context-window budget. The estimate is rough (4 chars ≈ 1 token,
+        // see EstimateTokens) but adequate for triggering — we'd rather
+        // summarize a touch early than blow the context window.
+        var estimatedTokens = EstimateTokens(systemPrompt)
+            + EstimateTokens(_summary)
+            + EstimateTokens(worldStateBlock);
+        foreach (var m in _history)
+            estimatedTokens += EstimateTokens(m.Content);
+        var tokenTrigger = estimatedTokens > (_maxContextTokens * 0.8);
+
+        var countTrigger = _history.Count > SummarizeAfterMessages;
+        if (!countTrigger && !tokenTrigger)
+            return;
+
+        // Summarize the oldest half (at least 1 message). The newer half
+        // stays in _history verbatim so the most recent turns retain their
+        // full detail (the model needs precise recall of the last few
+        // actions to narrate coherently).
+        var summarizeCount = Math.Max(1, _history.Count / 2);
+        var toSummarize = _history.Take(summarizeCount).ToList();
+        if (toSummarize.Count == 0) return;
+
+        try
+        {
+            var newSummary = await SummarizeHistoryAsync(gmAi, toSummarize, ct).ConfigureAwait(false);
+            if (!string.IsNullOrWhiteSpace(newSummary))
+            {
+                // Remove the summarized messages from _history. The newer
+                // half (which we kept) is now at the front.
+                _history.RemoveRange(0, summarizeCount);
+                _summary = newSummary;
+            }
+        }
+        catch (OperationCanceledException) { throw; }
+        catch (AiException ex)
+        {
+            // Non-fatal — log and continue with the unsummarized history.
+            // We'll try again next turn (the trigger will re-fire).
+            Trace.WriteLine(
+                $"[GameMaster] summarization failed (non-fatal): {ex.Kind}: {ex.Message}. " +
+                $"History will be sent unsummarized this turn.");
+        }
+    }
+
+    /// <summary>
+    /// Call the AI to summarize a slice of the conversation history into a
+    /// short text recap (~300 words, ~400 tokens). Russian-language system
+    /// prompt per the spec (issue #25). When <paramref name="oldMessages"/>
+    /// is empty, returns an empty string (no AI call). When a summary
+    /// already exists (see <see cref="_summary"/>), it's prepended to the
+    /// user content so the new summary is cumulative — the model sees
+    /// "previous summary + new events" and produces a unified recap.
+    ///
+    /// <para>
+    /// The summarization call uses the GM role's AI client (issue #26:
+    /// multi-model support) — it's the same agent that produced the
+    /// history, so it has the right context-window budget and temperature.
+    /// No tools are passed (plain chat completion). The
+    /// <see cref="SummaryMaxTokens"/> cap is enforced via a derived
+    /// <see cref="AiSettings"/> so the model doesn't burn the full GM
+    /// completion budget on the recap.
+    /// </para>
+    /// </summary>
+    private async Task<string> SummarizeHistoryAsync(
+        AiClient gmAi,
+        IReadOnlyList<ChatMessage> oldMessages,
+        CancellationToken ct)
+    {
+        if (oldMessages is null || oldMessages.Count == 0)
+            return string.Empty;
+
+        const string systemContent =
+            "Ты — ассистент, который кратко излагает историю игровой сессии. " +
+            "Сожми следующие сообщения в краткое изложение (~300 слов), сохранив " +
+            "ключевые события, решения, имена NPC, локации, и текущие цели. На русском.";
+
+        // Concatenate the old messages as a readable transcript. Each
+        // message is prefixed with its role so the summarizer can tell
+        // player actions (user) from GM narration (assistant) from tool
+        // results (tool).
+        var sb = new StringBuilder();
+        if (!string.IsNullOrWhiteSpace(_summary))
+        {
+            // Cumulative summary: prepend the existing summary so the model
+            // produces a unified recap ("previous summary + new events").
+            sb.AppendLine("Предыдущее изложение:");
+            sb.AppendLine(_summary);
+            sb.AppendLine();
+            sb.AppendLine("Новые события:");
+        }
+        foreach (var m in oldMessages)
+        {
+            var role = m.Role switch
+            {
+                ChatRole.System => "система",
+                ChatRole.User => "игрок",
+                ChatRole.Assistant => "GM",
+                ChatRole.Tool => "инструмент",
+                _ => m.Role.ToString(),
+            };
+            var content = m.Content ?? string.Empty;
+            if (m.Role == ChatRole.Assistant && m.ToolCalls is { Count: > 0 })
+            {
+                // Surface tool-call requests compactly so the summarizer
+                // sees the model's intent even when content is null.
+                var calls = string.Join(", ", m.ToolCalls.Select(tc => $"{tc.Name}({tc.Arguments})"));
+                content = string.IsNullOrEmpty(content)
+                    ? $"[инструменты: {calls}]"
+                    : $"{content} [инструменты: {calls}]";
+            }
+            sb.Append($"[{role}] ");
+            sb.AppendLine(content);
+        }
+
+        // Derive a one-off client with the summarization token cap so we
+        // don't burn the full GM MaxTokens budget on the recap. WithModel
+        // returns the same instance when the model is unchanged; the
+        // fresh AiSettings below lowers MaxTokens for this call only.
+        // We construct via the public (AiSettings) ctor which uses the
+        // shared static HttpClient — the summarization call doesn't need
+        // a custom handler / socket pool.
+        var summarySettings = gmAi.Settings with { MaxTokens = SummaryMaxTokens };
+        var summaryClient = new AiClient(summarySettings);
+        var messages = new List<ChatMessage>
+        {
+            ChatMessage.System(systemContent),
+            ChatMessage.User(sb.ToString()),
+        };
+        var response = await summaryClient.ChatAsync(messages, ct).ConfigureAwait(false);
+        return (response.Content ?? string.Empty).Trim();
+    }
+
+    /// <summary>
+    /// Rough token-count estimate: 4 characters ≈ 1 token. Adequate for
+    /// triggering summarization — we only need a reasonable upper bound,
+    /// not an exact count (the actual tokenizer is provider-specific and
+    /// not worth the dependency for this purpose). Returns 0 for null/
+    /// empty input. Exposed as <c>public static</c> so tests can verify
+    /// the math without constructing a GameMaster, and because future
+    /// agents (PetAgent, StartSceneAgent) may want to reuse the estimate.
+    /// </summary>
+    public static int EstimateTokens(string? text)
+    {
+        if (string.IsNullOrEmpty(text)) return 0;
+        // (length + 3) / 4 rounds up so a 1-char string is 1 token (not 0).
+        return (text!.Length + 3) / 4;
     }
 
     /// <summary>

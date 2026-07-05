@@ -80,6 +80,7 @@ public sealed class PetAgent
     public const int DefaultMaxIterations = 6;
 
     private readonly AiClient _mainAi;
+    private readonly AiSettings? _aiSettings;
     private readonly MyGame.Core.World.World _world;
     private readonly ToolRegistry _tools;
     private readonly PetAgentConfig _config;
@@ -103,18 +104,28 @@ public sealed class PetAgent
     };
 
     /// <summary>Create a pet agent bound to the given AI client, world, tool registry, and config.</summary>
+    /// <param name="mainAi">Base AI client. When <paramref name="aiSettings"/>
+    /// is provided AND the pet's config doesn't carry its own
+    /// <see cref="PetAgentConfig.Settings"/>, a role-specific client is
+    /// derived via <see cref="AiClient.WithModel"/> for the
+    /// <see cref="AiRole.Pet"/> model override (issue #26).</param>
+    /// <param name="aiSettings">Optional AI settings for the PetModel
+    /// override. When null, the base <paramref name="mainAi"/> client is
+    /// used as-is (unless the config has its own Settings).</param>
     public PetAgent(
         AiClient mainAi,
         MyGame.Core.World.World world,
         ToolRegistry tools,
         PetAgentConfig config,
-        int? maxIterations = null)
+        int? maxIterations = null,
+        AiSettings? aiSettings = null)
     {
         _mainAi = mainAi ?? throw new ArgumentNullException(nameof(mainAi));
         _world = world ?? throw new ArgumentNullException(nameof(world));
         _tools = tools ?? throw new ArgumentNullException(nameof(tools));
         _config = config ?? throw new ArgumentNullException(nameof(config));
         _maxIterations = Math.Max(1, Math.Min(20, maxIterations ?? DefaultMaxIterations));
+        _aiSettings = aiSettings;
     }
 
     /// <summary>
@@ -136,8 +147,20 @@ public sealed class PetAgent
                 Error = "empty task",
             };
 
-        // Pick the AI client to use: per-pet override if set, else the main one.
-        var ai = _config.Settings is not null ? new AiClient(_config.Settings) : _mainAi;
+        // Pick the AI client to use:
+        //   1. If the pet config has its own Settings (per-pet override),
+        //      use a fresh client from those settings (highest priority).
+        //   2. Else if the orchestrator passed shared settings (with a
+        //      possible PetModel override), derive a role-specific client
+        //      from the main AI client (issue #26).
+        //   3. Else fall back to the main AI client as-is.
+        AiClient ai;
+        if (_config.Settings is not null)
+            ai = new AiClient(_config.Settings);
+        else if (_aiSettings is not null)
+            ai = _mainAi.WithModel(_aiSettings.GetModelForRole(AiRole.Pet));
+        else
+            ai = _mainAi;
 
         var systemPrompt =
             "Ты — делегированный pet-агент внутри конвейера построения мира. Работай на русском. " +

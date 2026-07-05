@@ -37,6 +37,24 @@ public sealed record Settings
     /// </summary>
     public int MaxToolIterations { get; init; } = 8;
 
+    /// <summary>
+    /// Estimated-token threshold above which the GameMaster triggers
+    /// early summarization of the conversation history (issue #25). When
+    /// the rough token count of (system prompt + summary + history + world
+    /// state) exceeds 80% of this value, the oldest half of the history
+    /// is sent to the summarizer and replaced with a short text recap.
+    ///
+    /// <para>
+    /// Default 12000 — conservative for the typical 16k-context model
+    /// class (gpt-4o-mini, deepseek-chat, llama3.1:8b). Larger-context
+    /// models (32k, 128k) can safely set this higher; smaller-context
+    /// models (8k) should set it lower. The 80% margin leaves room for
+    /// the model's response + tool-call rounds before hitting the
+    /// provider's hard limit.
+    /// </para>
+    /// </summary>
+    public int MaxContextTokens { get; init; } = 12000;
+
     // ─── Multiplayer ───────────────────────────────────────────────────
 
     /// <summary>

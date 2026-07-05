@@ -13,7 +13,17 @@
             <!-- Identity -->
             <Border Classes="PanelSection">
                 <StackPanel Spacing="3">
-                    <TextBlock Text="{Binding Name}" FontWeight="SemiBold" FontSize="16"/>
+                    <Grid ColumnDefinitions="*,Auto">
+                        <TextBlock Grid.Column="0" Text="{Binding Name}" FontWeight="SemiBold" FontSize="16"/>
+                        <!-- Export this character as a portable .pathstone-char
+                             sheet (issue #62). The CharacterPanelVM raises
+                             ExportRequested; the GameViewModel handles the
+                             actual CharacterSheetStore.Export call. -->
+                        <Button Grid.Column="1" Content="Экспорт"
+                                Command="{Binding ExportCommand}"
+                                Classes="TinyButton"
+                                ToolTip.Tip="Экспортировать персонажа в файл (BG3-style перенос между играми)"/>
+                    </Grid>
                     <TextBlock Classes="Muted Small">
                         <Run Text="{Binding Race}"/>
                         <Run Text=" · "/>
@@ -39,6 +49,12 @@
                         <Run Text="Скорость: "/>
                         <Run Text="{Binding Speed}"/>
                     </TextBlock>
+                    <!-- Inline export status (success / error). Hidden when null. -->
+                    <Border Background="#1A2530" BorderBrush="#3B82F6" BorderThickness="1"
+                            CornerRadius="3" Padding="6,3" Margin="0,4,0,0"
+                            IsVisible="{Binding ExportStatus, Converter={x:Static StringConverters.IsNotNullOrEmpty}}">
+                        <TextBlock Text="{Binding ExportStatus}" Classes="Small" TextWrapping="Wrap"/>
+                    </Border>
                 </StackPanel>
             </Border>
 

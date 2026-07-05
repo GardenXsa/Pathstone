@@ -138,4 +138,29 @@ public sealed record SaveMeta
     /// on this save. See <see cref="SessionPromptTokens"/>.
     /// </summary>
     public int SessionCompletionTokens { get; init; }
+
+    /// <summary>
+    /// Text summary of the older (already-summarised) portion of the
+    /// GameMaster's conversation history (issue #25). Null when no
+    /// summarization has happened yet on this save. Persisted across
+    /// save/load so the GM doesn't lose context: on save, the host copies
+    /// <c>GameMaster.HistorySummary</c> here; on load, the host restores
+    /// it by assigning back.
+    ///
+    /// <para>
+    /// The summary is a short (~300 words) Russian-language recap of the
+    /// oldest half of the conversation, produced by the GM's
+    /// summarization pass. It's prepended to the working message list as
+    /// a user message (<c>## Предыдущие события (изложение)</c>) so the
+    /// model sees the compressed history before the recent turns.
+    /// </para>
+    ///
+    /// <para>
+    /// <b>Backward compatibility:</b> old saves (written before issue #25)
+    /// don't have this field — they load with <c>null</c>, which the GM
+    /// treats as "no summary yet" (it'll start fresh summarization when
+    /// the history grows). No migration needed.
+    /// </para>
+    /// </summary>
+    public string? HistorySummary { get; init; }
 }

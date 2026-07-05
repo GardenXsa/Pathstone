@@ -82,6 +82,7 @@ public sealed class WorldBuilderOrchestrator
     public const int DefaultPlannerIterations = 4;
 
     private readonly AiClient _ai;
+    private readonly AiSettings? _aiSettings;
     private readonly MyGame.Core.World.World _world;
     private readonly PromptLoader _prompts;
     private readonly ToolRegistry _tools;
@@ -89,13 +90,22 @@ public sealed class WorldBuilderOrchestrator
     private readonly List<PetDelegation> _petDelegations;
 
     /// <summary>Create an orchestrator bound to the given AI client, world, prompt loader, and tool registry.</summary>
+    /// <param name="ai">Base AI client. When <paramref name="aiSettings"/>
+    /// is provided, role-specific clients are derived via
+    /// <see cref="AiClient.WithModel"/> for the planner + narrator stages
+    /// (issue #26).</param>
+    /// <param name="aiSettings">Optional AI settings for per-role model
+    /// overrides (<see cref="AiSettings.PlannerModel"/>,
+    /// <see cref="AiSettings.NarratorModel"/>, <see cref="AiSettings.PetModel"/>).
+    /// When null, the base <paramref name="ai"/> client is used as-is.</param>
     public WorldBuilderOrchestrator(
         AiClient ai,
         MyGame.Core.World.World world,
         PromptLoader prompts,
         ToolRegistry tools,
         int? plannerIterations = null,
-        IReadOnlyCollection<PetDelegation>? petDelegations = null)
+        IReadOnlyCollection<PetDelegation>? petDelegations = null,
+        AiSettings? aiSettings = null)
     {
         _ai = ai ?? throw new ArgumentNullException(nameof(ai));
         _world = world ?? throw new ArgumentNullException(nameof(world));
@@ -103,6 +113,7 @@ public sealed class WorldBuilderOrchestrator
         _tools = tools ?? throw new ArgumentNullException(nameof(tools));
         _plannerIterations = Math.Max(1, Math.Min(20, plannerIterations ?? DefaultPlannerIterations));
         _petDelegations = petDelegations?.ToList() ?? new();
+        _aiSettings = aiSettings;
     }
 
     /// <summary>
@@ -329,7 +340,11 @@ public sealed class WorldBuilderOrchestrator
                         Name = del.Label,
                         Settings = del.Settings,
                     };
-                    var pet = new PetAgent(_ai, _world, _tools, petConfig, del.MaxIterations);
+                    // Pass the orchestrator's AI settings so the PetAgent
+                    // can derive a PetModel-override client (issue #26).
+                    // When _aiSettings is null OR PetModel is unset, the
+                    // pet agent falls back to the base _ai client.
+                    var pet = new PetAgent(_ai, _world, _tools, petConfig, del.MaxIterations, _aiSettings);
                     var result = await pet.RunAsync(del.Task, ct: ct).ConfigureAwait(false);
                     petSummaries.Add($"{del.Label}: {result.Summary}");
                     progress?.Report(new WorldBuildProgress
@@ -462,7 +477,10 @@ public sealed class WorldBuilderOrchestrator
                 $"БРИФ:\n{request.Brief}"),
         };
 
-        var response = await _ai.ChatAsync(messages, ct).ConfigureAwait(false);
+        // Derive a role-specific client for the planner (issue #26).
+        // WithModel returns the same instance when no override is set.
+        var plannerAi = _aiSettings is null ? _ai : _ai.WithModel(_aiSettings.GetModelForRole(AiRole.Planner));
+        var response = await plannerAi.ChatAsync(messages, ct).ConfigureAwait(false);
         var planJson = ExtractJsonBlock(response.Content ?? string.Empty);
         if (string.IsNullOrWhiteSpace(planJson))
             throw new AiException(AiErrorKind.Parse,
@@ -577,7 +595,9 @@ public sealed class WorldBuilderOrchestrator
                 "Стиль под тему мира. Не озвучивай механику."),
         };
 
-        var response = await _ai.ChatAsync(messages, ct).ConfigureAwait(false);
+        // Derive a role-specific client for the narrator (issue #26).
+        var narratorAi = _aiSettings is null ? _ai : _ai.WithModel(_aiSettings.GetModelForRole(AiRole.Narrator));
+        var response = await narratorAi.ChatAsync(messages, ct).ConfigureAwait(false);
         var text = (response.Content ?? string.Empty).Trim();
         if (string.IsNullOrWhiteSpace(text))
             throw new AiException(AiErrorKind.Parse, "Narrator returned empty content.");

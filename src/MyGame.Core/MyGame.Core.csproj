@@ -7,6 +7,10 @@
     <LangVersion>latest</LangVersion>
     <!-- Make internals visible to Desktop project for DI wiring -->
     <InternalsVisibleTo>MyGame.Desktop</InternalsVisibleTo>
+    <!-- Make internals visible to the test project so unit tests can
+         exercise helpers that aren't part of the public API (e.g.
+         GameMaster.EstimateTokens). -->
+    <InternalsVisibleTo>MyGame.Tests</InternalsVisibleTo>
   </PropertyGroup>
 
   <ItemGroup>

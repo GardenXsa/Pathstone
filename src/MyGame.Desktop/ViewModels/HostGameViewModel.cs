@@ -155,7 +155,10 @@ public partial class HostGameViewModel : ViewModelBase
             var ai = new AiClient(settings.Ai);
             var prompts = ServiceHost.Resolve<PromptLoader>();
             var tools = new ToolRegistry(world);
-            var gm = new GameMaster(ai, world, prompts, tools, settings.MaxToolIterations);
+            var gm = new GameMaster(
+                ai, world, prompts, tools, settings.MaxToolIterations,
+                aiSettings: settings.Ai,
+                maxContextTokens: settings.MaxContextTokens);
 
             // 3) Build the session + start the WebSocket server.
             var cts = new CancellationTokenSource();

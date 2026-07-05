@@ -47,7 +47,7 @@
                     <StackPanel Spacing="6">
                         <TextBlock Text="Модель" Classes="FieldLabel"/>
                         <TextBox Text="{Binding Model}" PlaceholderText="gpt-4o-mini, deepseek-chat, llama3.1:8b…"
-                                 ToolTip.Tip="Имя модели, напр. gpt-4o-mini"/>
+                                 ToolTip.Tip="Имя модели по умолчанию, напр. gpt-4o-mini"/>
                     </StackPanel>
                     <Grid ColumnDefinitions="*,*">
                         <StackPanel Grid.Column="0" Spacing="6">
@@ -63,6 +63,46 @@
                                            ToolTip.Tip="Лимит токенов на ответ"/>
                         </StackPanel>
                     </Grid>
+                </StackPanel>
+
+                <!-- Per-role model overrides (issue #26) ───────────────────────── -->
+                <TextBlock Text="Модели по ролям (необязательно)" Classes="SectionTitle"
+                           ToolTip.Tip="Можно задать разные модели для разных ролей; пусто = использовать основную модель"/>
+                <StackPanel Spacing="12">
+                    <StackPanel Spacing="6">
+                        <TextBlock Text="Планировщик мира (Planner)" Classes="FieldLabel"/>
+                        <TextBox Text="{Binding PlannerModel}" PlaceholderText="по умолчанию (= Модель)"
+                                 ToolTip.Tip="Модель для планировщика мира (один вызов на генерацию мира). Пусто = основная модель."/>
+                    </StackPanel>
+                    <StackPanel Spacing="6">
+                        <TextBlock Text="Мастер игры (GM)" Classes="FieldLabel"/>
+                        <TextBox Text="{Binding GMModel}" PlaceholderText="по умолчанию (= Модель)"
+                                 ToolTip.Tip="Модель для мастера игры (основной цикл, частые вызовы). Пусто = основная модель."/>
+                    </StackPanel>
+                    <StackPanel Spacing="6">
+                        <TextBlock Text="Нарратор (Narrator)" Classes="FieldLabel"/>
+                        <TextBox Text="{Binding NarratorModel}" PlaceholderText="по умолчанию (= Модель)"
+                                 ToolTip.Tip="Модель для вступительной наррации мира (один вызов на генерацию). Пусто = основная модель."/>
+                    </StackPanel>
+                    <StackPanel Spacing="6">
+                        <TextBlock Text="Pet-агент" Classes="FieldLabel"/>
+                        <TextBox Text="{Binding PetModel}" PlaceholderText="по умолчанию (= Модель)"
+                                 ToolTip.Tip="Модель для делегированных pet-агентов (побочные задачи). Пусто = основная модель."/>
+                    </StackPanel>
+                    <TextBlock Text="Поля выше необязательны — оставьте пустым, чтобы использовать основную модель."
+                               Classes="Muted Small" TextWrapping="Wrap"/>
+                </StackPanel>
+
+                <!-- Context-window threshold (issue #25) ────────────────────────── -->
+                <TextBlock Text="Контекстное окно" Classes="SectionTitle"
+                           ToolTip.Tip="Порог суммаризации истории диалога"/>
+                <StackPanel Spacing="6">
+                    <TextBlock Text="Max context tokens" Classes="FieldLabel"/>
+                    <NumericUpDown Value="{Binding MaxContextTokens}" Minimum="1024" Maximum="200000"
+                                   Increment="1000" FormatString="0"
+                                   ToolTip.Tip="Порог ранней суммаризации истории. 80% от этого значения = старая история сжимается в краткое изложение."/>
+                    <TextBlock Text="При превышении 80% от этого порога старая история сжимается в краткое изложение (~300 слов), чтобы не переполнять контекст модели."
+                               Classes="Muted Small" TextWrapping="Wrap"/>
                 </StackPanel>
 
                 <TextBlock Text="Никнейм редактируется прямо на главном экране (поле в правом верхнем углу)."

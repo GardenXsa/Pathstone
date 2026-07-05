@@ -1,7 +1,9 @@
+using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Linq;
 using CommunityToolkit.Mvvm.ComponentModel;
+using CommunityToolkit.Mvvm.Input;
 using MyGame.Core.Common;
 using MyGame.Core.World;
 using MyGame.Core.World.Entities;
@@ -12,11 +14,52 @@ namespace MyGame.Desktop.ViewModels.Panels;
 /// View model for the character sheet panel. Shows the active player's
 /// identity, attributes, resources (HP/MP/etc.), equipped gear, skills,
 /// background. Read-only — no commands (character editing happens via the
-/// GM tool flow, not direct UI manipulation).
+/// GM tool flow, not direct UI manipulation) — EXCEPT for the
+/// <see cref="ExportCommand"/> / <see cref="ExportRequested"/> event,
+/// which lets the user export this character as a portable
+/// <c>CharacterSheet</c> (issue #62). The actual export call (which needs
+/// the active save id + player id) is handled by the
+/// <see cref="GameViewModel"/>, which subscribes to
+/// <see cref="ExportRequested"/> and resolves the
+/// <c>CharacterSheetStore</c> from DI.
 /// </summary>
 public partial class CharacterPanelViewModel : ObservableObject
 {
     private Player? _player;
+
+    /// <summary>
+    /// Raised when the user clicks the «Экспорт» button. The
+    /// <see cref="GameViewModel"/> subscribes and handles the actual
+    /// <c>CharacterSheetStore.Export</c> call (it has the save id + active
+    /// player). The handler should set <see cref="ExportStatus"/> to a
+    /// success/error message so the panel shows the result inline.
+    /// </summary>
+    public event Action? ExportRequested;
+
+    /// <summary>
+    /// Fire <see cref="ExportRequested"/>. Bound to the «Экспорт» button
+    /// in the identity section. No-op if no handler is attached (the
+    /// panel might be shown outside a game session, e.g. in a future
+    /// read-only character viewer).
+    /// </summary>
+    [RelayCommand]
+    private void Export()
+    {
+        if (_player is null)
+        {
+            ExportStatus = "Нет активного персонажа для экспорта.";
+            return;
+        }
+        ExportRequested?.Invoke();
+    }
+
+    /// <summary>
+    /// Last export result message (success path summary or error). Bound
+    /// to a small status TextBlock under the «Экспорт» button. Cleared
+    /// on the next <see cref="RefreshFromWorld"/> call (so stale messages
+    /// don't linger after a turn). Null hides the block.
+    /// </summary>
+    [ObservableProperty] private string? _exportStatus;
 
     /// <summary>
     /// Refresh the panel from the given world. Reads the active player
@@ -83,6 +126,10 @@ public partial class CharacterPanelViewModel : ObservableObject
         OnPropertyChanged(nameof(HasEffects));
         OnPropertyChanged(nameof(HasSkills));
         OnPropertyChanged(nameof(XpProgress));
+
+        // Clear the export-status toast on every refresh — the next
+        // export will set a fresh message.
+        ExportStatus = null;
     }
 
     private void Clear()

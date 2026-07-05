@@ -145,6 +145,38 @@ public sealed class CharacterSheetStore
     public CharacterSheet? Load(Guid charId) => Load(CharIdToString(charId));
 
     /// <summary>
+    /// Load a sheet from an arbitrary file path — outside the
+    /// <c>characters/</c> directory. Used by the import file-picker flow:
+    /// the user selects a <c>.pathstone-char</c> file from anywhere on
+    /// disk (USB stick, downloads folder, friend's email attachment…)
+    /// and the importer loads it directly without copying. Returns null
+    /// if the file doesn't exist or fails to parse.
+    /// </summary>
+    /// <remarks>
+    /// Unlike <see cref="Load(string)"/>, this method does NOT validate
+    /// the <c>char_{Guid:N}</c> filename format — the file can be named
+    /// anything (the importer is filename-agnostic). The
+    /// <see cref="CharacterSheet.Id"/> Guid inside the JSON is the
+    /// source of truth.
+    /// </remarks>
+    public CharacterSheet? LoadByPath(string filePath)
+    {
+        if (string.IsNullOrWhiteSpace(filePath)) return null;
+        if (!File.Exists(filePath)) return null;
+        try
+        {
+            return JsonSerializer.Deserialize<CharacterSheet>(
+                File.ReadAllText(filePath), WorldJson.Options);
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Trace.WriteLine(
+                $"[CharacterSheetStore] Failed to load character from {filePath}: {ex.Message}");
+            return null;
+        }
+    }
+
+    /// <summary>
     /// List all stored sheets. Returns an empty list if the directory
     /// doesn't exist. Corrupt files are silently skipped (logged to
     /// <c>Trace</c>). Sorted by <see cref="CharacterSheet.UpdatedAt"/>

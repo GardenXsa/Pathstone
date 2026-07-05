@@ -10,6 +10,33 @@
     <ScrollViewer HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto">
         <StackPanel Spacing="10" Margin="12">
 
+            <!-- Search + sort toolbar (issue #69).
+                 Sticky at the top of the panel; filters apply to all
+                 three sections (active/completed/failed). Sort only
+                 affects the active section (completed/failed are short
+                 summaries in creation order). -->
+            <Border Classes="PanelSection" Padding="6">
+                <StackPanel Spacing="6">
+                    <TextBox Text="{Binding SearchText}" PlaceholderText="Поиск по названию или описанию…"
+                             ToolTip.Tip="Фильтр по всем квестам (без учёта регистра)"/>
+                    <Grid ColumnDefinitions="*,Auto">
+                        <ComboBox Grid.Column="0" ItemsSource="{Binding SortOptions}"
+                                  SelectedItem="{Binding SelectedSortOption}"
+                                  DisplayMemberBinding="{Binding Label}"
+                                  HorizontalAlignment="Stretch"
+                                  ToolTip.Tip="Сортировка активных квестов"/>
+                        <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="4">
+                            <Button Content="Свернуть все" Command="{Binding CollapseAllCommand}"
+                                    Classes="TinyButton"
+                                    ToolTip.Tip="Свернуть все активные квесты до одной строки"/>
+                            <Button Content="Развернуть все" Command="{Binding ExpandAllCommand}"
+                                    Classes="TinyButton"
+                                    ToolTip.Tip="Развернуть все активные квесты"/>
+                        </StackPanel>
+                    </Grid>
+                </StackPanel>
+            </Border>
+
             <!-- Empty state -->
             <TextBlock Text="Нет квестов" Classes="Muted Small"
                        HorizontalAlignment="Center" Margin="0,24,0,0"
@@ -24,38 +51,57 @@
                         <DataTemplate DataType="vm:QuestRow">
                             <Border Classes="QuestRow Active" Padding="8" Margin="0,0,0,6">
                                 <StackPanel Spacing="3">
-                                    <Grid ColumnDefinitions="*,Auto">
-                                        <TextBlock Grid.Column="0" Text="{Binding Name}" FontWeight="SemiBold" Classes="Small"/>
-                                        <TextBlock Grid.Column="1" Classes="Small Muted">
-                                            <Run Text="{Binding CompletedObjectives}"/>
-                                            <Run Text="/"/>
-                                            <Run Text="{Binding TotalObjectives}"/>
+                                    <!-- Row header: clickable to toggle IsExpanded.
+                                         The chevron shows ▼ when expanded, ▶ when collapsed. -->
+                                    <Button Command="{Binding ToggleExpandedCommand}" Classes="QuestHeaderButton"
+                                            HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch"
+                                            ToolTip.Tip="Свернуть/развернуть квест">
+                                        <Grid ColumnDefinitions="Auto,*,Auto">
+                                            <TextBlock Grid.Column="0" Text="▼" Classes="Small"
+                                                       IsVisible="{Binding IsExpanded}"/>
+                                            <TextBlock Grid.Column="0" Text="▶" Classes="Small"
+                                                       IsVisible="{Binding !IsExpanded}"/>
+                                            <TextBlock Grid.Column="1" Text="{Binding Name}" FontWeight="SemiBold" Classes="Small"
+                                                       Margin="6,0,0,0"/>
+                                            <TextBlock Grid.Column="2" Classes="Small Muted">
+                                                <Run Text="{Binding CompletedObjectives}"/>
+                                                <Run Text="/"/>
+                                                <Run Text="{Binding TotalObjectives}"/>
+                                            </TextBlock>
+                                        </Grid>
+                                    </Button>
+                                    <!-- Collapsible body: description + objectives + rewards.
+                                         Hidden when IsExpanded is false. -->
+                                    <StackPanel Spacing="3" IsVisible="{Binding IsExpanded}">
+                                        <TextBlock Text="{Binding Description}" Classes="Muted Small" TextWrapping="Wrap"/>
+                                        <TextBlock Classes="Muted Small" IsVisible="{Binding HasLocation}">
+                                            <Run Text="Локация: "/>
+                                            <Run Text="{Binding LocationName}"/>
                                         </TextBlock>
-                                    </Grid>
-                                    <TextBlock Text="{Binding Description}" Classes="Muted Small" TextWrapping="Wrap"/>
-                                    <ItemsControl ItemsSource="{Binding Objectives}" Margin="0,2,0,0">
-                                        <ItemsControl.ItemTemplate>
-                                            <DataTemplate DataType="vm:QuestObjectiveRow">
-                                                <StackPanel Orientation="Horizontal" Spacing="6" Margin="0,1"
-                                                            ToolTip.Tip="Цель квеста — отметьте галочкой, когда выполните">
-                                                    <TextBlock Text="✓" Classes="Small" Foreground="#10b981"
-                                                               IsVisible="{Binding Done}"/>
-                                                    <TextBlock Text="○" Classes="Small Muted"
-                                                               IsVisible="{Binding !Done}"/>
-                                                    <TextBlock Text="{Binding Description}" Classes="Small"/>
-                                                </StackPanel>
-                                            </DataTemplate>
-                                        </ItemsControl.ItemTemplate>
-                                    </ItemsControl>
-                                    <Border Classes="RewardBox" Padding="6,3" Margin="0,3,0,0"
-                                            IsVisible="{Binding HasRewards}">
-                                        <TextBlock Classes="Small Muted">
-                                            <Run Text="Награда: "/>
-                                            <Run Text="{Binding RewardCurrency, StringFormat={}{0} зол.}"/>
-                                            <Run Text=", "/>
-                                            <Run Text="{Binding RewardExperience, StringFormat={}{0} опыта}"/>
-                                        </TextBlock>
-                                    </Border>
+                                        <ItemsControl ItemsSource="{Binding Objectives}" Margin="0,2,0,0">
+                                            <ItemsControl.ItemTemplate>
+                                                <DataTemplate DataType="vm:QuestObjectiveRow">
+                                                    <StackPanel Orientation="Horizontal" Spacing="6" Margin="0,1"
+                                                                ToolTip.Tip="Цель квеста — отметьте галочкой, когда выполните">
+                                                        <TextBlock Text="✓" Classes="Small" Foreground="#10b981"
+                                                                   IsVisible="{Binding Done}"/>
+                                                        <TextBlock Text="○" Classes="Small Muted"
+                                                                   IsVisible="{Binding !Done}"/>
+                                                        <TextBlock Text="{Binding Description}" Classes="Small"/>
+                                                    </StackPanel>
+                                                </DataTemplate>
+                                            </ItemsControl.ItemTemplate>
+                                        </ItemsControl>
+                                        <Border Classes="RewardBox" Padding="6,3" Margin="0,3,0,0"
+                                                IsVisible="{Binding HasRewards}">
+                                            <TextBlock Classes="Small Muted">
+                                                <Run Text="Награда: "/>
+                                                <Run Text="{Binding RewardCurrency, StringFormat={}{0} зол.}"/>
+                                                <Run Text=", "/>
+                                                <Run Text="{Binding RewardExperience, StringFormat={}{0} опыта}"/>
+                                            </TextBlock>
+                                        </Border>
+                                    </StackPanel>
                                 </StackPanel>
                             </Border>
                         </DataTemplate>

@@ -8,6 +8,8 @@ using CommunityToolkit.Mvvm.Input;
 using MyGame.Core.Profile;
 using MyGame.Core.Saves;
 using MyGame.Core.World;
+using MyGame.Core.World.Entities;
+using MyGame.Desktop.Services;
 
 namespace MyGame.Desktop.ViewModels;
 
@@ -177,8 +179,7 @@ public partial class MainMenuViewModel : ViewModelBase
         }
     }
 
-    /// <summary>
-    /// «Загрузить» — toggle the saves-list panel. The list is refreshed
+    /// <summary>«Загрузить» — toggle the saves-list panel. The list is refreshed
     /// every time the panel is opened so newly-created saves appear.
     /// </summary>
     [RelayCommand(CanExecute = nameof(CanNavigate))]
@@ -209,6 +210,109 @@ public partial class MainMenuViewModel : ViewModelBase
             ErrorMessage = $"Не удалось прочитать список сохранений: {ex.Message}";
         }
         SavesLoaded = true;
+    }
+
+    /// <summary>
+    /// Import a portable character sheet (.pathstone-char / .json) from
+    /// an arbitrary path (issue #62). The file picker itself is owned by
+    /// the View (code-behind — Avalonia's StorageProvider needs the
+    /// TopLevel); the View calls this method with the chosen path.
+    ///
+    /// <para>
+    /// Flow: load the sheet via <see cref="CharacterSheetStore.LoadByPath"/>,
+    /// create a fresh <see cref="DefaultWorld"/>, replace the auto-spawned
+    /// «Странник» with a player built from the sheet (name, race, class,
+    /// background, attributes, level, xp, inventory + equipment
+    /// materialized from the sheet's item template ids via the new
+    /// world's content registry), persist as a new save, and navigate
+    /// into the game.
+    /// </para>
+    /// </summary>
+    /// <param name="filePath">
+    /// Absolute path to the .pathstone-char / .json sheet file picked by
+    /// the user. Null / empty (e.g. user cancelled the picker) is a
+    /// silent no-op.
+    /// </param>
+    public async Task ImportCharacterFromFileAsync(string? filePath)
+    {
+        if (string.IsNullOrWhiteSpace(filePath)) return; // picker cancelled
+        IsBusy = true;
+        ErrorMessage = null;
+        try
+        {
+            var store = ServiceHost.Resolve<CharacterSheetStore>();
+            var sheet = store.LoadByPath(filePath);
+            if (sheet is null)
+            {
+                ErrorMessage = "Не удалось прочитать файл персонажа. Проверьте, что это корректный экспорт Pathstone (.json).";
+                return;
+            }
+            if (string.IsNullOrWhiteSpace(sheet.Name))
+            {
+                ErrorMessage = "Файл персонажа не содержит имени — импорт невозможен.";
+                return;
+            }
+
+            var world = DefaultWorld.Create();
+            // Capture the auto-spawned player's location so the imported
+            // player starts at the same spot (the starting village).
+            var defaultPlayer = world.Players.FirstOrDefault();
+            var startLocId = defaultPlayer?.LocationId
+                ?? (world.Locations.FirstOrDefault()?.Id ?? default);
+            world.Players.Clear();
+            world.ActivePlayerId = null;
+
+            var player = EntityFactory.CreatePlayer(new()
+            {
+                Name = sheet.Name,
+                Race = sheet.Race,
+                Class = sheet.Class,
+                Level = sheet.Level,
+                Attributes = sheet.Attributes,
+                Resources = sheet.Resources,
+                LocationId = startLocId,
+                ProficientSkills = sheet.ProficientSkills,
+                Background = sheet.Background,
+                Speed = sheet.Speed,
+                StartingCurrency = 25, // default starting gold
+            }, world.Ruleset);
+            player.Experience = sheet.Xp;
+
+            // Materialize inventory items from template ids. Templates
+            // missing in the new world's content registry are silently
+            // skipped (the player just doesn't get that item — better
+            // than failing the whole import).
+            foreach (var tplId in sheet.InventoryItemIds)
+            {
+                if (string.IsNullOrEmpty(tplId)) continue;
+                var tpl = world.Registries.Items.Get(tplId);
+                if (tpl is null) continue;
+                player.Inventory.Items.Add(EntityFactory.InstantiateItem(tpl));
+            }
+            // Materialize equipped items (slot → template id).
+            foreach (var kv in sheet.EquippedItemIds)
+            {
+                if (string.IsNullOrEmpty(kv.Value)) continue;
+                var tpl = world.Registries.Items.Get(kv.Value);
+                if (tpl is null) continue;
+                player.Equipped[kv.Key] = EntityFactory.InstantiateItem(tpl);
+            }
+
+            world.SpawnPlayer(player);
+
+            var profile = _profileStore.GetOrCreate();
+            var title = $"Импорт: {sheet.Name}";
+            var meta = _saveManager.CreateSave(title, world, profile.Id);
+            await _shell.NavigateToGame(meta.Id);
+        }
+        catch (Exception ex)
+        {
+            ErrorMessage = $"Не удалось импортировать персонажа: {ex.Message}";
+        }
+        finally
+        {
+            IsBusy = false;
+        }
     }
 
     private bool CanNavigate() => !IsBusy;
