@@ -66,6 +66,16 @@ public sealed class ClientSession
     private PartyStatus _status = PartyStatus.Lobby;
     private string? _saveId;
 
+    // The party snapshot from the most recent WelcomeMsg. Cached so a UI
+    // that subscribes to the Welcomed event AFTER ConnectAsync has already
+    // completed (the JoinGameViewModel → GameViewModel handoff races: the
+    // event fires during ConnectAsync, before GameViewModel subscribes)
+    // can still populate its Members list from the snapshot. The snapshot
+    // is a defensive copy so later MemberJoined/MemberLeft updates don't
+    // mutate it under the caller.
+    private IReadOnlyList<MemberInfo>? _initialMembers;
+    private Guid _hostConnectionId;
+
     /// <summary>True after <see cref="ConnectAsync"/> succeeds.</summary>
     public bool IsConnected => _client.IsConnected;
 
@@ -166,6 +176,38 @@ public sealed class ClientSession
     public string? SaveId
     {
         get { lock (_stateLock) return _saveId; }
+    }
+
+    /// <summary>
+    /// The party roster from the most recent <see cref="WelcomeMsg"/>.
+    /// Cached so a UI that subscribes to the <see cref="Welcomed"/> event
+    /// AFTER <see cref="ConnectAsync"/> has completed (the handoff from
+    /// JoinGameViewModel to GameViewModel races the event) can still
+    /// populate its Members list from the initial snapshot. Returns an
+    /// empty list if no WelcomeMsg has been received yet. Returns a
+    /// defensive copy each call so the caller can mutate freely.
+    /// </summary>
+    public IReadOnlyList<MemberInfo> InitialMembers
+    {
+        get
+        {
+            lock (_stateLock)
+            {
+                return _initialMembers is null
+                    ? Array.Empty<MemberInfo>()
+                    : _initialMembers.ToList();
+            }
+        }
+    }
+
+    /// <summary>
+    /// The host's connection id (from the <see cref="WelcomeMsg"/>).
+    /// Used by the UI to identify which member is the host in the roster.
+    /// Guid.Empty if no WelcomeMsg has been received yet.
+    /// </summary>
+    public Guid HostConnectionId
+    {
+        get { lock (_stateLock) return _hostConnectionId; }
     }
 
     // ─── Events (UI surface) ─────────────────────────────────────────
@@ -371,6 +413,13 @@ public sealed class ClientSession
             _status = w.Party.Status;
             _saveId = w.Party.SaveId;
             _turn = w.Party.Turn;
+            // Cache the party snapshot so a late-subscribing UI (the
+            // GameViewModel that takes over after JoinGameViewModel's
+            // ConnectAsync already raised Welcomed) can still populate
+            // its Members list. Take a defensive copy so subsequent
+            // MemberJoined/MemberLeft mutations don't touch the cached list.
+            _initialMembers = w.Party.Members.ToList();
+            _hostConnectionId = w.Party.HostConnectionId;
         }
         RaiseEvent(Welcomed, w);
     }

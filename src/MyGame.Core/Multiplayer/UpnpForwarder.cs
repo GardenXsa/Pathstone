@@ -2,6 +2,7 @@ using System;
 using System.Net;
 using System.Net.Http;
 using System.Net.NetworkInformation;
+using System.Net.Sockets;
 using System.Text;
 using System.Text.RegularExpressions;
 using System.Threading;
@@ -80,9 +81,32 @@ public static class UpnpForwarder
         // Wait for a response (best-effort, short timeout).
         var receiveTask = udp.ReceiveAsync();
         var completed = await Task.WhenAny(receiveTask, Task.Delay(DiscoverTimeout, ct)).ConfigureAwait(false);
-        if (completed != receiveTask) return null;
 
-        var response = receiveTask.Result.Buffer;
+        // Timeout path: the receive task is still pending. We must observe
+        // it before the `using var udp` block disposes the UdpClient —
+        // otherwise disposal aborts the pending ReceiveAsync, throwing a
+        // SocketException ("Операция ввода-вывода была прервана...") that
+        // nobody awaits, surfacing later as a TaskScheduler.UnobservedTaskException
+        // crash dump. We do this by awaiting receiveTask with a try/catch
+        // (it will fault when udp is disposed below, which we swallow).
+        if (completed != receiveTask)
+        {
+            try { await receiveTask.ConfigureAwait(false); }
+            catch { /* expected — udp will be disposed below */ }
+            return null;
+        }
+
+        // Success path — receiveTask already completed; access .Result safely.
+        UdpReceiveResult result;
+        try
+        {
+            result = receiveTask.Result;
+        }
+        catch (AggregateException)
+        {
+            return null;
+        }
+        var response = result.Buffer;
         var responseStr = Encoding.ASCII.GetString(response);
 
         // Extract the LOCATION header.

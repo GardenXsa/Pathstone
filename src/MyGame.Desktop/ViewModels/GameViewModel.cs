@@ -566,6 +566,19 @@ public partial class GameViewModel : ViewModelBase
         // the GameClient raising Welcomed during ConnectAsync, which
         // happened in JoinGameViewModel before we got here). Refresh
         // defensively from the cached Status.
+        //
+        // The same race affects the Members list: the Welcomed event
+        // (which populates Members via OnClientWelcomed) fires during
+        // ConnectAsync, before we subscribe above. If we don't seed
+        // Members from the session's cached snapshot here, the client
+        // would show an empty participant list even though the host
+        // sees everyone correctly. ClientSession caches the WelcomeMsg's
+        // party snapshot in InitialMembers for exactly this case.
+        if (Members.Count == 0 && session.InitialMembers.Count > 0)
+        {
+            Members.Clear();
+            foreach (var m in session.InitialMembers) Members.Add(m);
+        }
         RefreshIsLobby();
         ToggleReadyCommand.NotifyCanExecuteChanged();
         await Task.CompletedTask;
