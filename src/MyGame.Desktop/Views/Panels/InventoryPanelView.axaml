@@ -14,7 +14,8 @@
         <Border DockPanel.Dock="Top" Classes="PanelSection" Margin="12,12,12,6">
             <StackPanel Spacing="6">
                 <Grid ColumnDefinitions="*,Auto">
-                    <TextBlock Grid.Column="0" Text="Золото" Classes="SectionTitle"/>
+                    <TextBlock Grid.Column="0" Text="Золото" Classes="SectionTitle"
+                               ToolTip.Tip="Золото в сумке персонажа"/>
                     <TextBlock Grid.Column="1" Text="{Binding Currency}" FontWeight="SemiBold"
                                FontFamily="Cascadia Mono,Consolas,Menlo,monospace"/>
                 </Grid>
@@ -35,11 +36,13 @@
             <StackPanel Spacing="8" Margin="12,0,12,12">
 
                 <!-- Carried items -->
-                <TextBlock Text="Сумка" Classes="SectionTitle" IsVisible="{Binding HasItems}"/>
+                <TextBlock Text="Сумка" Classes="SectionTitle" IsVisible="{Binding HasItems}"
+                           ToolTip.Tip="Предметы в рюкзаке"/>
                 <ItemsControl ItemsSource="{Binding Items}" IsVisible="{Binding HasItems}">
                     <ItemsControl.ItemTemplate>
                         <DataTemplate DataType="vm:InventoryItemRow">
-                            <Border Classes="ItemRow" Padding="6,4" Margin="0,0,0,4">
+                            <Border Classes="ItemRow" Padding="6,4" Margin="0,0,0,4"
+                                    ToolTip.Tip="{Binding Description}">
                                 <StackPanel Spacing="2">
                                     <Grid ColumnDefinitions="*,Auto">
                                         <TextBlock Grid.Column="0" Text="{Binding Name}" FontWeight="SemiBold" Classes="Small"/>
@@ -56,14 +59,17 @@
                                         <Button Content="Исп." Classes="TinyButton"
                                                 Command="{Binding DataContext.UseCommand, ElementName=Root}"
                                                 CommandParameter="{Binding}"
-                                                IsVisible="{Binding CanUse}"/>
+                                                IsVisible="{Binding CanUse}"
+                                                ToolTip.Tip="Использовать предмет"/>
                                         <Button Content="Экип." Classes="TinyButton"
                                                 Command="{Binding DataContext.EquipCommand, ElementName=Root}"
                                                 CommandParameter="{Binding}"
-                                                IsVisible="{Binding CanEquip}"/>
+                                                IsVisible="{Binding CanEquip}"
+                                                ToolTip.Tip="Экипировать предмет"/>
                                         <Button Content="Бросить" Classes="TinyButton Danger"
                                                 Command="{Binding DataContext.DropCommand, ElementName=Root}"
-                                                CommandParameter="{Binding}"/>
+                                                CommandParameter="{Binding}"
+                                                ToolTip.Tip="Выбросить предмет на землю"/>
                                     </StackPanel>
                                 </StackPanel>
                             </Border>
@@ -74,11 +80,13 @@
                 <TextBlock Text="(сумка пуста)" Classes="Muted Small" IsVisible="{Binding !HasItems}"/>
 
                 <!-- Equipped items -->
-                <TextBlock Text="Надето" Classes="SectionTitle" Margin="0,8,0,0" IsVisible="{Binding HasEquipped}"/>
+                <TextBlock Text="Надето" Classes="SectionTitle" Margin="0,8,0,0" IsVisible="{Binding HasEquipped}"
+                           ToolTip.Tip="Экипированные предметы"/>
                 <ItemsControl ItemsSource="{Binding Equipped}" IsVisible="{Binding HasEquipped}">
                     <ItemsControl.ItemTemplate>
                         <DataTemplate DataType="vm:InventoryItemRow">
-                            <Border Classes="ItemRow EquippedRow" Padding="6,4" Margin="0,0,0,4">
+                            <Border Classes="ItemRow EquippedRow" Padding="6,4" Margin="0,0,0,4"
+                                    ToolTip.Tip="{Binding Description}">
                                 <StackPanel Spacing="1">
                                     <TextBlock Classes="Small">
                                         <Run Text="{Binding Slot}" Foreground="{DynamicResource SystemControlForegroundChromeMediumBrush}"/>
@@ -90,7 +98,8 @@
                                     <Button Content="Снять" Classes="TinyButton"
                                             Command="{Binding DataContext.UnequipCommand, ElementName=Root}"
                                             CommandParameter="{Binding}"
-                                            Margin="0,3,0,0"/>
+                                            Margin="0,3,0,0"
+                                            ToolTip.Tip="Снять предмет в сумку"/>
                                 </StackPanel>
                             </Border>
                         </DataTemplate>

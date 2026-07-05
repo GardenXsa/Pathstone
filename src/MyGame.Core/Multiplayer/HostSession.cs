@@ -80,6 +80,23 @@ public sealed class HostSession
     private SaveMeta? _meta;
 
     /// <summary>
+    /// Per-save cumulative prompt (input) tokens billed across all
+    /// sessions on this save. Restored from <see cref="_meta"/> on
+    /// <see cref="StartAsync"/>; accumulated after each GM turn; written
+    /// back to <see cref="_meta"/> before each save. The host UI reads
+    /// its display counter from the <see cref="NarrativeFinalMsg"/> event
+    /// (which carries per-turn counts), so this field is purely for
+    /// persistence.
+    /// </summary>
+    private int _sessionPromptTokens;
+
+    /// <summary>
+    /// Per-save cumulative completion (output) tokens. See
+    /// <see cref="_sessionPromptTokens"/>.
+    /// </summary>
+    private int _sessionCompletionTokens;
+
+    /// <summary>
     /// True after <see cref="StartAsync"/> has been called.
     /// </summary>
     public bool IsRunning { get; private set; }
@@ -174,6 +191,28 @@ public sealed class HostSession
         get { lock (_log) return _log.ToArray(); }
     }
 
+    /// <summary>
+    /// Cumulative prompt (input) tokens billed across all sessions on
+    /// this save. Restored from <see cref="SaveMeta.SessionPromptTokens"/>
+    /// on <see cref="StartAsync"/>; accumulated after each GM turn; used
+    /// by the host UI to seed its top-bar token counter so it survives
+    /// reload. Persisted into meta on every save.
+    /// </summary>
+    public int SessionPromptTokens => _sessionPromptTokens;
+
+    /// <summary>
+    /// Cumulative completion (output) tokens. See
+    /// <see cref="SessionPromptTokens"/>.
+    /// </summary>
+    public int SessionCompletionTokens => _sessionCompletionTokens;
+
+    /// <summary>
+    /// Convenience: sum of <see cref="SessionPromptTokens"/> +
+    /// <see cref="SessionCompletionTokens"/>. Used by the host UI's
+    /// "Сессия: Nk токенов" display.
+    /// </summary>
+    public int SessionTotalTokens => _sessionPromptTokens + _sessionCompletionTokens;
+
     // ─── Events ──────────────────────────────────────────────────────
 
     /// <summary>A new member joined the party.</summary>
@@ -239,6 +278,10 @@ public sealed class HostSession
             {
                 _meta = tuple.meta;
                 lock (_log) _log.AddRange(tuple.log);
+                // Restore session-tokens from the save so the counter
+                // survives reload.
+                _sessionPromptTokens = tuple.meta.SessionPromptTokens;
+                _sessionCompletionTokens = tuple.meta.SessionCompletionTokens;
             }
         }
 
@@ -264,6 +307,12 @@ public sealed class HostSession
             {
                 LogEntry[] logSnapshot;
                 lock (_log) logSnapshot = _log.ToArray();
+                // Persist session-tokens into meta before the final save.
+                _meta = _meta with
+                {
+                    SessionPromptTokens = _sessionPromptTokens,
+                    SessionCompletionTokens = _sessionCompletionTokens,
+                };
                 _saveManager.SaveAll(_saveId, _world, _meta, logSnapshot);
             }
             catch (Exception ex)
@@ -432,6 +481,13 @@ public sealed class HostSession
                 RaiseEvent(NarrativeDelta, delta.TextDelta, delta.Turn);
             }
 
+            // Accumulate token billing for this turn into the session
+            // totals. The host UI reads per-turn counts from the
+            // NarrativeFinalMsg event we raise just below; we persist
+            // the cumulative totals into _meta on save (below).
+            _sessionPromptTokens += result.PromptTokens;
+            _sessionCompletionTokens += result.CompletionTokens;
+
             var toolEvents = result.ToolCalls
                 .Select(tc => new ToolEvent
                 {
@@ -447,6 +503,9 @@ public sealed class HostSession
                 FullText = result.NarrativeText,
                 ToolEvents = toolEvents,
                 Turn = _world.Turn + 1,
+                PromptTokens = result.PromptTokens,
+                CompletionTokens = result.CompletionTokens,
+                TotalTokens = result.TotalTokens,
             };
             await _server.BroadcastAsync(finalMsg, ct).ConfigureAwait(false);
             RaiseEvent(NarrativeFinal, finalMsg);
@@ -483,6 +542,13 @@ public sealed class HostSession
                     lock (_log) logSnapshot = _log.ToArray();
                     if (_meta is not null && _saveId is not null)
                     {
+                        // Persist session-tokens into meta before saving
+                        // so the counter survives reload.
+                        _meta = _meta with
+                        {
+                            SessionPromptTokens = _sessionPromptTokens,
+                            SessionCompletionTokens = _sessionCompletionTokens,
+                        };
                         _saveManager.SaveAll(_saveId, _world, _meta, logSnapshot);
                     }
                 }

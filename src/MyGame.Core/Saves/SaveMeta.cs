@@ -114,4 +114,18 @@ public sealed record SaveMeta
     /// 3-directory layout that this port deliberately collapses).
     /// </summary>
     public int StorageVersion { get; init; } = 1;
+
+    /// <summary>
+    /// Cumulative prompt (input) tokens billed across all sessions on
+    /// this save. Persists across save/load so the token-billing widget
+    /// in the top bar can show a meaningful "Сессия: Nk токенов" total
+    /// that survives a reload. Defaults to 0 (older saves load with 0).
+    /// </summary>
+    public int SessionPromptTokens { get; init; }
+
+    /// <summary>
+    /// Cumulative completion (output) tokens billed across all sessions
+    /// on this save. See <see cref="SessionPromptTokens"/>.
+    /// </summary>
+    public int SessionCompletionTokens { get; init; }
 }

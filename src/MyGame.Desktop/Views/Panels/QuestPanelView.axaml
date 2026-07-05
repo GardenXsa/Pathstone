@@ -17,7 +17,8 @@
 
             <!-- Active quests -->
             <StackPanel Spacing="6" IsVisible="{Binding HasActive}">
-                <TextBlock Text="Активные" Classes="SectionTitle"/>
+                <TextBlock Text="Активные" Classes="SectionTitle"
+                           ToolTip.Tip="Текущие активные квесты"/>
                 <ItemsControl ItemsSource="{Binding ActiveQuests}">
                     <ItemsControl.ItemTemplate>
                         <DataTemplate DataType="vm:QuestRow">
@@ -35,7 +36,8 @@
                                     <ItemsControl ItemsSource="{Binding Objectives}" Margin="0,2,0,0">
                                         <ItemsControl.ItemTemplate>
                                             <DataTemplate DataType="vm:QuestObjectiveRow">
-                                                <StackPanel Orientation="Horizontal" Spacing="6" Margin="0,1">
+                                                <StackPanel Orientation="Horizontal" Spacing="6" Margin="0,1"
+                                                            ToolTip.Tip="Цель квеста — отметьте галочкой, когда выполните">
                                                     <TextBlock Text="✓" Classes="Small" Foreground="#10b981"
                                                                IsVisible="{Binding Done}"/>
                                                     <TextBlock Text="○" Classes="Small Muted"
@@ -63,7 +65,8 @@
 
             <!-- Completed quests -->
             <StackPanel Spacing="6" IsVisible="{Binding HasCompleted}" Margin="0,8,0,0">
-                <TextBlock Text="Завершённые" Classes="SectionTitle"/>
+                <TextBlock Text="Завершённые" Classes="SectionTitle"
+                           ToolTip.Tip="Завершённые квесты"/>
                 <ItemsControl ItemsSource="{Binding CompletedQuests}">
                     <ItemsControl.ItemTemplate>
                         <DataTemplate DataType="vm:QuestRow">
@@ -80,7 +83,8 @@
 
             <!-- Failed quests -->
             <StackPanel Spacing="6" IsVisible="{Binding HasFailed}" Margin="0,8,0,0">
-                <TextBlock Text="Проваленные" Classes="SectionTitle"/>
+                <TextBlock Text="Проваленные" Classes="SectionTitle"
+                           ToolTip.Tip="Проваленные квесты"/>
                 <ItemsControl ItemsSource="{Binding FailedQuests}">
                     <ItemsControl.ItemTemplate>
                         <DataTemplate DataType="vm:QuestRow">

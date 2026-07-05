@@ -11,7 +11,8 @@
 
         <Border DockPanel.Dock="Top" Classes="TopBar">
             <Grid ColumnDefinitions="Auto,*,Auto">
-                <Button Grid.Column="0" Content="← Назад" Command="{Binding BackCommand}" Classes="SmallButton"/>
+                <Button Grid.Column="0" Content="← Назад" Command="{Binding BackCommand}" Classes="SmallButton"
+                        ToolTip.Tip="Вернуться в главное меню"/>
                 <TextBlock Grid.Column="1" Text="Хост игры" Classes="AppTitle"
                            HorizontalAlignment="Center"/>
                 <TextBlock Grid.Column="2" Text="" />
@@ -31,27 +32,32 @@
 
                 <StackPanel Spacing="6">
                     <TextBlock Text="Название игры" Classes="FieldLabel"/>
-                    <TextBox Text="{Binding GameName}" PlaceholderText="Новая партия"/>
+                    <TextBox Text="{Binding GameName}" PlaceholderText="Новая партия"
+                             ToolTip.Tip="Название партии — видно только вам"/>
                 </StackPanel>
 
                 <StackPanel Spacing="6">
                     <TextBlock Text="Максимум игроков (1-8)" Classes="FieldLabel"/>
-                    <NumericUpDown Value="{Binding MaxPlayers}" Minimum="1" Maximum="8"/>
+                    <NumericUpDown Value="{Binding MaxPlayers}" Minimum="1" Maximum="8"
+                                   ToolTip.Tip="1-8 игроков"/>
                 </StackPanel>
 
                 <CheckBox Content="Сгенерировать мир через AI (вместо стандартного)" IsChecked="{Binding UseAiWorldBuild}"
-                          Classes="Muted"/>
+                          Classes="Muted"
+                          ToolTip.Tip="Сгенерировать мир через AI вместо стандартного"/>
 
                 <StackPanel Spacing="6" IsVisible="{Binding UseAiWorldBuild}">
                     <TextBlock Text="Бриф мира (пусто = тёмное фэнтези по умолчанию)" Classes="FieldLabel"/>
                     <TextBox Text="{Binding WorldBrief}" PlaceholderText="Например: киберпанк-район мегаполиса, фиксер собирает команду…"
-                             AcceptsReturn="True" TextWrapping="Wrap" Height="100" FontSize="13"/>
+                             AcceptsReturn="True" TextWrapping="Wrap" Height="100" FontSize="13"
+                             ToolTip.Tip="Опишите мир — жанр, тон, ключевые места"/>
                     <TextBlock Text="Понадобится API-ключ (Профиль → Настройки AI). Займёт 30-90 секунд."
                                Classes="Muted Small" TextWrapping="Wrap"/>
                 </StackPanel>
 
                 <Button Content="Начать хостинг" Command="{Binding StartCommand}" Classes="MenuButton Primary"
-                        HorizontalAlignment="Stretch"/>
+                        HorizontalAlignment="Stretch"
+                        ToolTip.Tip="Запустить хостинг"/>
 
                 <TextBlock Text="Запустится локальный WebSocket-сервер на свободном порту. Поделитесь IP:портом с друзьями, чтобы они могли подключиться."
                            Classes="Muted Small" TextWrapping="Wrap"/>

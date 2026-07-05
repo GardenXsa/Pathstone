@@ -14,7 +14,7 @@
 
         <!-- Top bar -->
         <Border DockPanel.Dock="Top" Classes="TopBar">
-            <Grid ColumnDefinitions="Auto,*,Auto,Auto,Auto">
+            <Grid ColumnDefinitions="Auto,*,Auto,Auto,Auto,Auto">
                 <TextBlock Grid.Column="0" Text="{Binding GameName}" Classes="AppTitle"
                            VerticalAlignment="Center" Margin="0,0,12,0"/>
                 <TextBlock Grid.Column="1" Text="{Binding ShareAddress}" Classes="Muted Small"
@@ -22,12 +22,26 @@
                 <TextBlock Grid.Column="2" Text="{Binding ClockDisplay}" Classes="Muted Small"
                            VerticalAlignment="Center" Margin="12,0"
                            FontFamily="Cascadia Mono,Consolas,Menlo,monospace"/>
-                <Button Grid.Column="3" Content="💾 Сохранить" Command="{Binding SaveCommand}"
+                <!-- Token billing widget (issue #6) — monospace, two
+                     TextBlocks in a horizontal StackPanel so each can
+                     collapse independently when its value is empty. -->
+                <StackPanel Grid.Column="3" Orientation="Horizontal" VerticalAlignment="Center"
+                            Margin="12,0" Spacing="8"
+                            ToolTip.Tip="Использование токенов AI за этот ход и сессию">
+                    <TextBlock Text="{Binding LastTurnTokensDisplay}" Classes="Muted Small"
+                               FontFamily="Cascadia Mono,Consolas,Menlo,monospace"
+                               IsVisible="{Binding LastTurnTokensDisplay, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"/>
+                    <TextBlock Text="{Binding SessionTokensDisplay}" Classes="Muted Small"
+                               FontFamily="Cascadia Mono,Consolas,Menlo,monospace"
+                               IsVisible="{Binding SessionTokensDisplay, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"/>
+                </StackPanel>
+                <Button Grid.Column="4" Content="💾 Сохранить" Command="{Binding SaveCommand}"
                         Classes="SmallButton" Margin="0,0,6,0"
                         IsVisible="{Binding CanSave}"
                         ToolTip.Tip="Сохранить текущее состояние"/>
-                <Button Grid.Column="4" Content="Выйти" Command="{Binding LeaveGameCommand}"
-                        Classes="SmallButton Danger"/>
+                <Button Grid.Column="5" Content="Выйти" Command="{Binding LeaveGameCommand}"
+                        Classes="SmallButton Danger"
+                        ToolTip.Tip="Выйти из игры"/>
             </Grid>
         </Border>
 
@@ -71,16 +85,16 @@
 
                     <!-- Single-player: tabbed side panels (Character / Inventory / Quests / World) -->
                     <TabControl IsVisible="{Binding !IsMultiplayer}" Padding="0">
-                        <TabItem Header="Персонаж">
+                        <TabItem Header="Персонаж" ToolTip.Tip="Лист персонажа">
                             <panels:CharacterPanelView DataContext="{Binding CharacterPanel}"/>
                         </TabItem>
-                        <TabItem Header="Сумка">
+                        <TabItem Header="Сумка" ToolTip.Tip="Инвентарь и экипировка">
                             <panels:InventoryPanelView DataContext="{Binding InventoryPanel}"/>
                         </TabItem>
-                        <TabItem Header="Квесты">
+                        <TabItem Header="Квесты" ToolTip.Tip="Журнал заданий">
                             <panels:QuestPanelView DataContext="{Binding QuestPanel}"/>
                         </TabItem>
-                        <TabItem Header="Мир">
+                        <TabItem Header="Мир" ToolTip.Tip="Карта мира и текущая локация">
                             <panels:WorldPanelView DataContext="{Binding WorldPanel}"/>
                         </TabItem>
                     </TabControl>
@@ -92,10 +106,12 @@
                             <TextBlock DockPanel.Dock="Top" Text="Чат" Classes="SectionTitle" Margin="0,0,0,4"/>
                             <Button DockPanel.Dock="Bottom" Content="Отправить"
                                     Command="{Binding SendChatCommand}" Classes="SmallButton"
-                                    Margin="0,4,0,0"/>
+                                    Margin="0,4,0,0"
+                                    ToolTip.Tip="Отправить сообщение в чат"/>
                             <TextBox DockPanel.Dock="Bottom" Text="{Binding ChatInput}"
                                      PlaceholderText="Сообщение…"
-                                     Margin="0,4,0,0"/>
+                                     Margin="0,4,0,0"
+                                     ToolTip.Tip="Сообщение участникам партии"/>
                             <ScrollViewer HorizontalScrollBarVisibility="Disabled"
                                           VerticalScrollBarVisibility="Auto">
                                 <ItemsControl ItemsSource="{Binding Chat}">
@@ -129,12 +145,14 @@
                             <TextBox Grid.Column="0" Text="{Binding CurrentAction}"
                                      PlaceholderText="Опишите действие вашего персонажа…"
                                      IsEnabled="{Binding CanSubmit}"
-                                     KeyDown="OnActionKeyDown"/>
+                                     KeyDown="OnActionKeyDown"
+                                     ToolTip.Tip="Опишите действие вашего персонажа"/>
                             <Button Grid.Column="1" Content="Отправить"
                                     Command="{Binding SubmitActionCommand}"
                                     Classes="SmallButton Primary"
                                     Margin="6,0,0,0"
-                                    IsEnabled="{Binding CanSubmit}"/>
+                                    IsEnabled="{Binding CanSubmit}"
+                                    ToolTip.Tip="Отправить действие GM"/>
                         </Grid>
                     </Border>
 
@@ -143,15 +161,28 @@
                                   HorizontalScrollBarVisibility="Disabled"
                                   VerticalScrollBarVisibility="Auto"
                                   Padding="8">
-                        <ItemsControl ItemsSource="{Binding Log}">
-                            <ItemsControl.ItemTemplate>
-                                <DataTemplate DataType="core:LogEntry">
-                                    <Border Classes="LogEntry" Padding="6,4">
-                                        <TextBlock Text="{Binding Text}" TextWrapping="Wrap"/>
-                                    </Border>
-                                </DataTemplate>
-                            </ItemsControl.ItemTemplate>
-                        </ItemsControl>
+                        <StackPanel>
+                            <ItemsControl ItemsSource="{Binding Log}">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate DataType="core:LogEntry">
+                                        <Border Classes="LogEntry" Padding="6,4">
+                                            <TextBlock Text="{Binding Text}" TextWrapping="Wrap"/>
+                                        </Border>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                            <!-- Live-streaming narrative text (issue #5).
+                                 Bound to StreamingNarrativeText on the VM,
+                                 which is throttled to ~50ms-per-update to
+                                 avoid flooding the UI. Visible only while
+                                 the GM is actively streaming a turn; cleared
+                                 the moment the final NarrativeResult is
+                                 appended to the Log above. -->
+                            <Border Classes="LogEntry StreamingEntry" Padding="6,4"
+                                    IsVisible="{Binding StreamingNarrativeText, Converter={x:Static StringConverters.IsNotNullOrEmpty}}">
+                                <TextBlock Text="{Binding StreamingNarrativeText}" TextWrapping="Wrap"/>
+                            </Border>
+                        </StackPanel>
                     </ScrollViewer>
                 </DockPanel>
             </Border>

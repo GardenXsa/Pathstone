@@ -288,6 +288,185 @@ public sealed class AiClient
         }
     }
 
+    /// <summary>
+    /// Streaming chat completion WITH optional function-calling tools.
+    /// POST /chat/completions with <c>stream:true</c> + <c>tools</c> +
+    /// <c>stream_options.include_usage:true</c>. Yields each
+    /// <c>delta.content</c> chunk as it arrives, while ACCUMULATING
+    /// tool-call deltas (keyed by their <c>index</c>, since
+    /// <c>function.arguments</c> arrives in fragments across multiple
+    /// chunks) into a final <see cref="ChatResponse"/> that the caller
+    /// can read after the enumeration completes.
+    ///
+    /// <para>
+    /// The OpenAI streaming-with-tools protocol works like this:
+    /// each SSE chunk's <c>choices[0].delta</c> may contain a
+    /// <c>content</c> string fragment (the assistant's narration),
+    /// one or more <c>tool_calls</c> entries (each identified by
+    /// <c>index</c>, with <c>id</c>, <c>function.name</c>, and
+    /// <c>function.arguments</c> arriving in successive fragments),
+    /// or just a <c>finish_reason</c>. The final chunk(s) carry a
+    /// top-level <c>usage</c> block (when <c>include_usage</c> is set).
+    /// We assemble all of this into a single
+    /// <see cref="ChatResponse"/> on stream end.
+    /// </para>
+    ///
+    /// <para>
+    /// The final response is stored in
+    /// <paramref name="result"/>'s <see cref="StreamChatResult.Response"/>
+    /// field. The pattern is:
+    /// <code>
+    /// var holder = new StreamChatResult();
+    /// await foreach (var delta in client.StreamChatWithToolsAsync(
+    ///     messages, tools, holder, ct))
+    /// {
+    ///     // forward delta to UI
+    /// }
+    /// var response = holder.Response ?? new ChatResponse();
+    /// // response.Content / response.ToolCalls / response.PromptTokens ...
+    /// </code>
+    /// </para>
+    ///
+    /// <para>
+    /// If the stream is cancelled mid-flight (caller's
+    /// <paramref name="ct"/> fires), <see cref="StreamChatResult.Response"/>
+    /// is left null and <see cref="OperationCanceledException"/> propagates
+    /// from the consuming <c>await foreach</c>.
+    /// </para>
+    /// </summary>
+    /// <param name="messages">Conversation history (will be serialised
+    /// verbatim — assistant messages with <c>tool_calls</c> and tool
+    /// result messages are sent as-is per the OpenAI wire format).</param>
+    /// <param name="tools">Tool definitions (null or empty = no tools,
+    /// equivalent to <see cref="StreamChatAsync"/>).</param>
+    /// <param name="result">Holder the final <see cref="ChatResponse"/>
+    /// is written into when the stream completes normally.</param>
+    /// <param name="ct">Cancellation token — aborts the HTTP request
+    /// mid-stream.</param>
+    public async IAsyncEnumerable<string> StreamChatWithToolsAsync(
+        IReadOnlyList<ChatMessage> messages,
+        IReadOnlyList<ToolDefinition>? tools,
+        StreamChatResult result,
+        [EnumeratorCancellation] CancellationToken ct = default)
+    {
+        if (messages is null) throw new ArgumentNullException(nameof(messages));
+        if (result is null) throw new ArgumentNullException(nameof(result));
+
+        var payload = BuildRequestBody(messages, tools, stream: true);
+        using var response = await SendWithRetryAsync(payload, stream: true, ct).ConfigureAwait(false);
+        using var stream = await response.Content.ReadAsStreamAsync(ct).ConfigureAwait(false);
+        using var reader = new StreamReader(stream, Encoding.UTF8);
+
+        var contentBuilder = new StringBuilder();
+        var toolCallsByIndex = new SortedDictionary<int, ToolCallAccumulator>();
+        string? finishReason = null;
+        int promptTokens = 0, completionTokens = 0;
+
+        while (true)
+        {
+            string? line;
+            try
+            {
+                line = await reader.ReadLineAsync(ct).ConfigureAwait(false);
+            }
+            catch (OperationCanceledException) { yield break; }
+            if (line is null) break;                  // connection closed
+            if (line.Length == 0) continue;            // SSE event boundary
+            if (!line.StartsWith("data:", StringComparison.Ordinal)) continue;
+            var data = line.Substring(5).Trim();
+            if (data == "[DONE]") break;
+
+            ChatStreamChunk? chunk;
+            try
+            {
+                chunk = JsonSerializer.Deserialize<ChatStreamChunk>(data, s_wireOptions);
+            }
+            catch (JsonException)
+            {
+                // Provider sent malformed JSON in one chunk — skip it; the
+                // stream often has a few such blips on reconnect.
+                continue;
+            }
+            if (chunk is null) continue;
+
+            if (chunk.Choices is { } choices && choices.Count > 0)
+            {
+                var choice = choices[0];
+                if (!string.IsNullOrEmpty(choice.FinishReason))
+                    finishReason = choice.FinishReason;
+
+                var delta = choice.Delta;
+                if (delta is null) continue;
+
+                // Content delta — yield to caller immediately.
+                if (!string.IsNullOrEmpty(delta.Content))
+                {
+                    contentBuilder.Append(delta.Content);
+                    yield return delta.Content!;
+                }
+
+                // Tool-call deltas — accumulate by index. The first
+                // chunk for a given index carries id + function.name;
+                // subsequent chunks for the same index carry only
+                // function.arguments fragments (string concatenation).
+                if (delta.ToolCalls is { } tcs)
+                {
+                    foreach (var tc in tcs)
+                    {
+                        var idx = tc.Index ?? 0;
+                        if (!toolCallsByIndex.TryGetValue(idx, out var acc))
+                        {
+                            acc = new ToolCallAccumulator();
+                            toolCallsByIndex[idx] = acc;
+                        }
+                        if (!string.IsNullOrEmpty(tc.Id))
+                            acc.Id = tc.Id;
+                        if (tc.Function is { } fn)
+                        {
+                            if (!string.IsNullOrEmpty(fn.Name))
+                                acc.Name = fn.Name;
+                            if (fn.Arguments is { } args)
+                                acc.Arguments.Append(args);
+                        }
+                    }
+                }
+            }
+
+            // Final usage chunk (sentinelled by include_usage=true) —
+            // arrives AFTER the choices are exhausted, often with an
+            // empty `choices` array.
+            if (chunk.Usage is { } usage)
+            {
+                promptTokens = usage.PromptTokens;
+                completionTokens = usage.CompletionTokens;
+            }
+        }
+
+        // Build the final ChatResponse from accumulated state. This runs
+        // once the stream ends (either via [DONE] or connection close),
+        // before the consumer's `await foreach` exits.
+        var toolCallsList = new List<ToolCall>();
+        foreach (var acc in toolCallsByIndex.Values)
+        {
+            if (string.IsNullOrEmpty(acc.Name)) continue; // malformed — drop
+            toolCallsList.Add(new ToolCall
+            {
+                Id = acc.Id ?? string.Empty,
+                Name = acc.Name!,
+                Arguments = acc.Arguments.Length > 0 ? acc.Arguments.ToString() : "{}",
+            });
+        }
+
+        result.Response = new ChatResponse
+        {
+            Content = contentBuilder.Length > 0 ? contentBuilder.ToString() : null,
+            ToolCalls = toolCallsList.Count > 0 ? toolCallsList : null,
+            FinishReason = finishReason,
+            PromptTokens = promptTokens,
+            CompletionTokens = completionTokens,
+        };
+    }
+
     // ── Internals ─────────────────────────────────────────────────────────
 
     /// <summary>
@@ -682,4 +861,33 @@ public sealed class AiClient
         public int CompletionTokens { get; set; }
         public int TotalTokens { get; set; }
     }
+
+    /// <summary>
+    /// Mutable accumulator for one tool call as it arrives across multiple
+    /// SSE chunks. The <c>function.arguments</c> field is fragmentary in
+    /// streaming — each chunk contributes a partial string that we
+    /// concatenate. The <c>id</c> and <c>function.name</c> arrive once on
+    /// the first chunk for this index.
+    /// </summary>
+    private sealed class ToolCallAccumulator
+    {
+        public string? Id { get; set; }
+        public string? Name { get; set; }
+        public StringBuilder Arguments { get; } = new();
+    }
+}
+
+/// <summary>
+/// Holder for the final <see cref="ChatResponse"/> produced by
+/// <see cref="AiClient.StreamChatWithToolsAsync"/>. Allocate one, pass it
+/// into the streaming call, then read <see cref="Response"/> after the
+/// <c>IAsyncEnumerable&lt;string&gt;</c> is exhausted.
+/// </summary>
+public sealed class StreamChatResult
+{
+    /// <summary>
+    /// The final ChatResponse (Content + ToolCalls + FinishReason + token
+    /// usage). Null if the stream was cancelled mid-flight or threw.
+    /// </summary>
+    public ChatResponse? Response { get; set; }
 }

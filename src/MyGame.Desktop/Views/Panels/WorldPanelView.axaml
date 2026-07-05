@@ -30,7 +30,8 @@
             <!-- Current location -->
             <Border Classes="PanelSection">
                 <StackPanel Spacing="4">
-                    <TextBlock Text="Текущая локация" Classes="SectionTitle"/>
+                    <TextBlock Text="Текущая локация" Classes="SectionTitle"
+                               ToolTip.Tip="Где сейчас находится персонаж"/>
                     <TextBlock Text="{Binding CurrentLocationName}" FontWeight="SemiBold" Classes="Small"/>
                     <TextBlock Classes="Small Muted">
                         <Run Text="{Binding CurrentLocationTerrain}"/>
@@ -46,7 +47,8 @@
             <!-- Exits -->
             <Border Classes="PanelSection" IsVisible="{Binding HasExits}">
                 <StackPanel Spacing="3">
-                    <TextBlock Text="Выходы" Classes="SectionTitle"/>
+                    <TextBlock Text="Выходы" Classes="SectionTitle"
+                               ToolTip.Tip="Доступные переходы из текущей локации"/>
                     <ItemsControl ItemsSource="{Binding Exits}">
                         <ItemsControl.ItemTemplate>
                             <DataTemplate DataType="vm:ExitRow">
@@ -57,7 +59,8 @@
                                         Padding="6,3"
                                         Margin="0,1"
                                         HorizontalContentAlignment="Stretch"
-                                        CornerRadius="4">
+                                        CornerRadius="4"
+                                        ToolTip.Tip="{Binding ToName, StringFormat=Перейти: {0}}">
                                     <Grid ColumnDefinitions="Auto,*,Auto">
                                         <TextBlock Grid.Column="0" Text="→" Classes="Small Muted" Margin="0,0,6,0"/>
                                         <TextBlock Grid.Column="1" Text="{Binding Direction}" Classes="Small"/>
@@ -76,7 +79,8 @@
             <!-- Inhabitants -->
             <Border Classes="PanelSection" IsVisible="{Binding HasInhabitants}">
                 <StackPanel Spacing="3">
-                    <TextBlock Text="Обитатели" Classes="SectionTitle"/>
+                    <TextBlock Text="Обитатели" Classes="SectionTitle"
+                               ToolTip.Tip="NPC в текущей локации"/>
                     <ItemsControl ItemsSource="{Binding Inhabitants}">
                         <ItemsControl.ItemTemplate>
                             <DataTemplate DataType="vm:NpcRow">
@@ -99,7 +103,8 @@
             <!-- Buildings -->
             <Border Classes="PanelSection" IsVisible="{Binding HasBuildings}">
                 <StackPanel Spacing="3">
-                    <TextBlock Text="Здания" Classes="SectionTitle"/>
+                    <TextBlock Text="Здания" Classes="SectionTitle"
+                               ToolTip.Tip="Здания в текущей локации"/>
                     <ItemsControl ItemsSource="{Binding BuildingsHere}">
                         <ItemsControl.ItemTemplate>
                             <DataTemplate DataType="vm:BuildingRow">
@@ -116,7 +121,8 @@
             <!-- Ground items -->
             <Border Classes="PanelSection" IsVisible="{Binding HasGroundItems}">
                 <StackPanel Spacing="3">
-                    <TextBlock Text="На земле" Classes="SectionTitle"/>
+                    <TextBlock Text="На земле" Classes="SectionTitle"
+                               ToolTip.Tip="Предметы, лежащие на земле"/>
                     <ItemsControl ItemsSource="{Binding GroundItems}">
                         <ItemsControl.ItemTemplate>
                             <DataTemplate DataType="vm:GroundItemRow">
@@ -136,7 +142,8 @@
             <!-- All locations (discovered map) -->
             <Border Classes="PanelSection" IsVisible="{Binding HasLocations}">
                 <StackPanel Spacing="3">
-                    <TextBlock Text="Карта мира" Classes="SectionTitle"/>
+                    <TextBlock Text="Карта мира" Classes="SectionTitle"
+                               ToolTip.Tip="Открытые локации мира"/>
                     <ItemsControl ItemsSource="{Binding AllLocations}">
                         <ItemsControl.ItemTemplate>
                             <DataTemplate DataType="vm:LocationRow">

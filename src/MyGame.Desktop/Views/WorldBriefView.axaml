@@ -11,7 +11,8 @@
 
         <Border DockPanel.Dock="Top" Classes="TopBar">
             <Grid ColumnDefinitions="Auto,*,Auto">
-                <Button Grid.Column="0" Content="← Назад" Command="{Binding BackCommand}" Classes="SmallButton"/>
+                <Button Grid.Column="0" Content="← Назад" Command="{Binding BackCommand}" Classes="SmallButton"
+                        ToolTip.Tip="Вернуться в главное меню"/>
                 <TextBlock Grid.Column="1" Text="Создать мир" Classes="AppTitle"
                            HorizontalAlignment="Center"/>
                 <TextBlock Grid.Column="2" Text="" />
@@ -29,24 +30,29 @@
 
                 <TextBox Text="{Binding Brief}" PlaceholderText="Например: тёмное фэнтези, изолированная деревня в горах, окружённая волчьими лесами. Старейшина просит найти пропавший караван…"
                          AcceptsReturn="True" TextWrapping="Wrap"
-                         Height="180" FontSize="13"/>
+                         Height="180" FontSize="13"
+                         ToolTip.Tip="Опишите мир: жанр, тон, стартовая ситуация"/>
 
                 <StackPanel Spacing="6">
                     <TextBlock Text="Или начните с шаблона:" Classes="FieldLabel"/>
                     <WrapPanel>
-                        <Button Content="Тёмное фэнтези" Command="{Binding UsePresetDarkFantasyCommand}" Classes="SmallButton" Margin="0,0,6,0"/>
-                        <Button Content="Киберпанк" Command="{Binding UsePresetCyberpunkCommand}" Classes="SmallButton" Margin="0,0,6,0"/>
-                        <Button Content="Постапокалипсис" Command="{Binding UsePresetPostapocCommand}" Classes="SmallButton"/>
+                        <Button Content="Тёмное фэнтези" Command="{Binding UsePresetDarkFantasyCommand}" Classes="SmallButton" Margin="0,0,6,0"
+                                ToolTip.Tip="Вставить шаблон брифа"/>
+                        <Button Content="Киберпанк" Command="{Binding UsePresetCyberpunkCommand}" Classes="SmallButton" Margin="0,0,6,0"
+                                ToolTip.Tip="Вставить шаблон брифа"/>
+                        <Button Content="Постапокалипсис" Command="{Binding UsePresetPostapocCommand}" Classes="SmallButton"
+                                ToolTip.Tip="Вставить шаблон брифа"/>
                     </WrapPanel>
                 </StackPanel>
 
                 <CheckBox Content="Продвинутая генерация (pet-агенты: +30-60с, +токены)"
                           IsChecked="{Binding UsePetDelegations}"
                           Classes="Muted"
-                          ToolTip.Tip="После основного билда запустит 2 pet-агента: фоновое население + лут/сокровища"/>
+                          ToolTip.Tip="Запустить доп. AI-агентов для обогащения мира"/>
 
                 <Button Content="Создать мир →" Command="{Binding BuildCommand}" Classes="MenuButton Primary"
-                        HorizontalAlignment="Stretch"/>
+                        HorizontalAlignment="Stretch"
+                        ToolTip.Tip="Начать генерацию мира"/>
 
                 <TextBlock Text="Процесс займёт 30-90 секунд (без pet-агентов) или 60-150 секунд (с pet-агентами). Понадобится API-ключ (Профиль → Настройки AI)."
                            Classes="Muted Small" TextWrapping="Wrap" TextAlignment="Center"/>

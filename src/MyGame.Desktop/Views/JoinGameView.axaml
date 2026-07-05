@@ -11,7 +11,8 @@
 
         <Border DockPanel.Dock="Top" Classes="TopBar">
             <Grid ColumnDefinitions="Auto,*,Auto">
-                <Button Grid.Column="0" Content="← Назад" Command="{Binding BackCommand}" Classes="SmallButton"/>
+                <Button Grid.Column="0" Content="← Назад" Command="{Binding BackCommand}" Classes="SmallButton"
+                        ToolTip.Tip="Вернуться в главное меню"/>
                 <TextBlock Grid.Column="1" Text="Подключиться" Classes="AppTitle"
                            HorizontalAlignment="Center"/>
                 <TextBlock Grid.Column="2" Text="" />
@@ -31,16 +32,19 @@
 
                 <StackPanel Spacing="6">
                     <TextBlock Text="Хост (IP или имя)" Classes="FieldLabel"/>
-                    <TextBox Text="{Binding Host}" PlaceholderText="localhost, 192.168.1.10, my-host.example.com"/>
+                    <TextBox Text="{Binding Host}" PlaceholderText="localhost, 192.168.1.10, my-host.example.com"
+                             ToolTip.Tip="IP-адрес или имя хоста"/>
                 </StackPanel>
 
                 <StackPanel Spacing="6">
                     <TextBlock Text="Порт" Classes="FieldLabel"/>
-                    <NumericUpDown Value="{Binding Port}" Minimum="1" Maximum="65535"/>
+                    <NumericUpDown Value="{Binding Port}" Minimum="1" Maximum="65535"
+                                   ToolTip.Tip="Порт хоста (обычно 3000-9999)"/>
                 </StackPanel>
 
                 <Button Content="Подключиться" Command="{Binding ConnectCommand}" Classes="MenuButton Primary"
-                        HorizontalAlignment="Stretch"/>
+                        HorizontalAlignment="Stretch"
+                        ToolTip.Tip="Подключиться к хосту"/>
 
                 <TextBlock Text="Запросите IP:порт у хоста. Хост должен запустить «Хост игры» и поделиться адресом до того, как вы подключитесь."
                            Classes="Muted Small" TextWrapping="Wrap"/>

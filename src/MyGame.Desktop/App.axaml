@@ -137,6 +137,12 @@
         <Style Selector="Border.LogEntry">
             <Setter Property="Margin" Value="0,0,0,4" />
         </Style>
+        <Style Selector="Border.StreamingEntry">
+            <Setter Property="Opacity" Value="0.7" />
+        </Style>
+        <Style Selector="Border.StreamingEntry TextBlock">
+            <Setter Property="FontStyle" Value="Italic" />
+        </Style>
 
         <!-- Typography -->
         <Style Selector="TextBlock.AppTitle">

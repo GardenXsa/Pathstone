@@ -45,7 +45,8 @@
             <!-- Attributes -->
             <Border Classes="PanelSection" IsVisible="{Binding HasAttributes}">
                 <StackPanel Spacing="4">
-                    <TextBlock Text="Характеристики" Classes="SectionTitle"/>
+                    <TextBlock Text="Характеристики" Classes="SectionTitle"
+                               ToolTip.Tip="Силовые характеристики персонажа"/>
                     <ItemsControl ItemsSource="{Binding Attributes}">
                         <ItemsControl.ItemTemplate>
                             <DataTemplate DataType="vm:AttributeRow">
@@ -63,7 +64,8 @@
             <!-- Resources -->
             <Border Classes="PanelSection" IsVisible="{Binding HasResources}">
                 <StackPanel Spacing="4">
-                    <TextBlock Text="Ресурсы" Classes="SectionTitle"/>
+                    <TextBlock Text="Ресурсы" Classes="SectionTitle"
+                               ToolTip.Tip="Здоровье, мана и другие ресурсы"/>
                     <ItemsControl ItemsSource="{Binding Resources}">
                         <ItemsControl.ItemTemplate>
                             <DataTemplate DataType="vm:ResourceRow">
@@ -81,7 +83,8 @@
             <!-- Equipped -->
             <Border Classes="PanelSection" IsVisible="{Binding HasEquipped}">
                 <StackPanel Spacing="4">
-                    <TextBlock Text="Экипировка" Classes="SectionTitle"/>
+                    <TextBlock Text="Экипировка" Classes="SectionTitle"
+                               ToolTip.Tip="Надетые предметы по слотам"/>
                     <ItemsControl ItemsSource="{Binding Equipped}">
                         <ItemsControl.ItemTemplate>
                             <DataTemplate DataType="vm:EquippedRow">
@@ -103,7 +106,8 @@
             <!-- Active status effects -->
             <Border Classes="PanelSection EffectsSection" IsVisible="{Binding HasEffects}">
                 <StackPanel Spacing="4">
-                    <TextBlock Text="Эффекты" Classes="SectionTitle"/>
+                    <TextBlock Text="Эффекты" Classes="SectionTitle"
+                               ToolTip.Tip="Активные эффекты и их длительность"/>
                     <ItemsControl ItemsSource="{Binding Effects}">
                         <ItemsControl.ItemTemplate>
                             <DataTemplate DataType="vm:StatusEffectRow">
@@ -127,7 +131,8 @@
             <!-- Skills -->
             <Border Classes="PanelSection" IsVisible="{Binding HasSkills}">
                 <StackPanel Spacing="4">
-                    <TextBlock Text="Владения" Classes="SectionTitle"/>
+                    <TextBlock Text="Владения" Classes="SectionTitle"
+                               ToolTip.Tip="Навыки и владения персонажа"/>
                     <WrapPanel>
                         <ItemsControl ItemsSource="{Binding ProficientSkills}">
                             <ItemsControl.ItemTemplate>

@@ -114,6 +114,14 @@ public sealed class GameMaster
     private readonly List<ChatMessage> _history = new();
 
     /// <summary>
+    /// Per-turn tool-call loop detector. Reset at the start of each
+    /// <see cref="ProcessActionAsync"/> call; consulted after each tool
+    /// call to inject a Russian-language nudge into the working history
+    /// when the GM is repeating itself.
+    /// </summary>
+    private readonly LoopDetector _loopDetector = new();
+
+    /// <summary>
     /// Create a GameMaster bound to the given AI client, world, prompt
     /// loader, and tool registry. The same instance should be reused
     /// across turns so the in-memory conversation history accumulates
@@ -147,12 +155,53 @@ public sealed class GameMaster
     /// Process one player action: build the prompt, run the tool-call loop,
     /// and return the final narration + token usage + applied tool calls.
     /// </summary>
+    public Task<NarrativeResult> ProcessActionAsync(
+        string playerAction,
+        CancellationToken ct = default)
+        => ProcessActionAsync(playerAction, narrativeDelta: null, ct);
+
+    /// <summary>
+    /// Process one player action with optional streaming narrative deltas.
+    ///
+    /// <para>
+    /// Same loop as the parameterless overload, but each iteration uses
+    /// <see cref="AiClient.StreamChatWithToolsAsync"/> so the assistant's
+    /// content deltas are forwarded to <paramref name="narrativeDelta"/>
+    /// as they arrive (giving the UI a live-typing feel). Tool-call
+    /// deltas are accumulated internally and processed identically to the
+    /// non-streaming path.
+    /// </para>
+    ///
+    /// <para>
+    /// <b>Anti-loop</b>: after each tool call, the
+    /// <see cref="LoopDetector"/> checks for repetition (direct repeat or
+    /// ping-pong pattern). If detected, a Russian-language system nudge is
+    /// injected into the working history telling the GM to vary its
+    /// approach. The loop is NOT broken — the GM is given a chance to
+    /// self-correct. Up to <see cref="LoopDetector.MaxNudges"/> nudges per
+    /// turn; beyond that, <see cref="_maxIterations"/> caps termination.
+    /// </para>
+    /// </summary>
+    /// <param name="playerAction">The user's free-text action.</param>
+    /// <param name="narrativeDelta">Optional <see cref="IProgress{T}"/>
+    /// that receives each streamed content delta. The Progress handler is
+    /// posted on the captured SynchronizationContext (UI thread when the
+    /// caller is on the UI thread). Null = no streaming callback (final
+    /// narration is returned in <see cref="NarrativeResult.NarrativeText"/>
+    /// as before).</param>
+    /// <param name="ct">Cancellation token — aborts the in-flight HTTP
+    /// stream and propagates <see cref="OperationCanceledException"/>.</param>
     public async Task<NarrativeResult> ProcessActionAsync(
         string playerAction,
+        IProgress<string>? narrativeDelta,
         CancellationToken ct = default)
     {
         if (string.IsNullOrWhiteSpace(playerAction))
             throw new ArgumentException("playerAction is required.", nameof(playerAction));
+
+        // Reset the loop detector for this turn — signatures don't carry
+        // across turns.
+        _loopDetector.Reset();
 
         var systemPrompt = BuildSystemPrompt();
         var toolDefs = _tools.Definitions.ToList();
@@ -179,7 +228,17 @@ public sealed class GameMaster
                 iteration++;
                 ct.ThrowIfCancellationRequested();
 
-                var response = await _ai.ChatWithToolsAsync(working, toolDefs, ct).ConfigureAwait(false);
+                // Streaming iteration: forward content deltas to the
+                // callback as they arrive; accumulate the full
+                // ChatResponse (content + tool_calls + finish_reason +
+                // token usage) in the holder for processing below.
+                var holder = new StreamChatResult();
+                await foreach (var delta in _ai.StreamChatWithToolsAsync(
+                    working, toolDefs, holder, ct).ConfigureAwait(false))
+                {
+                    narrativeDelta?.Report(delta);
+                }
+                var response = holder.Response ?? new ChatResponse();
 
                 // ChatResponse now carries token counts directly (per task
                 // 3-c-1 spec) — no separate Usage sub-record.
@@ -208,6 +267,20 @@ public sealed class GameMaster
                     Content = response.Content,
                     ToolCalls = response.ToolCalls.ToList(),
                 });
+
+                // Anti-loop: record each tool call's signature and inject
+                // a nudge if a repetition pattern is detected. At most one
+                // nudge per iteration (so we don't spam the model with
+                // multiple nudges for one batch of tool calls).
+                string? nudgeThisIteration = null;
+                foreach (var tc in response.ToolCalls)
+                {
+                    var nudge = _loopDetector.Record(tc.Name, tc.Arguments);
+                    if (nudge is not null && nudgeThisIteration is null)
+                        nudgeThisIteration = nudge.Text;
+                }
+                if (nudgeThisIteration is not null)
+                    working.Add(ChatMessage.System(nudgeThisIteration));
 
                 // Execute each tool call in order. The provider expects a
                 // tool-result message per call, with tool_call_id matching.

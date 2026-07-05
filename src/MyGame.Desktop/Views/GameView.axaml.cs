@@ -5,6 +5,7 @@ using Avalonia.Input;
 using Avalonia.Interactivity;
 using MyGame.Desktop.ViewModels;
 using System.Collections.Specialized;
+using System.ComponentModel;
 
 namespace MyGame.Desktop.Views;
 
@@ -38,11 +39,17 @@ public partial class GameView : UserControl
         if (_vm is not null)
         {
             ((INotifyCollectionChanged)_vm.Log).CollectionChanged -= OnLogChanged;
+            _vm.PropertyChanged -= OnVmPropertyChanged;
         }
         _vm = DataContext as GameViewModel;
         if (_vm is not null)
         {
             ((INotifyCollectionChanged)_vm.Log).CollectionChanged += OnLogChanged;
+            // Subscribe to VM property changes so we can auto-scroll the
+            // streaming narrative TextBlock as it grows (the streaming
+            // text isn't a Log entry, so the Log CollectionChanged
+            // handler above doesn't fire for it).
+            _vm.PropertyChanged += OnVmPropertyChanged;
         }
     }
 
@@ -59,6 +66,20 @@ public partial class GameView : UserControl
         {
             // Defer to next frame so the new items have actually laid
             // out before we try to scroll to them.
+            NarrativeScroll.ScrollToEnd();
+        }
+    }
+
+    /// <summary>
+    /// VM property-change handler. Used to auto-scroll the streaming
+    /// narrative text as it grows (the StreamingNarrativeText property
+    /// isn't backed by the Log collection, so OnLogChanged doesn't fire).
+    /// </summary>
+    private void OnVmPropertyChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName == nameof(GameViewModel.StreamingNarrativeText) && _autoScroll)
+        {
+            // Defer to next frame so the new text has actually laid out.
             NarrativeScroll.ScrollToEnd();
         }
     }

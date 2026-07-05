@@ -12,7 +12,8 @@
         <!-- Top bar -->
         <Border DockPanel.Dock="Top" Classes="TopBar">
             <Grid ColumnDefinitions="Auto,*,Auto">
-                <Button Grid.Column="0" Content="← Назад" Command="{Binding BackCommand}" Classes="SmallButton"/>
+                <Button Grid.Column="0" Content="← Назад" Command="{Binding BackCommand}" Classes="SmallButton"
+                        ToolTip.Tip="Вернуться в меню"/>
                 <TextBlock Grid.Column="1" Text="Создание персонажа" Classes="AppTitle"
                            HorizontalAlignment="Center"/>
                 <TextBlock Grid.Column="2" Text="" />
@@ -37,7 +38,8 @@
                 <!-- Name -->
                 <StackPanel Spacing="6">
                     <TextBlock Text="Имя" Classes="FieldLabel"/>
-                    <TextBox Text="{Binding Name}" PlaceholderText="Например: Странник"/>
+                    <TextBox Text="{Binding Name}" PlaceholderText="Например: Странник"
+                             ToolTip.Tip="Имя персонажа"/>
                 </StackPanel>
 
                 <!-- Race + Class + Background -->
@@ -46,19 +48,22 @@
                         <TextBlock Text="Раса" Classes="FieldLabel"/>
                         <ComboBox ItemsSource="{Binding RaceOptions}"
                                   SelectedItem="{Binding Race}"
-                                  HorizontalAlignment="Stretch"/>
+                                  HorizontalAlignment="Stretch"
+                                  ToolTip.Tip="Выберите расу"/>
                     </StackPanel>
                     <StackPanel Grid.Column="1" Spacing="6" Margin="0,0,8,0">
                         <TextBlock Text="Класс" Classes="FieldLabel"/>
                         <ComboBox ItemsSource="{Binding ClassOptions}"
                                   SelectedItem="{Binding Class}"
-                                  HorizontalAlignment="Stretch"/>
+                                  HorizontalAlignment="Stretch"
+                                  ToolTip.Tip="Выберите класс"/>
                     </StackPanel>
                     <StackPanel Grid.Column="2" Spacing="6">
                         <TextBlock Text="Предыстория" Classes="FieldLabel"/>
                         <ComboBox ItemsSource="{Binding BackgroundOptions}"
                                   SelectedItem="{Binding Background}"
-                                  HorizontalAlignment="Stretch"/>
+                                  HorizontalAlignment="Stretch"
+                                  ToolTip.Tip="Выберите предысторию"/>
                     </StackPanel>
                 </Grid>
 
@@ -76,9 +81,11 @@
                 <StackPanel Spacing="10" HorizontalAlignment="Center" Margin="0,8,0,0">
                     <Button Content="Создать персонажа →" Command="{Binding CreateCommand}"
                             Classes="MenuButton Primary"
-                            HorizontalAlignment="Stretch"/>
+                            HorizontalAlignment="Stretch"
+                            ToolTip.Tip="Создать персонажа и начать игру"/>
                     <Button Content="В меню" Command="{Binding BackCommand}"
-                            Classes="SmallButton"/>
+                            Classes="SmallButton"
+                            ToolTip.Tip="Вернуться в меню"/>
                 </StackPanel>
 
                 <TextBlock Text="После создания персонажа мир загрузится в одиночном режиме. Старый персонаж «Странник» будет заменён."

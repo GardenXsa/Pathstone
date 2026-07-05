@@ -17,7 +17,7 @@
                     <TextBlock Text="Ник:" Classes="Muted" VerticalAlignment="Center"/>
                     <TextBox Text="{Binding Nickname}" Width="160"
                              PlaceholderText="ваш ник"
-                             ToolTip.Tip="Введите ник и нажмите Enter (или кликните вне поля)"
+                             ToolTip.Tip="Введите ник и нажмите Enter"
                              KeyDown="OnNicknameKeyDown"
                              LostFocus="OnNicknameLostFocus"/>
                 </StackPanel>
@@ -44,12 +44,18 @@
 
                     <TextBlock Text="Главное меню" Classes="ScreenTitle" HorizontalAlignment="Center"/>
 
-                    <Button Content="Новая игра" Command="{Binding NewGameCommand}" Classes="MenuButton" />
-                    <Button Content="✨ Создать мир (AI)" Command="{Binding CreateWorldCommand}" Classes="MenuButton Primary" />
-                    <Button Content="Хост игры" Command="{Binding HostGameCommand}" Classes="MenuButton" />
-                    <Button Content="Подключиться" Command="{Binding JoinGameCommand}" Classes="MenuButton" />
-                    <Button Content="Загрузить" Command="{Binding ToggleLoadCommand}" Classes="MenuButton" />
-                    <Button Content="Настройки" Command="{Binding OpenSettingsCommand}" Classes="MenuButton" />
+                    <Button Content="Новая игра" Command="{Binding NewGameCommand}" Classes="MenuButton"
+                            ToolTip.Tip="Создать новую игру со стандартным миром"/>
+                    <Button Content="✨ Создать мир (AI)" Command="{Binding CreateWorldCommand}" Classes="MenuButton Primary"
+                            ToolTip.Tip="Сгенерировать мир через AI по вашему брифу"/>
+                    <Button Content="Хост игры" Command="{Binding HostGameCommand}" Classes="MenuButton"
+                            ToolTip.Tip="Запустить сетевую игру на этом компьютере"/>
+                    <Button Content="Подключиться" Command="{Binding JoinGameCommand}" Classes="MenuButton"
+                            ToolTip.Tip="Подключиться к сетевой игре по IP:порт"/>
+                    <Button Content="Загрузить" Command="{Binding ToggleLoadCommand}" Classes="MenuButton"
+                            ToolTip.Tip="Открыть список сохранений"/>
+                    <Button Content="Настройки" Command="{Binding OpenSettingsCommand}" Classes="MenuButton"
+                            ToolTip.Tip="Настроить подключение к AI"/>
 
                     <!-- Saves list (collapsible) -->
                     <Border Classes="LoadPanel" IsVisible="{Binding SavesLoaded}" Padding="10" Margin="0,12,0,0">
@@ -57,7 +63,7 @@
                             <Grid ColumnDefinitions="*,Auto">
                                 <TextBlock Grid.Column="0" Text="Сохранения" Classes="SectionTitle"/>
                                 <Button Grid.Column="1" Content="↻" Command="{Binding RefreshSavesCommand}"
-                                        Classes="TinyButton" ToolTip.Tip="Обновить"/>
+                                        Classes="TinyButton" ToolTip.Tip="Обновить список"/>
                             </Grid>
 
                             <ItemsControl ItemsSource="{Binding Saves}">
@@ -77,7 +83,8 @@
                                                 <Button Grid.Column="1" Content="Играть"
                                                         Command="{Binding LoadCommand}"
                                                         Classes="SmallButton Primary"
-                                                        VerticalAlignment="Center"/>
+                                                        VerticalAlignment="Center"
+                                                        ToolTip.Tip="Загрузить это сохранение"/>
                                             </Grid>
                                         </Border>
                                     </DataTemplate>

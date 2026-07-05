@@ -240,6 +240,28 @@ public sealed record NarrativeFinalMsg : NetMessage
 
     /// <summary>Turn number this narration finalises.</summary>
     public int Turn { get; init; }
+
+    /// <summary>
+    /// Prompt (input) tokens billed for this turn across all GM
+    /// iterations. 0 when the provider didn't return a usage block.
+    /// Forwarded to the host UI so the token-billing widget can
+    /// accumulate session totals. Clients ignore this (they don't run
+    /// the GM).
+    /// </summary>
+    public int PromptTokens { get; init; }
+
+    /// <summary>
+    /// Completion (output) tokens billed for this turn. See
+    /// <see cref="PromptTokens"/>.
+    /// </summary>
+    public int CompletionTokens { get; init; }
+
+    /// <summary>
+    /// Total tokens billed for this turn (prompt + completion).
+    /// Convenience field so the UI doesn't need to add the two
+    /// components itself.
+    /// </summary>
+    public int TotalTokens { get; init; }
 }
 
 /// <summary>

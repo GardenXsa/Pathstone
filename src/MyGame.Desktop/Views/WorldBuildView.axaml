@@ -12,7 +12,8 @@
         <Border DockPanel.Dock="Top" Classes="TopBar">
             <Grid ColumnDefinitions="Auto,*,Auto">
                 <Button Grid.Column="0" Content="← Назад" Command="{Binding BackCommand}" Classes="SmallButton"
-                        IsVisible="{Binding !IsBusy}"/>
+                        IsVisible="{Binding !IsBusy}"
+                        ToolTip.Tip="Вернуться в меню"/>
                 <TextBlock Grid.Column="1" Text="Создание мира" Classes="AppTitle"
                            HorizontalAlignment="Center"/>
                 <TextBlock Grid.Column="2" Text="" />
@@ -55,14 +56,17 @@
                 <!-- Action buttons -->
                 <StackPanel Spacing="10" HorizontalAlignment="Center">
                     <Button Content="Отмена" Command="{Binding CancelCommand}" Classes="MenuButton"
-                            IsVisible="{Binding IsBusy}"/>
+                            IsVisible="{Binding IsBusy}"
+                            ToolTip.Tip="Остановить генерацию"/>
                     <Button Content="Продолжить →" Command="{Binding EnterGameCommand}" Classes="MenuButton Primary"
                             IsVisible="{Binding Completed}"
                             ToolTip.Tip="Перейти к созданию персонажа"/>
                     <Button Content="Повторить" Command="{Binding StartCommand}" Classes="MenuButton"
-                            IsVisible="{Binding Failed}"/>
+                            IsVisible="{Binding Failed}"
+                            ToolTip.Tip="Перезапустить генерацию мира"/>
                     <Button Content="В меню" Command="{Binding BackCommand}" Classes="SmallButton"
-                            IsVisible="{Binding Failed}"/>
+                            IsVisible="{Binding Failed}"
+                            ToolTip.Tip="Вернуться в меню"/>
                 </StackPanel>
 
                 <TextBlock Text="Планировщик AI создаёт структуру мира, затем детерминированный строитель материализует локации, NPC, здания и снаряжение, и наконец нарратор пишет вступление. Это занимает 30-90 секунд."

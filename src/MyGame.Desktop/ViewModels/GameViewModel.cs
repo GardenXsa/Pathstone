@@ -137,6 +137,119 @@ public partial class GameViewModel : ViewModelBase
     [ObservableProperty] private bool _canSave;
     [ObservableProperty] private bool _canSubmit = true;
 
+    // ─── Token billing (issue #6) ─────────────────────────────────────
+    //
+    // Per-turn + per-session token counters. Accumulate after each GM
+    // turn (single-player + host). Persist on SaveMeta so the session
+    // total survives reload. The "last turn" counter resets each turn;
+    // the "session" counter accumulates until the save is reset.
+    [ObservableProperty] private int _sessionPromptTokens;
+    [ObservableProperty] private int _sessionCompletionTokens;
+    [ObservableProperty] private int _sessionTotalTokens;
+    [ObservableProperty] private int _lastTurnTokens;
+
+    /// <summary>
+    /// Live-streaming narrative buffer. Bound to a TextBlock at the end
+    /// of the log so the user sees the GM's narration appear word-by-word
+    /// as the SSE stream delivers content deltas. Cleared on turn start
+    /// and after the final NarrativeResult is appended to the Log.
+    /// </summary>
+    [ObservableProperty] private string _streamingNarrativeText = string.Empty;
+
+    /// <summary>
+    /// Throttled streaming-narrative buffer. Deltas are appended here as
+    /// they arrive; the property <see cref="StreamingNarrativeText"/> is
+    /// only refreshed when at least 50ms have passed since the last
+    /// flush, to avoid flooding the UI with PropertyChanged events.
+    /// </summary>
+    private readonly System.Text.StringBuilder _streamBuffer = new();
+    private long _lastStreamFlushTicks;
+
+    /// <summary>
+    /// Session-tokens display string for the top-bar widget. Format:
+    /// "Сессия: 12.3k токенов" (k-suffix for ≥1000). Empty when 0.
+    /// </summary>
+    public string SessionTokensDisplay => FormatTokenCount("Сессия", SessionTotalTokens);
+
+    /// <summary>
+    /// Last-turn tokens display string for the top-bar widget. Format:
+    /// "Ход: 456" (plain int, no k-suffix — single turns are small).
+    /// </summary>
+    public string LastTurnTokensDisplay => LastTurnTokens > 0
+        ? $"Ход: {LastTurnTokens}"
+        : string.Empty;
+
+    /// <summary>
+    /// Format a token count as "Label: N токенов" (or "Label: N.Nk токенов"
+    /// for ≥1000). Returns empty string when count is 0 (so the TextBlock
+    /// can collapse cleanly when no tokens have been billed yet).
+    /// </summary>
+    private static string FormatTokenCount(string label, int count)
+    {
+        if (count <= 0) return string.Empty;
+        if (count < 1000) return $"{label}: {count} токенов";
+        // 1234 → "1.2k", 12345 → "12.3k", 123456 → "123k"
+        double k = count / 1000.0;
+        return $"{label}: {k:F1}k токенов";
+    }
+
+    /// <summary>
+    /// Refresh the token-display properties after a turn. Called on the
+    /// UI thread (the OnPropertyChanged notifications fire here).
+    /// </summary>
+    private void RefreshTokenDisplays()
+    {
+        // Touch each property to fire PropertyChanged so the bound
+        // TextBlocks re-read the computed display strings.
+        OnPropertyChanged(nameof(SessionTokensDisplay));
+        OnPropertyChanged(nameof(LastTurnTokensDisplay));
+    }
+
+    /// <summary>
+    /// Accumulate token usage from one GM turn into the session totals
+    /// and the last-turn counter. Also refreshes the display properties.
+    /// Safe to call from any thread — but PropertyChanged fires here, so
+    /// callers should be on the UI thread (or marshal).
+    /// </summary>
+    private void AccumulateTokens(int promptTokens, int completionTokens, int totalTokens)
+    {
+        SessionPromptTokens += promptTokens;
+        SessionCompletionTokens += completionTokens;
+        SessionTotalTokens += totalTokens;
+        LastTurnTokens = totalTokens;
+        RefreshTokenDisplays();
+    }
+
+    /// <summary>
+    /// Write the current session-tokens into <see cref="_meta"/>. Called
+    /// before every save so the totals persist across reloads. No-op when
+    /// <see cref="_meta"/> is null.
+    /// </summary>
+    private void PersistTokensToMeta()
+    {
+        if (_meta is null) return;
+        _meta = _meta with
+        {
+            SessionPromptTokens = SessionPromptTokens,
+            SessionCompletionTokens = SessionCompletionTokens,
+        };
+    }
+
+    /// <summary>
+    /// Restore session-tokens from <see cref="_meta"/> into the VM's
+    /// observable properties. Called after a save load so the counter
+    /// survives reload. No-op when <see cref="_meta"/> is null.
+    /// </summary>
+    private void RestoreTokensFromMeta()
+    {
+        if (_meta is null) return;
+        SessionPromptTokens = _meta.SessionPromptTokens;
+        SessionCompletionTokens = _meta.SessionCompletionTokens;
+        SessionTotalTokens = _meta.SessionPromptTokens + _meta.SessionCompletionTokens;
+        LastTurnTokens = 0; // last-turn counter resets on reload
+        RefreshTokenDisplays();
+    }
+
     /// <summary>Observable narrative + action + tool log.</summary>
     public ObservableCollection<LogEntry> Log { get; } = new();
 
@@ -216,6 +329,10 @@ public partial class GameViewModel : ViewModelBase
 
         GameName = _meta?.Name ?? "Игра";
         CanSave = true;
+        // Restore session-tokens from the save so the top-bar counter
+        // survives a reload. Last-turn counter is reset (a fresh session
+        // has no "last turn" yet).
+        RestoreTokensFromMeta();
         RefreshFromWorld();
     }
 
@@ -253,6 +370,16 @@ public partial class GameViewModel : ViewModelBase
         // connected (no one yet at this point, but defensive).
         Members.Clear();
         foreach (var m in session.Members) Members.Add(m);
+
+        // Seed the host's token counters from the session's cumulative
+        // totals (which were restored from the save on StartAsync). The
+        // per-turn counter stays at 0 — a new host session has no "last
+        // turn" yet.
+        SessionPromptTokens = session.SessionPromptTokens;
+        SessionCompletionTokens = session.SessionCompletionTokens;
+        SessionTotalTokens = session.SessionTotalTokens;
+        LastTurnTokens = 0;
+        RefreshTokenDisplays();
 
         // Append a system entry to the log so the user sees something.
         AppendLog(LogEntry.System($"Хост запущен на порту {session.Port}."));
@@ -387,6 +514,9 @@ public partial class GameViewModel : ViewModelBase
         {
             if (StandaloneSinglePlayer && _world is not null && _meta is not null && _saveId is not null)
             {
+                // Persist session-tokens before the save so the counter
+                // survives reload.
+                PersistTokensToMeta();
                 LogEntry[] snapshot;
                 lock (_logLock) snapshot = _log.ToArray();
                 _saveManager.SaveAll(_saveId, _world, _meta, snapshot);
@@ -424,6 +554,8 @@ public partial class GameViewModel : ViewModelBase
         {
             if (StandaloneSinglePlayer && _world is not null && _meta is not null && _saveId is not null)
             {
+                // Persist session-tokens before the final save.
+                PersistTokensToMeta();
                 LogEntry[] snapshot;
                 lock (_logLock) snapshot = _log.ToArray();
                 try { _saveManager.SaveAll(_saveId, _world, _meta, snapshot); }
@@ -459,7 +591,30 @@ public partial class GameViewModel : ViewModelBase
         var profile = _profileStore.GetOrCreate();
         AppendLog(LogEntry.Action($"{profile.Nickname}: {text}", authorId: profile.Id.ToString()));
 
-        var result = await _gm.ProcessActionAsync(text);
+        // Reset the streaming buffer + clear the streaming text so the
+        // user sees only the new turn's live narration. The Progress<T>
+        // callback runs on the captured SynchronizationContext — since
+        // this method is invoked from the SubmitAction relay command on
+        // the UI thread, that's the UI thread. So we can safely mutate
+        // UI-bound state directly in the handler.
+        StartStreamingNarrative();
+        var progress = new Progress<string>(OnNarrativeDelta);
+
+        NarrativeResult result;
+        try
+        {
+            result = await _gm.ProcessActionAsync(text, progress);
+        }
+        finally
+        {
+            // Final flush: push any remaining buffered content to the UI,
+            // then clear so the streaming TextBlock disappears before the
+            // final narrative LogEntry is appended below. (If we cleared
+            // before the flush, the user would see a brief empty flash.)
+            FlushStreamingNarrative();
+            ClearStreamingNarrative();
+        }
+
         if (result.Failed)
         {
             AppendLog(LogEntry.System($"Ошибка ИИ: {result.Error ?? "неизвестная ошибка"}"));
@@ -480,10 +635,17 @@ public partial class GameViewModel : ViewModelBase
                 }));
         }
 
+        // Accumulate token billing for this turn into the session totals
+        // + last-turn counter, and refresh the top-bar display.
+        AccumulateTokens(result.PromptTokens, result.CompletionTokens, result.TotalTokens);
+
         // Increment turn + save.
         _world.Turn++;
         if (_meta is not null && _saveId is not null)
         {
+            // Persist session-tokens into meta before the save so the
+            // counter survives reload.
+            PersistTokensToMeta();
             try
             {
                 LogEntry[] snapshot;
@@ -500,6 +662,66 @@ public partial class GameViewModel : ViewModelBase
         // Runs after RefreshFromWorld so the character panel already shows
         // the new level.
         CheckLevelUpAndToast();
+    }
+
+    // ─── Streaming-narrative helpers ─────────────────────────────────
+    //
+    // The streaming-narrative TextBlock at the bottom of the log shows
+    // the GM's narration appear word-by-word as the SSE stream delivers
+    // content deltas. To avoid flooding the UI with PropertyChanged
+    // events (one per delta, potentially dozens per second), we batch
+    // deltas into a StringBuilder and only flush to the bound property
+    // when at least ~50ms have passed since the last flush.
+
+    /// <summary>
+    /// Reset the streaming buffer + clear the streaming text property.
+    /// Called at the start of each turn.
+    /// </summary>
+    private void StartStreamingNarrative()
+    {
+        _streamBuffer.Clear();
+        _lastStreamFlushTicks = 0;
+        StreamingNarrativeText = string.Empty;
+    }
+
+    /// <summary>
+    /// Progress callback for streaming narrative deltas. Appends to the
+    /// buffer and throttles property updates to ~50ms intervals.
+    /// </summary>
+    private void OnNarrativeDelta(string delta)
+    {
+        if (string.IsNullOrEmpty(delta)) return;
+        _streamBuffer.Append(delta);
+
+        var now = Environment.TickCount64;
+        if (now - _lastStreamFlushTicks >= 50)
+        {
+            _lastStreamFlushTicks = now;
+            StreamingNarrativeText = _streamBuffer.ToString();
+        }
+    }
+
+    /// <summary>
+    /// Push any remaining buffered content to the streaming text
+    /// property. Called at the end of the turn (before clearing) so the
+    /// user sees the final streamed content even if the last delta
+    /// arrived within the 50ms throttle window.
+    /// </summary>
+    private void FlushStreamingNarrative()
+    {
+        if (_streamBuffer.Length > 0)
+            StreamingNarrativeText = _streamBuffer.ToString();
+    }
+
+    /// <summary>
+    /// Clear the streaming text property (called after the final
+    /// NarrativeResult has been appended to the Log so the streaming
+    /// TextBlock doesn't duplicate the final narrative entry).
+    /// </summary>
+    private void ClearStreamingNarrative()
+    {
+        _streamBuffer.Clear();
+        StreamingNarrativeText = string.Empty;
     }
 
     /// <summary>
@@ -678,6 +900,8 @@ public partial class GameViewModel : ViewModelBase
         // survives a reload. Skip in client mode (no save authority).
         if (CanSave && _saveId is not null && _meta is not null)
         {
+            // Persist session-tokens before the save.
+            PersistTokensToMeta();
             _ = Task.Run(() =>
             {
                 try { _saveManager.SaveAll(_saveId, _world, _meta, Log.ToArray()); }
@@ -844,6 +1068,8 @@ public partial class GameViewModel : ViewModelBase
         // survives a reload. Skip in client mode (no save authority).
         if (CanSave && _saveId is not null && _meta is not null)
         {
+            // Persist session-tokens before the save.
+            PersistTokensToMeta();
             _ = Task.Run(() =>
             {
                 try { _saveManager.SaveAll(_saveId, _world, _meta, Log.ToArray()); }
@@ -984,6 +1210,11 @@ public partial class GameViewModel : ViewModelBase
             PendingActions.Clear();
             IsWaiting = false;
             StatusText = null;
+            // Accumulate token billing for this turn into the VM's
+            // session totals + last-turn counter. (Persistence is handled
+            // by HostSession itself, which writes the cumulative totals
+            // into _meta on its own save path.)
+            AccumulateTokens(msg.PromptTokens, msg.CompletionTokens, msg.TotalTokens);
             RefreshFromHostWorld();
         });
 
