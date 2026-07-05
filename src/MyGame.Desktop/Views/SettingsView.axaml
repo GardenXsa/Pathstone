@@ -229,8 +229,8 @@
                         <StackPanel Spacing="6">
                             <TextBlock Text="Анимации" Classes="FieldLabel"/>
                             <CheckBox Content="Включить анимации и переходы"
-                                      IsChecked="{Binding EnableAnimations}"
-                                      ToolTip.Tip="Снимите флажок, чтобы отключить все переходы (для медленных машин или при чувствительности к движению)."/>
+                                      IsChecked="{Binding EnableAnimations, Mode=TwoWay}"
+                                      ToolTip.Tip="Снимите флажок, чтобы отключить все переходы."/>
                             <TextBlock Text="Отключает плавные переходы между экранами, появление записей в журнале, анимацию заполнения прогресс-баров и подсветку кнопок."
                                        Classes="Muted Small" TextWrapping="Wrap"/>
                         </StackPanel>
