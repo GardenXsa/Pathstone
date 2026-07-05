@@ -111,4 +111,79 @@ public partial class MainMenuView : UserControl
         vm.CancelDeleteSelectedCommand.Execute(null);
         e.Handled = true;
     }
+
+    /// <summary>
+    /// Export a save to a .pathstone-world file (issue #33). Opens a
+    /// save-file picker, then calls SaveManager.ExportSave via the VM.
+    /// </summary>
+    private async void OnExportSaveClick(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
+    {
+        if (DataContext is not MainMenuViewModel vm) return;
+        // The save id comes from the button's DataContext (the SaveSlotViewModel).
+        if (sender is not Avalonia.Controls.Button btn) return;
+        if (btn.DataContext is not SaveSlotViewModel slot) return;
+
+        var topLevel = TopLevel.GetTopLevel(this);
+        if (topLevel is null) return;
+
+        var file = await topLevel.StorageProvider.SaveFilePickerAsync(new FilePickerSaveOptions
+        {
+            Title = "Экспорт мира Pathstone",
+            DefaultExtension = "pathstone-world",
+            FileTypeChoices = new[]
+            {
+                new FilePickerFileType("Мир Pathstone")
+                {
+                    Patterns = new[] { "*.pathstone-world" }
+                },
+            },
+        });
+
+        if (file is null) return;
+        try
+        {
+            var path = file.Path.LocalPath;
+            await vm.ExportSaveToPathAsync(slot.Id, path);
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Trace.WriteLine($"[MainMenuView] export failed: {ex.Message}");
+        }
+    }
+
+    /// <summary>
+    /// Import a .pathstone-world file (issue #33). Opens an open-file
+    /// picker, then calls SaveManager.ImportSave via the VM.
+    /// </summary>
+    private async void OnImportWorldClick(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
+    {
+        if (DataContext is not MainMenuViewModel vm) return;
+        var topLevel = TopLevel.GetTopLevel(this);
+        if (topLevel is null) return;
+
+        var files = await topLevel.StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions
+        {
+            Title = "Импорт мира Pathstone",
+            AllowMultiple = false,
+            FileTypeFilter = new[]
+            {
+                new FilePickerFileType("Мир Pathstone")
+                {
+                    Patterns = new[] { "*.pathstone-world", "*.zip" }
+                },
+                FilePickerFileTypes.All,
+            },
+        });
+
+        if (files is null || files.Count == 0) return;
+        try
+        {
+            var path = files[0].Path.LocalPath;
+            await vm.ImportWorldFromFileAsync(path);
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Trace.WriteLine($"[MainMenuView] import world failed: {ex.Message}");
+        }
+    }
 }

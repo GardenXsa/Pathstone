@@ -216,6 +216,9 @@ public sealed class ContentRegistry
     /// <summary>Building templates.</summary>
     public BuildingRegistry Buildings { get; } = new();
 
+    /// <summary>Crafting recipes (issue #65).</summary>
+    public RecipeRegistry Recipes { get; } = new();
+
     /// <summary>
     /// Load a <see cref="ContentPack"/> into this registry, replacing any
     /// prior content with the same template id.
@@ -267,4 +270,21 @@ public sealed class ContentRegistry
         reg.LoadEmbedded();
         return reg;
     }
+}
+
+/// <summary>
+/// Registry of crafting recipes. Issue #65.
+/// </summary>
+public sealed class RecipeRegistry
+{
+    private readonly Dictionary<string, CraftingRecipe> _recipes = new(StringComparer.Ordinal);
+
+    public void Register(CraftingRecipe recipe) => _recipes[recipe.Id] = recipe;
+    public void RegisterAll(IEnumerable<CraftingRecipe> list)
+    {
+        if (list is null) return;
+        foreach (var r in list) Register(r);
+    }
+    public CraftingRecipe? Get(string id) => _recipes.TryGetValue(id, out var v) ? v : null;
+    public IReadOnlyList<CraftingRecipe> All() => _recipes.Values.ToList();
 }

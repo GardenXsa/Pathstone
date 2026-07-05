@@ -55,6 +55,11 @@ public class ToolRegistryTests
         "adjust_reputation",
         "get_factions",
         "get_lore",
+        // Economy + crafting + containers (issues #37, #65, #67)
+        "craft_item",
+        "search_location",
+        "set_market_price",
+        "get_market_price",
     };
 
     private static ToolRegistry MakeRegistry()

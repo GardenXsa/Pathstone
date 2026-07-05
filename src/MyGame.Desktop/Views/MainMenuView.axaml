@@ -97,8 +97,9 @@
                     <Button Content="Загрузить" Command="{Binding ToggleLoadCommand}" Classes="MenuButton"
                             ToolTip.Tip="Открыть список сохранений"/>
                     <Button Content="📥 Импорт персонажа" Click="OnImportCharacterClick" Classes="MenuButton"
-                            IsEnabled="{Binding !IsBusy}"
-                            ToolTip.Tip="Импортировать персонажа из файла .json экспорта Pathstone (BG3-style перенос между мирами)"/>
+                            ToolTip.Tip="Импортировать персонажа из .pathstone-char файла"/>
+                    <Button Content="🌍 Импорт мира" Click="OnImportWorldClick" Classes="MenuButton"
+                            ToolTip.Tip="Импортировать мир из .pathstone-world файла"/>
                     <Button Content="Настройки" Command="{Binding OpenSettingsCommand}" Classes="MenuButton"
                             ToolTip.Tip="Настроить подключение к AI"/>
 
@@ -182,7 +183,12 @@
                                                             Classes="SmallButton"
                                                             HorizontalAlignment="Stretch"
                                                             IsVisible="{Binding CanRebuild}"
-                                                            ToolTip.Tip="Перестроить части этого мира (локации/NPC/предметы/наррация/полный пересбор)"/>
+                                                            ToolTip.Tip="Перестроить части этого мира"/>
+                                                    <Button Content="Экспорт"
+                                                            Click="OnExportSaveClick"
+                                                            Classes="SmallButton"
+                                                            HorizontalAlignment="Stretch"
+                                                            ToolTip.Tip="Экспортировать мир в .pathstone-world файл"/>
                                                 </StackPanel>
                                             </Grid>
                                         </Border>

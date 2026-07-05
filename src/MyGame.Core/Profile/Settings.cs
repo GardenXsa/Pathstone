@@ -154,4 +154,35 @@ public sealed record Settings
     /// could reset it to 0).
     /// </remarks>
     public int SessionCount { get; init; } = 0;
+
+    // ─── Saves (issue #80) ───────────────────────────────────────────
+
+    /// <summary>
+    /// Whether <see cref="MyGame.Core.Saves.SaveManager.SaveAll"/>
+    /// gzip-compresses <c>world.json</c> / <c>log.json</c> /
+    /// <c>state.json</c> on write (issue #80). <c>meta.json</c> stays
+    /// uncompressed (it's small and ListSaves reads it on every
+    /// save-list refresh). Default <c>true</c> — text-heavy world
+    /// saves typically shrink 5-10× with gzip. Set to <c>false</c> for
+    /// debugging (the save files become human-readable JSON).
+    ///
+    /// <para>
+    /// <b>Backward compatibility:</b> reads always auto-detect
+    /// compression (the SaveManager checks for <c>{file}.gz</c> first,
+    /// then falls back to <c>{file}</c>), so a save written compressed
+    /// loads fine when this is false, and vice versa. Toggling this
+    /// between sessions is safe — the next <c>SaveAll</c> writes the
+    /// new variant and deletes the stale one.
+    /// </para>
+    /// <para>
+    /// The Desktop layer's <c>ServiceHost</c> reads this on startup and
+    /// pushes it to the <c>SaveManager</c>'s
+    /// <see cref="MyGame.Core.Saves.SaveManager.CompressSaves"/>
+    /// property (which defaults to <c>false</c> so unit tests using a
+    /// bare <c>SaveManager</c> keep writing plain JSON). A
+    /// <c>SettingsStore.Changed</c> subscription keeps the property in
+    /// sync if the user toggles the setting mid-session.
+    /// </para>
+    /// </summary>
+    public bool CompressSaves { get; init; } = true;
 }

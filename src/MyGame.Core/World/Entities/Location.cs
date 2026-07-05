@@ -85,4 +85,12 @@ public sealed class Location : Entity
 
     // NOTE: Location inherits Flags from Entity. The per-location flags
     // (visited-by-faction, locked-reason, etc.) go in Entity.Flags.
+
+    /// <summary>
+    /// Market price modifiers per item category (issue #37). Key = category
+    /// ("weapon", "armor", "consumable", etc.), value = price multiplier
+    /// (1.0 = base, 1.5 = expensive, 0.7 = cheap). Null or empty = no
+    /// market system active at this location.
+    /// </summary>
+    public Dictionary<string, double>? MarketModifiers { get; set; }
 }

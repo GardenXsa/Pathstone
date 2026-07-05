@@ -704,6 +704,46 @@ public partial class MainMenuViewModel : ViewModelBase
         }
     }
 
+    /// <summary>
+    /// Import a .pathstone-world file into a new save (issue #33).
+    /// </summary>
+    public async Task ImportWorldFromFileAsync(string? filePath)
+    {
+        if (string.IsNullOrWhiteSpace(filePath)) return;
+        try
+        {
+            var newSaveId = _saveManager.ImportSave(filePath);
+            if (newSaveId is null)
+            {
+                ErrorMessage = "Не удалось импортировать мир.";
+                return;
+            }
+            RefreshSaves();
+        }
+        catch (Exception ex)
+        {
+            ErrorMessage = $"Импорт не удался: {ex.Message}";
+        }
+        await Task.CompletedTask;
+    }
+
+    /// <summary>
+    /// Export a save to a file path (issue #33). The file path comes from
+    /// the code-behind StorageProvider save picker.
+    /// </summary>
+    public async Task ExportSaveToPathAsync(string saveId, string outputPath)
+    {
+        try
+        {
+            _saveManager.ExportSave(saveId, outputPath);
+        }
+        catch (Exception ex)
+        {
+            ErrorMessage = $"Экспорт не удался: {ex.Message}";
+        }
+        await Task.CompletedTask;
+    }
+
     private bool CanNavigate() => !IsBusy;
 }
 
@@ -735,21 +775,15 @@ public sealed class SaveSlotViewModel : ObservableObject
     private readonly Action<string>? _rebuild;
     private bool _isSelected;
 
-    public SaveSlotViewModel(SaveMeta meta, string saveDirectoryPath, Action<string> load, Action<string>? rebuild = null)
+    public SaveSlotViewModel(SaveMeta meta, string saveDirectoryPath, Action<string> load, Action<string>? rebuild = null, Action<string>? exportSave = null)
     {
         _meta = meta ?? throw new ArgumentNullException(nameof(meta));
         _load = load ?? throw new ArgumentNullException(nameof(load));
         _rebuild = rebuild;
         SaveDirectoryPath = saveDirectoryPath ?? string.Empty;
         LoadCommand = new RelayCommand(() => _load(_meta.Id));
-        // Issue #23 — Rebuild button opens the rebuild dialog for this
-        // save. Null rebuild action = no button (back-compat with
-        // callers that don't wire it).
         RebuildCommand = rebuild is null ? null : new RelayCommand(() => rebuild(_meta.Id));
-        // Compute the save-directory size once, on construction. The
-        // save's files don't change size while the menu is open, so
-        // caching is safe; re-opening the saves list (RefreshSaves)
-        // builds fresh SaveSlotViewModel instances that re-compute.
+        ExportCommand = exportSave is null ? null : new RelayCommand(() => exportSave(_meta.Id));
         _cachedSizeBytes = ComputeSaveSize();
     }
 
@@ -852,6 +886,7 @@ public sealed class SaveSlotViewModel : ObservableObject
     /// (the button is hidden in that case via IsVisible binding).
     /// </summary>
     public ICommand? RebuildCommand { get; }
+    public ICommand? ExportCommand { get; }
 
     /// <summary>
     /// True when the rebuild button should be visible (the parent menu

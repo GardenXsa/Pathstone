@@ -257,6 +257,12 @@ public sealed class ToolRegistry
         Register(AdjustReputationTool.Definition, AdjustReputationTool.Handle(_world));
         Register(GetFactionsTool.Definition, GetFactionsTool.Handle(_world));
         Register(GetLoreTool.Definition, GetLoreTool.Handle(_world));
+
+        // Economy + crafting + containers (issues #37, #65, #67)
+        Register(CraftItemTool.Definition, CraftItemTool.Handle(_world));
+        Register(SearchLocationTool.Definition, SearchLocationTool.Handle(_world));
+        Register(SetMarketPriceTool.Definition, SetMarketPriceTool.Handle(_world));
+        Register(GetMarketPriceTool.Definition, GetMarketPriceTool.Handle(_world));
     }
 }
 
@@ -2140,5 +2146,263 @@ internal static class GetLoreTool
         }
 
         return ToolResult.Ok(string.Empty, $"## {entry.Topic}\n{entry.Content}");
+    };
+}
+
+// ─── Economy + crafting + containers (issues #37, #65, #67) ───────────
+
+/// <summary>
+/// Craft an item from a recipe. Consumes input items from the player's
+/// inventory, produces the output item. Issue #65.
+/// </summary>
+internal static class CraftItemTool
+{
+    public static ToolDefinition Definition { get; } = new()
+    {
+        Name = "craft_item",
+        Description = "Скрафтить предмет по рецепту. Проверяет наличие ингредиентов в инвентаре игрока, потребляет их, создаёт результат. Если нужен навык — GM должен сначала сделать бросок.",
+        ParametersJson = """
+        {
+          "type": "object",
+          "properties": {
+            "recipeId": { "type": "string", "description": "ID рецепта, напр. craft_health_potion." }
+          },
+          "required": ["recipeId"]
+        }
+        """,
+    };
+
+    public static ToolHandler Handle(MyGame.Core.World.World world) => async (args, ct) =>
+    {
+        var recipeId = args.TryGetProperty("recipeId", out var rEl) ? rEl.GetString() ?? "" : "";
+        if (string.IsNullOrWhiteSpace(recipeId))
+            return ToolResult.Error(string.Empty, "Параметр recipeId обязателен.");
+
+        var recipe = world.Registries.Recipes.Get(recipeId);
+        if (recipe is null)
+            return ToolResult.Error(string.Empty, $"Рецепт «{recipeId}» не найден. Доступные: {string.Join(", ", world.Registries.Recipes.All().Select(r => r.Id).Take(20))}.");
+
+        var player = world.ActivePlayer ?? world.Players.FirstOrDefault();
+        if (player is null)
+            return ToolResult.Error(string.Empty, "Игрок не найден.");
+
+        // Check inputs.
+        foreach (var (inputId, requiredQty) in recipe.Inputs)
+        {
+            var have = player.Inventory.Items
+                .Where(i => i.TemplateId == inputId)
+            #pragma warning disable CA1829
+                .Aggregate(0, (sum, i) => sum + i.Quantity);
+            #pragma warning restore CA1829
+            if (have < requiredQty)
+                return ToolResult.Error(string.Empty, $"Недостаточно «{inputId}»: нужно {requiredQty}, есть {have}.");
+        }
+
+        // Check required tool.
+        if (!string.IsNullOrWhiteSpace(recipe.RequiredTool))
+        {
+            var hasTool = player.Inventory.Items.Any(i => i.TemplateId == recipe.RequiredTool)
+                || player.Equipped.Values.Any(i => i.TemplateId == recipe.RequiredTool);
+            if (!hasTool)
+                return ToolResult.Error(string.Empty, $"Нужен инструмент: {recipe.RequiredTool}.");
+        }
+
+        // Consume inputs.
+        foreach (var (inputId, requiredQty) in recipe.Inputs)
+        {
+            var remaining = requiredQty;
+            for (int i = player.Inventory.Items.Count - 1; i >= 0 && remaining > 0; i--)
+            {
+                var item = player.Inventory.Items[i];
+                if (item.TemplateId != inputId) continue;
+                if (item.Quantity <= remaining)
+                {
+                    remaining -= item.Quantity;
+                    player.Inventory.Items.RemoveAt(i);
+                }
+                else
+                {
+                    item.Quantity -= remaining;
+                    remaining = 0;
+                }
+            }
+        }
+
+        // Produce output.
+        var outputTpl = world.Registries.Items.Get(recipe.OutputTemplateId);
+        if (outputTpl is null)
+            return ToolResult.Error(string.Empty, $"Выходной шаблон «{recipe.OutputTemplateId}» не найден.");
+
+        var output = MyGame.Core.World.EntityFactory.InstantiateItem(outputTpl, recipe.OutputQuantity);
+        player.Inventory.Items.Add(output);
+
+        return ToolResult.Ok(string.Empty, $"Скрафчен «{outputTpl.Name}» ×{recipe.OutputQuantity} из рецепта «{recipe.Name}».");
+    };
+}
+
+/// <summary>
+/// Search the current location for items on the ground. Returns a list
+/// of ground items that the player can pick up. Issue #67 (containers/looting).
+/// </summary>
+internal static class SearchLocationTool
+{
+    public static ToolDefinition Definition { get; } = new()
+    {
+        Name = "search_location",
+        Description = "Обыскать текущую локацию. Возвращает список предметов на земле, трупы с инвентарём, и возможные контейнеры (сундуки, ящики).",
+        ParametersJson = """
+        {
+          "type": "object",
+          "properties": {
+            "locationId": { "type": "string", "description": "Локация (ID или имя); пусто = текущая." }
+          }
+        }
+        """,
+    };
+
+    public static ToolHandler Handle(MyGame.Core.World.World world) => async (args, ct) =>
+    {
+        var idOrName = args.TryGetProperty("locationId", out var el) ? el.GetString() ?? "" : "";
+        var loc = GetLocationTool.ResolveLocation(world, idOrName);
+        if (loc is null)
+            return ToolResult.Error(string.Empty, "Локация не найдена.");
+
+        var sb = new System.Text.StringBuilder();
+        sb.AppendLine($"Поиск в «{loc.Name}»:");
+
+        // Ground items.
+        if (loc.Items.Count > 0)
+        {
+            sb.AppendLine("Предметы на земле:");
+            foreach (var itemId in loc.Items)
+            {
+                var item = world.GetItem(itemId);
+                if (item is not null)
+                    sb.AppendLine($"  • {item.Name} ×{item.Quantity} (id: {item.Id})");
+            }
+        }
+        else
+            sb.AppendLine("На земле ничего нет.");
+
+        // Dead NPCs (lootable corpses).
+        var corpses = loc.Npcs
+            .Select(id => world.GetNpc(id))
+            .Where(n => n is not null && !n!.IsAlive)
+            .ToList();
+        if (corpses.Count > 0)
+        {
+            sb.AppendLine("Трупы (можно обыскать):");
+            foreach (var corpse in corpses)
+            {
+                var invCount = corpse!.Inventory.Items.Count;
+                var currency = corpse.Inventory.Currency;
+                sb.AppendLine($"  • {corpse.Name} — {invCount} предм., {currency} зол.");
+            }
+        }
+
+        // Containers (items flagged as containers — use Flags["container"]).
+        var containers = loc.Items
+            .Select(id => world.GetItem(id))
+            .Where(i => i is not null && i.Flags?.TryGetValue("container", out var v) == true && v is true)
+            .ToList();
+        if (containers.Count > 0)
+        {
+            sb.AppendLine("Контейнеры:");
+            foreach (var c in containers)
+                sb.AppendLine($"  • {c!.Name} (id: {c.Id})");
+        }
+
+        return ToolResult.Ok(string.Empty, sb.ToString().TrimEnd());
+    };
+}
+
+/// <summary>
+/// Set a market price modifier for an item category at a location. Issue #37.
+/// </summary>
+internal static class SetMarketPriceTool
+{
+    public static ToolDefinition Definition { get; } = new()
+    {
+        Name = "set_market_price",
+        Description = "Установить модификатор цены для категории предметов в локации. 1.0 = базовая цена, 1.5 = дорого, 0.7 = дёшево. Влияет на торговлю.",
+        ParametersJson = """
+        {
+          "type": "object",
+          "properties": {
+            "locationId": { "type": "string", "description": "Локация (ID или имя); пусто = текущая." },
+            "category": { "type": "string", "description": "Категория: weapon, armor, consumable, tool, misc, и т.д." },
+            "multiplier": { "type": "number", "description": "Множитель цены (0.1–5.0)." }
+          },
+          "required": ["category", "multiplier"]
+        }
+        """,
+    };
+
+    public static ToolHandler Handle(MyGame.Core.World.World world) => async (args, ct) =>
+    {
+        var idOrName = args.TryGetProperty("locationId", out var lEl) ? lEl.GetString() ?? "" : "";
+        var loc = GetLocationTool.ResolveLocation(world, idOrName);
+        if (loc is null)
+            return ToolResult.Error(string.Empty, "Локация не найдена.");
+
+        var category = args.TryGetProperty("category", out var cEl) ? cEl.GetString() ?? "" : "";
+        if (string.IsNullOrWhiteSpace(category))
+            return ToolResult.Error(string.Empty, "Параметр category обязателен.");
+
+        if (!args.TryGetProperty("multiplier", out var mEl) || !mEl.TryGetDouble(out var multiplier))
+            return ToolResult.Error(string.Empty, "Параметр multiplier обязателен.");
+
+        multiplier = Math.Clamp(multiplier, 0.1, 5.0);
+        loc.MarketModifiers ??= new();
+        loc.MarketModifiers[category] = multiplier;
+
+        return ToolResult.Ok(string.Empty, $"Цена на «{category}» в «{loc.Name}» установлена: ×{multiplier:F1}.");
+    };
+}
+
+/// <summary>
+/// Get market price modifiers at a location. Issue #37.
+/// </summary>
+internal static class GetMarketPriceTool
+{
+    public static ToolDefinition Definition { get; } = new()
+    {
+        Name = "get_market_price",
+        Description = "Получить модификаторы цен для локации. Показывает, какие категории товаров дороже/дешевле в этом поселении.",
+        ParametersJson = """
+        {
+          "type": "object",
+          "properties": {
+            "locationId": { "type": "string", "description": "Локация (ID или имя); пусто = текущая." }
+          }
+        }
+        """,
+    };
+
+    public static ToolHandler Handle(MyGame.Core.World.World world) => async (args, ct) =>
+    {
+        var idOrName = args.TryGetProperty("locationId", out var el) ? el.GetString() ?? "" : "";
+        var loc = GetLocationTool.ResolveLocation(world, idOrName);
+        if (loc is null)
+            return ToolResult.Error(string.Empty, "Локация не найдена.");
+
+        if (loc.MarketModifiers is null || loc.MarketModifiers.Count == 0)
+            return ToolResult.Ok(string.Empty, $"В «{loc.Name}» нет рыночных модификаторов (все цены базовые).");
+
+        var sb = new System.Text.StringBuilder();
+        sb.AppendLine($"Цены в «{loc.Name}»:");
+        foreach (var kv in loc.MarketModifiers.OrderBy(kv => kv.Key))
+        {
+            var label = kv.Value switch
+            {
+                >= 1.5 => "очень дорого",
+                >= 1.2 => "дорого",
+                <= 0.7 => "очень дёшево",
+                <= 0.9 => "дёшево",
+                _ => "базовая",
+            };
+            sb.AppendLine($"  • {kv.Key}: ×{kv.Value:F1} ({label})");
+        }
+        return ToolResult.Ok(string.Empty, sb.ToString().TrimEnd());
     };
 }
