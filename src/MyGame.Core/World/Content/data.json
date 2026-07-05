@@ -11,12 +11,22 @@
       "stackable": false,
       "weapon": {
         "type": "simple",
-        "damage": { "dice": "1d4", "type": "piercing" },
+        "damage": {
+          "dice": "1d4",
+          "type": "piercing"
+        },
         "range": 20,
         "finesse": true,
-        "properties": ["light", "finesse", "thrown"]
+        "properties": [
+          "light",
+          "finesse",
+          "thrown"
+        ]
       },
-      "tags": ["melee", "thrown"]
+      "tags": [
+        "melee",
+        "thrown"
+      ]
     },
     {
       "id": "wpn_shortsword",
@@ -29,12 +39,20 @@
       "stackable": false,
       "weapon": {
         "type": "martial",
-        "damage": { "dice": "1d6", "type": "slashing" },
+        "damage": {
+          "dice": "1d6",
+          "type": "slashing"
+        },
         "range": 0,
         "finesse": true,
-        "properties": ["light", "finesse"]
+        "properties": [
+          "light",
+          "finesse"
+        ]
       },
-      "tags": ["melee"]
+      "tags": [
+        "melee"
+      ]
     },
     {
       "id": "wpn_longsword",
@@ -47,12 +65,19 @@
       "stackable": false,
       "weapon": {
         "type": "martial",
-        "damage": { "dice": "1d8", "type": "slashing" },
+        "damage": {
+          "dice": "1d8",
+          "type": "slashing"
+        },
         "range": 0,
         "versatile": "1d10",
-        "properties": ["versatile"]
+        "properties": [
+          "versatile"
+        ]
       },
-      "tags": ["melee"]
+      "tags": [
+        "melee"
+      ]
     },
     {
       "id": "wpn_greataxe",
@@ -65,12 +90,21 @@
       "stackable": false,
       "weapon": {
         "type": "martial",
-        "damage": { "dice": "1d12", "type": "slashing" },
+        "damage": {
+          "dice": "1d12",
+          "type": "slashing"
+        },
         "range": 0,
         "twoHanded": true,
-        "properties": ["heavy", "two-handed"]
+        "properties": [
+          "heavy",
+          "two-handed"
+        ]
       },
-      "tags": ["melee", "two-handed"]
+      "tags": [
+        "melee",
+        "two-handed"
+      ]
     },
     {
       "id": "wpn_shortbow",
@@ -83,12 +117,20 @@
       "stackable": false,
       "weapon": {
         "type": "simple",
-        "damage": { "dice": "1d6", "type": "piercing" },
+        "damage": {
+          "dice": "1d6",
+          "type": "piercing"
+        },
         "range": 80,
         "twoHanded": true,
-        "properties": ["two-handed", "ammunition"]
+        "properties": [
+          "two-handed",
+          "ammunition"
+        ]
       },
-      "tags": ["ranged"]
+      "tags": [
+        "ranged"
+      ]
     },
     {
       "id": "wpn_staff",
@@ -101,12 +143,22 @@
       "stackable": false,
       "weapon": {
         "type": "simple",
-        "damage": { "dice": "1d6", "type": "bludgeoning" },
+        "damage": {
+          "dice": "1d6",
+          "type": "bludgeoning"
+        },
         "range": 0,
         "versatile": "1d8",
-        "properties": ["versatile", "arcane"]
+        "properties": [
+          "versatile",
+          "arcane"
+        ]
       },
-      "tags": ["melee", "arcane", "spellcasting"]
+      "tags": [
+        "melee",
+        "arcane",
+        "spellcasting"
+      ]
     },
     {
       "id": "wpn_club",
@@ -119,11 +171,19 @@
       "stackable": false,
       "weapon": {
         "type": "simple",
-        "damage": { "dice": "1d4", "type": "bludgeoning" },
+        "damage": {
+          "dice": "1d4",
+          "type": "bludgeoning"
+        },
         "range": 20,
-        "properties": ["light"]
+        "properties": [
+          "light"
+        ]
       },
-      "tags": ["melee", "thrown"]
+      "tags": [
+        "melee",
+        "thrown"
+      ]
     },
     {
       "id": "arm_leather",
@@ -134,8 +194,13 @@
       "value": 10,
       "rarity": "common",
       "stackable": false,
-      "armor": { "baseAc": 11, "type": "light" },
-      "tags": ["armor"]
+      "armor": {
+        "baseAc": 11,
+        "type": "light"
+      },
+      "tags": [
+        "armor"
+      ]
     },
     {
       "id": "arm_chain_shirt",
@@ -146,8 +211,14 @@
       "value": 50,
       "rarity": "common",
       "stackable": false,
-      "armor": { "baseAc": 13, "type": "medium", "dexBonusMax": 2 },
-      "tags": ["armor"]
+      "armor": {
+        "baseAc": 13,
+        "type": "medium",
+        "dexBonusMax": 2
+      },
+      "tags": [
+        "armor"
+      ]
     },
     {
       "id": "arm_plate",
@@ -165,7 +236,9 @@
         "strengthRequired": 15,
         "stealthDisadvantage": true
       },
-      "tags": ["armor"]
+      "tags": [
+        "armor"
+      ]
     },
     {
       "id": "shd_shield",
@@ -176,7 +249,10 @@
       "value": 10,
       "rarity": "common",
       "stackable": false,
-      "tags": ["shield", "acBonus2"]
+      "tags": [
+        "shield",
+        "acBonus2"
+      ]
     },
     {
       "id": "cns_health_potion",
@@ -187,8 +263,13 @@
       "value": 50,
       "rarity": "common",
       "stackable": true,
-      "consumable": { "healing": "2d4+2" },
-      "tags": ["healing", "potion"]
+      "consumable": {
+        "healing": "2d4+2"
+      },
+      "tags": [
+        "healing",
+        "potion"
+      ]
     },
     {
       "id": "cns_mana_elixir",
@@ -201,10 +282,18 @@
       "stackable": true,
       "consumable": {
         "effects": [
-          { "name": "Возвращение маны", "description": "Восстанавливает магическую энергию заклинателя.", "duration": 0 }
+          {
+            "name": "Возвращение маны",
+            "description": "Восстанавливает магическую энергию заклинателя.",
+            "duration": 0
+          }
         ]
       },
-      "tags": ["mana", "potion", "arcane"]
+      "tags": [
+        "mana",
+        "potion",
+        "arcane"
+      ]
     },
     {
       "id": "cns_antidote",
@@ -217,10 +306,17 @@
       "stackable": true,
       "consumable": {
         "effects": [
-          { "name": "Очищение от яда", "description": "Снимает эффект «Отравление».", "duration": 0 }
+          {
+            "name": "Очищение от яда",
+            "description": "Снимает эффект «Отравление».",
+            "duration": 0
+          }
         ]
       },
-      "tags": ["antidote", "cure-poison"]
+      "tags": [
+        "antidote",
+        "cure-poison"
+      ]
     },
     {
       "id": "cns_ration",
@@ -233,10 +329,16 @@
       "stackable": true,
       "consumable": {
         "effects": [
-          { "name": "Утоление голода", "description": "Утоляет голод на один день.", "duration": 0 }
+          {
+            "name": "Утоление голода",
+            "description": "Утоляет голод на один день.",
+            "duration": 0
+          }
         ]
       },
-      "tags": ["food"]
+      "tags": [
+        "food"
+      ]
     },
     {
       "id": "tool_torch",
@@ -247,7 +349,10 @@
       "value": 0.01,
       "rarity": "common",
       "stackable": true,
-      "tags": ["light", "fire"]
+      "tags": [
+        "light",
+        "fire"
+      ]
     },
     {
       "id": "tool_rop",
@@ -258,7 +363,9 @@
       "value": 1,
       "rarity": "common",
       "stackable": false,
-      "tags": ["utility"]
+      "tags": [
+        "utility"
+      ]
     },
     {
       "id": "tool_lockpick",
@@ -269,7 +376,10 @@
       "value": 25,
       "rarity": "common",
       "stackable": false,
-      "tags": ["thieves-tools", "utility"]
+      "tags": [
+        "thieves-tools",
+        "utility"
+      ]
     },
     {
       "id": "tre_gold_coin",
@@ -280,7 +390,10 @@
       "value": 1,
       "rarity": "common",
       "stackable": true,
-      "tags": ["currency", "gold"]
+      "tags": [
+        "currency",
+        "gold"
+      ]
     },
     {
       "id": "tre_gem_ruby",
@@ -291,7 +404,10 @@
       "value": 500,
       "rarity": "rare",
       "stackable": true,
-      "tags": ["gem", "valuable"]
+      "tags": [
+        "gem",
+        "valuable"
+      ]
     },
     {
       "id": "tre_ancient_coin",
@@ -302,7 +418,11 @@
       "value": 25,
       "rarity": "uncommon",
       "stackable": true,
-      "tags": ["ancient", "valuable", "collectible"]
+      "tags": [
+        "ancient",
+        "valuable",
+        "collectible"
+      ]
     },
     {
       "id": "key_rusty",
@@ -313,7 +433,9 @@
       "value": 0,
       "rarity": "common",
       "stackable": false,
-      "tags": ["key"]
+      "tags": [
+        "key"
+      ]
     },
     {
       "id": "key_tavern_cellar",
@@ -324,7 +446,10 @@
       "value": 0,
       "rarity": "common",
       "stackable": false,
-      "tags": ["key", "tavern"]
+      "tags": [
+        "key",
+        "tavern"
+      ]
     },
     {
       "id": "qst_lost_amulet",
@@ -335,7 +460,9 @@
       "value": 0,
       "rarity": "uncommon",
       "stackable": false,
-      "tags": ["quest"]
+      "tags": [
+        "quest"
+      ]
     },
     {
       "id": "qst_warden_letter",
@@ -346,7 +473,9 @@
       "value": 0,
       "rarity": "uncommon",
       "stackable": false,
-      "tags": ["quest"]
+      "tags": [
+        "quest"
+      ]
     },
     {
       "id": "misc_scroll_map",
@@ -357,10 +486,1787 @@
       "value": 50,
       "rarity": "uncommon",
       "stackable": false,
-      "tags": ["map", "scroll"]
+      "tags": [
+        "map",
+        "scroll"
+      ]
+    },
+    {
+      "id": "wpn_mace",
+      "name": "Булава",
+      "description": "Тяжёлая головка из отполированной стали на крепкой рукояти. Любимое оружие жрецов в неспокойные времена.",
+      "category": "weapon",
+      "weight": 4,
+      "value": 5,
+      "rarity": "common",
+      "stackable": false,
+      "weapon": {
+        "type": "simple",
+        "damage": {
+          "dice": "1d6",
+          "type": "bludgeoning"
+        },
+        "range": 0,
+        "properties": []
+      },
+      "tags": [
+        "melee"
+      ]
+    },
+    {
+      "id": "wpn_quarterstaff",
+      "name": "Боевой посох",
+      "description": "Длинный дубовый шест. Дёшев, надёжен, не раз выручал странствующих монахов и старцев.",
+      "category": "weapon",
+      "weight": 4,
+      "value": 0.2,
+      "rarity": "common",
+      "stackable": false,
+      "weapon": {
+        "type": "simple",
+        "damage": {
+          "dice": "1d6",
+          "type": "bludgeoning"
+        },
+        "range": 0,
+        "versatile": "1d8",
+        "properties": [
+          "versatile"
+        ]
+      },
+      "tags": [
+        "melee",
+        "spellcasting"
+      ]
+    },
+    {
+      "id": "wpn_spear",
+      "name": "Копьё",
+      "description": "Простое, но смертоносное. Бьёт и вплотную, и на расстоянии — древнейшее оружие человечества.",
+      "category": "weapon",
+      "weight": 3,
+      "value": 1,
+      "rarity": "common",
+      "stackable": false,
+      "weapon": {
+        "type": "simple",
+        "damage": {
+          "dice": "1d6",
+          "type": "piercing"
+        },
+        "range": 20,
+        "versatile": "1d8",
+        "properties": [
+          "thrown",
+          "versatile"
+        ]
+      },
+      "tags": [
+        "melee",
+        "thrown"
+      ]
+    },
+    {
+      "id": "wpn_light_hammer",
+      "name": "Лёгкий молоток",
+      "description": "Маленький метательный молоток. Метко пущенный, он сбивает шапку с головы за тридцать шагов.",
+      "category": "weapon",
+      "weight": 2,
+      "value": 2,
+      "rarity": "common",
+      "stackable": false,
+      "weapon": {
+        "type": "simple",
+        "damage": {
+          "dice": "1d4",
+          "type": "bludgeoning"
+        },
+        "range": 20,
+        "properties": [
+          "light",
+          "thrown"
+        ]
+      },
+      "tags": [
+        "melee",
+        "thrown"
+      ]
+    },
+    {
+      "id": "wpn_handaxe",
+      "name": "Ручной топор",
+      "description": "Короткий топорик на лёгкой рукояти. Им и дрова рубят, и черепа — одно орудие, разные цели.",
+      "category": "weapon",
+      "weight": 2,
+      "value": 5,
+      "rarity": "common",
+      "stackable": false,
+      "weapon": {
+        "type": "simple",
+        "damage": {
+          "dice": "1d6",
+          "type": "slashing"
+        },
+        "range": 20,
+        "properties": [
+          "light",
+          "thrown"
+        ]
+      },
+      "tags": [
+        "melee",
+        "thrown"
+      ]
+    },
+    {
+      "id": "wpn_javelin",
+      "name": "Сулица",
+      "description": "Лёгкое метательное копьё с тонким наконечником. В бою его используют залпом — пятеро мечут, шестой добивает.",
+      "category": "weapon",
+      "weight": 2,
+      "value": 0.5,
+      "rarity": "common",
+      "stackable": true,
+      "weapon": {
+        "type": "simple",
+        "damage": {
+          "dice": "1d6",
+          "type": "piercing"
+        },
+        "range": 30,
+        "properties": [
+          "thrown"
+        ]
+      },
+      "tags": [
+        "thrown"
+      ]
+    },
+    {
+      "id": "wpn_warhammer",
+      "name": "Боевой молот",
+      "description": "Закалённый молот с гранёным бойком. Крушит черепа и латные шлемы одинаково охотно.",
+      "category": "weapon",
+      "weight": 2,
+      "value": 15,
+      "rarity": "common",
+      "stackable": false,
+      "weapon": {
+        "type": "martial",
+        "damage": {
+          "dice": "1d8",
+          "type": "bludgeoning"
+        },
+        "range": 0,
+        "versatile": "1d10",
+        "properties": [
+          "versatile"
+        ]
+      },
+      "tags": [
+        "melee"
+      ]
+    },
+    {
+      "id": "wpn_battleaxe",
+      "name": "Секира",
+      "description": "Одноручный боевой топор с полумесяцем лезвия. Не такая громоздкая, как двуручная, но бьёт куда весомей кинжала.",
+      "category": "weapon",
+      "weight": 4,
+      "value": 10,
+      "rarity": "common",
+      "stackable": false,
+      "weapon": {
+        "type": "martial",
+        "damage": {
+          "dice": "1d8",
+          "type": "slashing"
+        },
+        "range": 0,
+        "versatile": "1d10",
+        "properties": [
+          "versatile"
+        ]
+      },
+      "tags": [
+        "melee"
+      ]
+    },
+    {
+      "id": "wpn_rapier",
+      "name": "Рапира",
+      "description": "Тонкий, длинный клинок с замысловатой гардой. Оружие дуэлянтов и танцоров фехтования.",
+      "category": "weapon",
+      "weight": 2,
+      "value": 25,
+      "rarity": "common",
+      "stackable": false,
+      "weapon": {
+        "type": "martial",
+        "damage": {
+          "dice": "1d8",
+          "type": "piercing"
+        },
+        "range": 0,
+        "finesse": true,
+        "properties": [
+          "finesse"
+        ]
+      },
+      "tags": [
+        "melee",
+        "finesse"
+      ]
+    },
+    {
+      "id": "wpn_scimitar",
+      "name": "Скимитар",
+      "description": "Изогнутый клинок с восточных пустынь. Лёгкий и быстрый, режет воздух со свистом.",
+      "category": "weapon",
+      "weight": 3,
+      "value": 25,
+      "rarity": "common",
+      "stackable": false,
+      "weapon": {
+        "type": "martial",
+        "damage": {
+          "dice": "1d6",
+          "type": "slashing"
+        },
+        "range": 0,
+        "finesse": true,
+        "properties": [
+          "finesse",
+          "light"
+        ]
+      },
+      "tags": [
+        "melee",
+        "finesse"
+      ]
+    },
+    {
+      "id": "wpn_flail",
+      "name": "Моргенштерн",
+      "description": "Шар с шипами на цепи. От его удара не спасает ни щит, ни ловкость — лишь удача.",
+      "category": "weapon",
+      "weight": 2,
+      "value": 10,
+      "rarity": "common",
+      "stackable": false,
+      "weapon": {
+        "type": "martial",
+        "damage": {
+          "dice": "1d8",
+          "type": "bludgeoning"
+        },
+        "range": 0,
+        "properties": []
+      },
+      "tags": [
+        "melee"
+      ]
+    },
+    {
+      "id": "wpn_pike",
+      "name": "Пика",
+      "description": "Восемь футов ясеня со стальным жалом на конце. Не для поединков — для строя.",
+      "category": "weapon",
+      "weight": 18,
+      "value": 5,
+      "rarity": "common",
+      "stackable": false,
+      "weapon": {
+        "type": "martial",
+        "damage": {
+          "dice": "1d10",
+          "type": "piercing"
+        },
+        "range": 0,
+        "twoHanded": true,
+        "properties": [
+          "heavy",
+          "two-handed",
+          "reach"
+        ]
+      },
+      "tags": [
+        "melee",
+        "two-handed",
+        "reach"
+      ]
+    },
+    {
+      "id": "wpn_halberd",
+      "name": "Алебарда",
+      "description": "Длинное древко с топором, копьём и крюком в одной голове. Любимое оружие городской стражи.",
+      "category": "weapon",
+      "weight": 6,
+      "value": 20,
+      "rarity": "common",
+      "stackable": false,
+      "weapon": {
+        "type": "martial",
+        "damage": {
+          "dice": "1d10",
+          "type": "slashing"
+        },
+        "range": 0,
+        "twoHanded": true,
+        "properties": [
+          "heavy",
+          "two-handed",
+          "reach"
+        ]
+      },
+      "tags": [
+        "melee",
+        "two-handed",
+        "reach"
+      ]
+    },
+    {
+      "id": "wpn_glaive",
+      "name": "Глефа",
+      "description": "Изогнутое однолезвийное лезвие на длинном древке. Рассекает ряды врагов косыми взмахами.",
+      "category": "weapon",
+      "weight": 6,
+      "value": 20,
+      "rarity": "common",
+      "stackable": false,
+      "weapon": {
+        "type": "martial",
+        "damage": {
+          "dice": "1d10",
+          "type": "slashing"
+        },
+        "range": 0,
+        "twoHanded": true,
+        "properties": [
+          "heavy",
+          "two-handed",
+          "reach"
+        ]
+      },
+      "tags": [
+        "melee",
+        "two-handed",
+        "reach"
+      ]
+    },
+    {
+      "id": "wpn_greatsword",
+      "name": "Двуручный меч",
+      "description": "Огромный клинок в полтора роста пешего воина. Им не фехтуют — им размахивают. Зато каждый взмах уносит жизни.",
+      "category": "weapon",
+      "weight": 6,
+      "value": 50,
+      "rarity": "uncommon",
+      "stackable": false,
+      "weapon": {
+        "type": "martial",
+        "damage": {
+          "dice": "2d6",
+          "type": "slashing"
+        },
+        "range": 0,
+        "twoHanded": true,
+        "properties": [
+          "heavy",
+          "two-handed"
+        ]
+      },
+      "tags": [
+        "melee",
+        "two-handed"
+      ]
+    },
+    {
+      "id": "wpn_lance",
+      "name": "Рыцарское копьё",
+      "description": "Тяжёлое копьё для верхового боя. Бьёт далеко, но в тесноте коридора бесполезно.",
+      "category": "weapon",
+      "weight": 6,
+      "value": 10,
+      "rarity": "common",
+      "stackable": false,
+      "weapon": {
+        "type": "martial",
+        "damage": {
+          "dice": "1d12",
+          "type": "piercing"
+        },
+        "range": 0,
+        "properties": [
+          "reach",
+          "special"
+        ]
+      },
+      "tags": [
+        "melee",
+        "reach"
+      ]
+    },
+    {
+      "id": "wpn_sling",
+      "name": "Праща",
+      "description": "Полоса кожи на двух шнурах. Метко пущенный камень сбивает белку с ветки на тридцать шагов.",
+      "category": "weapon",
+      "weight": 0,
+      "value": 0.1,
+      "rarity": "common",
+      "stackable": false,
+      "weapon": {
+        "type": "simple",
+        "damage": {
+          "dice": "1d4",
+          "type": "bludgeoning"
+        },
+        "range": 30,
+        "properties": [
+          "ammunition"
+        ]
+      },
+      "tags": [
+        "ranged"
+      ]
+    },
+    {
+      "id": "wpn_dart",
+      "name": "Метательный дротик",
+      "description": "Короткий стержень с оперением и жалом. Метают горстями — на точность, не на силу.",
+      "category": "weapon",
+      "weight": 0.25,
+      "value": 0.05,
+      "rarity": "common",
+      "stackable": true,
+      "weapon": {
+        "type": "simple",
+        "damage": {
+          "dice": "1d4",
+          "type": "piercing"
+        },
+        "range": 20,
+        "finesse": true,
+        "properties": [
+          "finesse",
+          "thrown"
+        ]
+      },
+      "tags": [
+        "thrown",
+        "finesse"
+      ]
+    },
+    {
+      "id": "wpn_light_crossbow",
+      "name": "Лёгкий арбалет",
+      "description": "Компактный арбалет с деревянным ложем. Тетиву взводят рычагом — стрелу можно держать наизготове часами.",
+      "category": "weapon",
+      "weight": 5,
+      "value": 25,
+      "rarity": "common",
+      "stackable": false,
+      "weapon": {
+        "type": "simple",
+        "damage": {
+          "dice": "1d8",
+          "type": "piercing"
+        },
+        "range": 80,
+        "twoHanded": true,
+        "properties": [
+          "ammunition",
+          "two-handed"
+        ]
+      },
+      "tags": [
+        "ranged",
+        "two-handed"
+      ]
+    },
+    {
+      "id": "wpn_longbow",
+      "name": "Длинный лук",
+      "description": "Лук в рост человека из тиса. Дальнобойный и смертоносный — требует силы, но в умелых руках решает исход битвы.",
+      "category": "weapon",
+      "weight": 2,
+      "value": 50,
+      "rarity": "common",
+      "stackable": false,
+      "weapon": {
+        "type": "martial",
+        "damage": {
+          "dice": "1d8",
+          "type": "piercing"
+        },
+        "range": 150,
+        "twoHanded": true,
+        "properties": [
+          "ammunition",
+          "two-handed",
+          "heavy"
+        ]
+      },
+      "tags": [
+        "ranged",
+        "two-handed"
+      ]
+    },
+    {
+      "id": "wpn_heavy_crossbow",
+      "name": "Тяжёлый арбалет",
+      "description": "Стальной арбалет с воротом для взвода. Пробивает кольчугу насквозь с восьмидесяти шагов.",
+      "category": "weapon",
+      "weight": 18,
+      "value": 50,
+      "rarity": "common",
+      "stackable": false,
+      "weapon": {
+        "type": "martial",
+        "damage": {
+          "dice": "1d10",
+          "type": "piercing"
+        },
+        "range": 100,
+        "twoHanded": true,
+        "properties": [
+          "ammunition",
+          "two-handed",
+          "heavy"
+        ]
+      },
+      "tags": [
+        "ranged",
+        "two-handed"
+      ]
+    },
+    {
+      "id": "wpn_hand_crossbow",
+      "name": "Ручной арбалет",
+      "description": "Маленький арбалет, умещающийся в ладони. Любимое оружие наёмников и ночных убийц.",
+      "category": "weapon",
+      "weight": 3,
+      "value": 75,
+      "rarity": "uncommon",
+      "stackable": false,
+      "weapon": {
+        "type": "martial",
+        "damage": {
+          "dice": "1d6",
+          "type": "piercing"
+        },
+        "range": 30,
+        "properties": [
+          "ammunition",
+          "light"
+        ]
+      },
+      "tags": [
+        "ranged",
+        "light"
+      ]
+    },
+    {
+      "id": "wpn_blowgun",
+      "name": "Духовая трубка",
+      "description": "Длинная бамбуковая трубка. Стреляет отравленными иглами — сами по себе жалко, с ядом смертоносны.",
+      "category": "weapon",
+      "weight": 1,
+      "value": 10,
+      "rarity": "uncommon",
+      "stackable": false,
+      "weapon": {
+        "type": "martial",
+        "damage": {
+          "dice": "1",
+          "type": "piercing"
+        },
+        "range": 25,
+        "properties": [
+          "ammunition"
+        ]
+      },
+      "tags": [
+        "ranged"
+      ]
+    },
+    {
+      "id": "wpn_net",
+      "name": "Боевая сеть",
+      "description": "Утяжелённая сеть для метания. Сбивает с ног и путает крылья — гарпии и грифоны её ненавидят.",
+      "category": "weapon",
+      "weight": 3,
+      "value": 1,
+      "rarity": "common",
+      "stackable": false,
+      "weapon": {
+        "type": "martial",
+        "damage": {
+          "dice": "0",
+          "type": "—"
+        },
+        "range": 5,
+        "properties": [
+          "thrown",
+          "special"
+        ]
+      },
+      "tags": [
+        "thrown",
+        "special"
+      ]
+    },
+    {
+      "id": "wpn_silvered_sword",
+      "name": "Серебряный меч",
+      "description": "Длинный меч с серебряным покрытием на клинке. Оборотни и нежить боятся его касания пуще огня.",
+      "category": "weapon",
+      "weight": 3,
+      "value": 115,
+      "rarity": "rare",
+      "stackable": false,
+      "weapon": {
+        "type": "martial",
+        "damage": {
+          "dice": "1d8",
+          "type": "slashing"
+        },
+        "range": 0,
+        "versatile": "1d10",
+        "properties": [
+          "versatile",
+          "silvered"
+        ]
+      },
+      "tags": [
+        "melee",
+        "silvered"
+      ]
+    },
+    {
+      "id": "wpn_silvered_dagger",
+      "name": "Серебряный кинжал",
+      "description": "Кинжал с серебряной насечкой на лезвии. Талисман охотников на нежить — и не только против оборотней.",
+      "category": "weapon",
+      "weight": 1,
+      "value": 102,
+      "rarity": "rare",
+      "stackable": false,
+      "weapon": {
+        "type": "simple",
+        "damage": {
+          "dice": "1d4",
+          "type": "piercing"
+        },
+        "range": 20,
+        "finesse": true,
+        "properties": [
+          "light",
+          "finesse",
+          "thrown",
+          "silvered"
+        ]
+      },
+      "tags": [
+        "melee",
+        "thrown",
+        "silvered"
+      ]
+    },
+    {
+      "id": "arm_padded",
+      "name": "Стёганый доспех",
+      "description": "Многослойная прошитая ткань. Лёгкий и тихий, но в сырости начинает пахнуть псиной.",
+      "category": "armor",
+      "weight": 8,
+      "value": 5,
+      "rarity": "common",
+      "stackable": false,
+      "armor": {
+        "baseAc": 11,
+        "type": "light",
+        "stealthDisadvantage": true
+      },
+      "tags": [
+        "armor",
+        "light"
+      ]
+    },
+    {
+      "id": "arm_studded_leather",
+      "name": "Шипованная кожа",
+      "description": "Кожаная куртка, усиленная металлическими заклёпками. Лучший выбор для тех, кто ценит подвижность.",
+      "category": "armor",
+      "weight": 13,
+      "value": 45,
+      "rarity": "common",
+      "stackable": false,
+      "armor": {
+        "baseAc": 12,
+        "type": "light"
+      },
+      "tags": [
+        "armor",
+        "light"
+      ]
+    },
+    {
+      "id": "arm_hide",
+      "name": "Звериная шкура",
+      "description": "Толстая выделанная шкура медведя или лося. Грубо, тепло, и от стрел кое-как спасает.",
+      "category": "armor",
+      "weight": 12,
+      "value": 10,
+      "rarity": "common",
+      "stackable": false,
+      "armor": {
+        "baseAc": 12,
+        "type": "medium",
+        "dexBonusMax": 2
+      },
+      "tags": [
+        "armor",
+        "medium"
+      ]
+    },
+    {
+      "id": "arm_scale_mail",
+      "name": "Чешуйчатый доспех",
+      "description": "Стальные чешуйки, нашитые на кожаную основу. Звонко лязгает на ходу — скрыться в нём трудно.",
+      "category": "armor",
+      "weight": 45,
+      "value": 50,
+      "rarity": "common",
+      "stackable": false,
+      "armor": {
+        "baseAc": 14,
+        "type": "medium",
+        "dexBonusMax": 2,
+        "stealthDisadvantage": true
+      },
+      "tags": [
+        "armor",
+        "medium"
+      ]
+    },
+    {
+      "id": "arm_breastplate",
+      "name": "Нагрудник",
+      "description": "Сформированный по фигуре стальной нагрудник на кожаных ремнях. Ловкость не стесняет, сердце бережёт.",
+      "category": "armor",
+      "weight": 20,
+      "value": 400,
+      "rarity": "uncommon",
+      "stackable": false,
+      "armor": {
+        "baseAc": 14,
+        "type": "medium",
+        "dexBonusMax": 2
+      },
+      "tags": [
+        "armor",
+        "medium"
+      ]
+    },
+    {
+      "id": "arm_half_plate",
+      "name": "Полулаты",
+      "description": "Кованые пластины на груди и плечах, но без защиты ног. Компромисс между манёвренностью и живучестью.",
+      "category": "armor",
+      "weight": 40,
+      "value": 750,
+      "rarity": "rare",
+      "stackable": false,
+      "armor": {
+        "baseAc": 15,
+        "type": "medium",
+        "dexBonusMax": 2,
+        "stealthDisadvantage": true
+      },
+      "tags": [
+        "armor",
+        "medium"
+      ]
+    },
+    {
+      "id": "arm_ring_mail",
+      "name": "Кольчуга на ткани",
+      "description": "Железные кольца, нашитые на полотняную основу. Дешёвая замена настоящей кольчуге, но похуже.",
+      "category": "armor",
+      "weight": 40,
+      "value": 30,
+      "rarity": "common",
+      "stackable": false,
+      "armor": {
+        "baseAc": 14,
+        "type": "heavy",
+        "dexBonusMax": 0,
+        "stealthDisadvantage": true
+      },
+      "tags": [
+        "armor",
+        "heavy"
+      ]
+    },
+    {
+      "id": "arm_chain_mail",
+      "name": "Полная кольчуга",
+      "description": "Длинная кольчуга до колен с кольчужным капюшоном. Стандарт снаряжения королевских латников.",
+      "category": "armor",
+      "weight": 55,
+      "value": 75,
+      "rarity": "common",
+      "stackable": false,
+      "armor": {
+        "baseAc": 16,
+        "type": "heavy",
+        "dexBonusMax": 0,
+        "strengthRequired": 13,
+        "stealthDisadvantage": true
+      },
+      "tags": [
+        "armor",
+        "heavy"
+      ]
+    },
+    {
+      "id": "arm_splint",
+      "name": "Пластинчатый доспех",
+      "description": "Вертикальные стальные полосы на кожаной основе. Громоздкий, но надёжный — излюблен копейщиками.",
+      "category": "armor",
+      "weight": 60,
+      "value": 200,
+      "rarity": "uncommon",
+      "stackable": false,
+      "armor": {
+        "baseAc": 17,
+        "type": "heavy",
+        "dexBonusMax": 0,
+        "strengthRequired": 15,
+        "stealthDisadvantage": true
+      },
+      "tags": [
+        "armor",
+        "heavy"
+      ]
+    },
+    {
+      "id": "arm_banded_mail",
+      "name": "Ламеллярный доспех",
+      "description": "Горизонтальные стальные пластины, скреплённые заклёпками и кожаными ремнями. Дорог, но служит десятилетиями.",
+      "category": "armor",
+      "weight": 65,
+      "value": 400,
+      "rarity": "uncommon",
+      "stackable": false,
+      "armor": {
+        "baseAc": 18,
+        "type": "heavy",
+        "dexBonusMax": 0,
+        "strengthRequired": 15,
+        "stealthDisadvantage": true
+      },
+      "tags": [
+        "armor",
+        "heavy"
+      ]
+    },
+    {
+      "id": "shd_wooden",
+      "name": "Деревянный щит",
+      "description": "Лёгкий круглый щит из дубовых досок, обтянутый кожей. Дёшев, но держит удар куда лучше, чем кажется.",
+      "category": "shield",
+      "weight": 4,
+      "value": 5,
+      "rarity": "common",
+      "stackable": false,
+      "tags": [
+        "shield",
+        "acBonus2"
+      ]
+    },
+    {
+      "id": "shd_steel",
+      "name": "Стальной щит",
+      "description": "Кованый стальной щит с умбоном по центру. Тяжелее деревянного, но стрелы отскакивают от него как от скалы.",
+      "category": "shield",
+      "weight": 6,
+      "value": 20,
+      "rarity": "common",
+      "stackable": false,
+      "tags": [
+        "shield",
+        "acBonus2"
+      ]
+    },
+    {
+      "id": "cns_health_potion_greater",
+      "name": "Большое зелье лечения",
+      "description": "Густая багровая жидкость в хрустальном флаконе. Затягивает раны, от которых обычное зелье лишь размешает кровь.",
+      "category": "consumable",
+      "weight": 0.5,
+      "value": 150,
+      "rarity": "uncommon",
+      "stackable": true,
+      "consumable": {
+        "healing": "4d4+4"
+      },
+      "tags": [
+        "healing",
+        "potion"
+      ]
+    },
+    {
+      "id": "cns_health_potion_superior",
+      "name": "Превосходное зелье лечения",
+      "description": "Сияющий алый эликсир в серебряной оправе. Говорят, им поднимали на ноги воинов, уже простившихся с жизнью.",
+      "category": "consumable",
+      "weight": 0.5,
+      "value": 500,
+      "rarity": "rare",
+      "stackable": true,
+      "consumable": {
+        "healing": "8d4+8"
+      },
+      "tags": [
+        "healing",
+        "potion"
+      ]
+    },
+    {
+      "id": "cns_potion_speed",
+      "name": "Зелье скорости",
+      "description": "Золотистая искрящаяся жидкость. Выпивший движется вдвое быстрее ветра — но ненадолго.",
+      "category": "consumable",
+      "weight": 0.5,
+      "value": 250,
+      "rarity": "rare",
+      "stackable": true,
+      "consumable": {
+        "effects": [
+          {
+            "name": "Ускорение",
+            "description": "Скорость передвижения удваивается, появляется дополнительное действие.",
+            "duration": 10
+          }
+        ]
+      },
+      "tags": [
+        "potion",
+        "buff"
+      ]
+    },
+    {
+      "id": "cns_potion_invisibility",
+      "name": "Зелье невидимости",
+      "description": "Прозрачная как слеза жидкость, в которой отражается мир без того, кто её выпил. Любимый напиток воров и шпионов.",
+      "category": "consumable",
+      "weight": 0.5,
+      "value": 300,
+      "rarity": "rare",
+      "stackable": true,
+      "consumable": {
+        "effects": [
+          {
+            "name": "Невидимость",
+            "description": "Выпивший становится невидимым для обычного глаза.",
+            "duration": 10
+          }
+        ]
+      },
+      "tags": [
+        "potion",
+        "buff"
+      ]
+    },
+    {
+      "id": "cns_potion_fire_breath",
+      "name": "Зелье огненного дыхания",
+      "description": "Маслянистая оранжевая субстанция, тёплая на ощупь. Выпивший исторгает пламя, как дракон в гневе.",
+      "category": "consumable",
+      "weight": 0.5,
+      "value": 200,
+      "rarity": "uncommon",
+      "stackable": true,
+      "consumable": {
+        "effects": [
+          {
+            "name": "Огненное дыхание",
+            "description": "Дарует способность выдыхать конус пламени один раз.",
+            "duration": 10
+          }
+        ]
+      },
+      "tags": [
+        "potion",
+        "buff"
+      ]
+    },
+    {
+      "id": "cns_potion_water_breathing",
+      "name": "Зелье подводного дыхания",
+      "description": "Зеленоватая шипучая жидкость с привкусом водорослей. Без неё в глубины Сумеречного озера лучше не соваться.",
+      "category": "consumable",
+      "weight": 0.5,
+      "value": 150,
+      "rarity": "uncommon",
+      "stackable": true,
+      "consumable": {
+        "effects": [
+          {
+            "name": "Подводное дыхание",
+            "description": "Позволяет дышать под водой.",
+            "duration": 600
+          }
+        ]
+      },
+      "tags": [
+        "potion",
+        "buff"
+      ]
+    },
+    {
+      "id": "cns_potion_animal_friendship",
+      "name": "Зелье дружбы с животными",
+      "description": "Тёплый коричневый отвар с запахом свежего сена. На короткий миг делает вас братом любому зверю.",
+      "category": "consumable",
+      "weight": 0.5,
+      "value": 100,
+      "rarity": "uncommon",
+      "stackable": true,
+      "consumable": {
+        "effects": [
+          {
+            "name": "Дружба зверей",
+            "description": "Одно животное становится дружественным к выпившему.",
+            "duration": 60
+          }
+        ]
+      },
+      "tags": [
+        "potion",
+        "buff"
+      ]
+    },
+    {
+      "id": "cns_potion_mind_reading",
+      "name": "Зелье чтения мыслей",
+      "description": "Прозрачная жидкость, мерцающая серебром. На краткий миг чужие помыслы становятся слышны, как шёпот за стеной.",
+      "category": "consumable",
+      "weight": 0.5,
+      "value": 250,
+      "rarity": "rare",
+      "stackable": true,
+      "consumable": {
+        "effects": [
+          {
+            "name": "Чтение мыслей",
+            "description": "Позволяет читать поверхностные мысли одного существа.",
+            "duration": 10
+          }
+        ]
+      },
+      "tags": [
+        "potion",
+        "buff"
+      ]
+    },
+    {
+      "id": "cns_antitoxin",
+      "name": "Антитоксин",
+      "description": "Горьковатая настойка болиголова и зверобоя. Принятый заранее, дарует на час иммунитет к обычным ядам.",
+      "category": "consumable",
+      "weight": 0.1,
+      "value": 50,
+      "rarity": "common",
+      "stackable": true,
+      "consumable": {
+        "effects": [
+          {
+            "name": "Защита от яда",
+            "description": "Преимущество к спасброскам против отравления.",
+            "duration": 60
+          }
+        ]
+      },
+      "tags": [
+        "antidote",
+        "buff"
+      ]
+    },
+    {
+      "id": "cns_oil_sharpness",
+      "name": "Масло остроты",
+      "description": "Тёмная вязкая жидкость с запахом серы. Нанесённое на клинок, дарует ему сверхъестественную остроту на час.",
+      "category": "consumable",
+      "weight": 0.2,
+      "value": 200,
+      "rarity": "rare",
+      "stackable": true,
+      "consumable": {
+        "effects": [
+          {
+            "name": "Заострение клинка",
+            "description": "Оружие наносит дополнительный урон.",
+            "duration": 60
+          }
+        ]
+      },
+      "tags": [
+        "oil",
+        "buff",
+        "weapon-coating"
+      ]
+    },
+    {
+      "id": "cns_scroll_fireball",
+      "name": "Свиток огненного шара",
+      "description": "Свёрнутый пергамент с рунами пламени. Прочтите — и маленькое солнце вспыхнет там, куда укажете.",
+      "category": "consumable",
+      "weight": 0.1,
+      "value": 200,
+      "rarity": "rare",
+      "stackable": true,
+      "consumable": {
+        "effects": [
+          {
+            "name": "Огненный шар",
+            "description": "Создаёт взрыв пламени радиусом 20 футов, наносящий 8d6 урона огнём.",
+            "duration": 0
+          }
+        ]
+      },
+      "tags": [
+        "scroll",
+        "spell",
+        "fire"
+      ]
+    },
+    {
+      "id": "cns_scroll_magic_missile",
+      "name": "Свиток волшебной стрелы",
+      "description": "Хрупкий пергамент с пульсирующими синими рунами. Три стрелы силы никогда не промахиваются.",
+      "category": "consumable",
+      "weight": 0.1,
+      "value": 100,
+      "rarity": "uncommon",
+      "stackable": true,
+      "consumable": {
+        "effects": [
+          {
+            "name": "Волшебная стрела",
+            "description": "Три стрелы чистой силы наносят 1d4+1 урона каждая.",
+            "duration": 0
+          }
+        ]
+      },
+      "tags": [
+        "scroll",
+        "spell",
+        "arcane"
+      ]
+    },
+    {
+      "id": "cns_scroll_identify",
+      "name": "Свиток опознания",
+      "description": "Светящийся пергамент с простой руной знания. Раскрывает природу любого магического предмета в ваших руках.",
+      "category": "consumable",
+      "weight": 0.1,
+      "value": 75,
+      "rarity": "uncommon",
+      "stackable": true,
+      "consumable": {
+        "effects": [
+          {
+            "name": "Опознание",
+            "description": "Раскрывает свойства одного магического предмета.",
+            "duration": 0
+          }
+        ]
+      },
+      "tags": [
+        "scroll",
+        "spell",
+        "utility"
+      ]
+    },
+    {
+      "id": "cns_scroll_resurrection",
+      "name": "Свиток воскрешения",
+      "description": "Древний пергамент в золотом окладе. Говорят, может вернуть душу в тело, мёртвое не дольше века.",
+      "category": "consumable",
+      "weight": 0.1,
+      "value": 5000,
+      "rarity": "legendary",
+      "stackable": true,
+      "consumable": {
+        "effects": [
+          {
+            "name": "Воскрешение",
+            "description": "Возвращает к жизни одно мёртвое существо.",
+            "duration": 0
+          }
+        ]
+      },
+      "tags": [
+        "scroll",
+        "spell",
+        "divine"
+      ]
+    },
+    {
+      "id": "gear_backpack",
+      "name": "Рюкзак",
+      "description": "Прочный холщовый рюкзак с кожаными ремешками. С ним ноют плечи, но без него ничего не унести.",
+      "category": "gear",
+      "weight": 5,
+      "value": 2,
+      "rarity": "common",
+      "stackable": false,
+      "tags": [
+        "container",
+        "utility"
+      ]
+    },
+    {
+      "id": "gear_bedroll",
+      "name": "Спальный мешок",
+      "description": "Свёрнутый валик из шерстяной подкладки на кожаной основе. С ним ночь под открытым небом не кажется такой холодной.",
+      "category": "gear",
+      "weight": 7,
+      "value": 1,
+      "rarity": "common",
+      "stackable": false,
+      "tags": [
+        "utility",
+        "rest"
+      ]
+    },
+    {
+      "id": "gear_tinderbox",
+      "name": "Огниво",
+      "description": "Маленькая жестяная коробка с кремнем, огнивом и трутом. Разжигает огонь в любую погоду — кроме, пожалуй, ливня.",
+      "category": "gear",
+      "weight": 1,
+      "value": 0.5,
+      "rarity": "common",
+      "stackable": false,
+      "tags": [
+        "fire",
+        "utility"
+      ]
+    },
+    {
+      "id": "gear_grappling_hook",
+      "name": "Кошка",
+      "description": "Трёхзубый железный крюк на короткой цепи. Бросок в стену — и подъём по верёвке становится делом секунд.",
+      "category": "gear",
+      "weight": 2,
+      "value": 1,
+      "rarity": "common",
+      "stackable": false,
+      "tags": [
+        "utility",
+        "climbing"
+      ]
+    },
+    {
+      "id": "gear_lantern",
+      "name": "Фонарь",
+      "description": "Медный фонарь со стеклянными стенками и откидной дверцей. Светит ярче факела и не боится сквозняка.",
+      "category": "gear",
+      "weight": 2,
+      "value": 5,
+      "rarity": "common",
+      "stackable": false,
+      "tags": [
+        "light",
+        "utility"
+      ]
+    },
+    {
+      "id": "gear_oil_flask",
+      "name": "Фляга масла",
+      "description": "Глиняная фляга с лампадным маслом. Хватит на шесть часов света — или на один хороший пожар.",
+      "category": "gear",
+      "weight": 1,
+      "value": 0.1,
+      "rarity": "common",
+      "stackable": true,
+      "tags": [
+        "fuel",
+        "fire",
+        "utility"
+      ]
+    },
+    {
+      "id": "gear_waterskin",
+      "name": "Бурдюк с водой",
+      "description": "Кожаный мех с чистой водой. В долгом переходе дороже золота: без монет выжить можно, без воды — нет.",
+      "category": "gear",
+      "weight": 5,
+      "value": 0.2,
+      "rarity": "common",
+      "stackable": false,
+      "tags": [
+        "utility",
+        "drink"
+      ]
+    },
+    {
+      "id": "gear_compass",
+      "name": "Компас",
+      "description": "Латунная коробочка с намагниченной стрелкой. В тумане Долины — единственный верный указатель пути.",
+      "category": "gear",
+      "weight": 0.5,
+      "value": 25,
+      "rarity": "uncommon",
+      "stackable": false,
+      "tags": [
+        "navigation",
+        "utility"
+      ]
+    },
+    {
+      "id": "gear_spyglass",
+      "name": "Подзорная труба",
+      "description": "Медная труба со шлифованными линзами. Далёкое приближает — и часто позволяет увидеть опасность до того, как она увидит вас.",
+      "category": "gear",
+      "weight": 1,
+      "value": 100,
+      "rarity": "uncommon",
+      "stackable": false,
+      "tags": [
+        "navigation",
+        "utility"
+      ]
+    },
+    {
+      "id": "gear_crowbar",
+      "name": "Лом",
+      "description": "Стальной рычаг в полтора локтя длиной. Открывает двери надёжнее отмычек и не требует тонкой работы.",
+      "category": "gear",
+      "weight": 5,
+      "value": 2,
+      "rarity": "common",
+      "stackable": false,
+      "tags": [
+        "utility"
+      ]
+    },
+    {
+      "id": "gear_hammer",
+      "name": "Молоток",
+      "description": "Маленький молоток плотника. Забивает скальные крючья в трещины так же спокойно, как гвозди в доску.",
+      "category": "gear",
+      "weight": 3,
+      "value": 1,
+      "rarity": "common",
+      "stackable": false,
+      "tags": [
+        "utility",
+        "tool"
+      ]
+    },
+    {
+      "id": "gear_pitons",
+      "name": "Скальные крючья",
+      "description": "Десяток стальных шипов для страховки на скалах и стенах. Без них подъём по отвесной поверхности — самоубийство.",
+      "category": "gear",
+      "weight": 2,
+      "value": 0.5,
+      "rarity": "common",
+      "stackable": true,
+      "tags": [
+        "utility",
+        "climbing"
+      ]
+    },
+    {
+      "id": "gear_signal_whistle",
+      "name": "Сигнальный свисток",
+      "description": "Серебряный свисток на цепочке. Его пронзительный звук слышен за полмили — и условный сигнал спасал отряды целиком.",
+      "category": "gear",
+      "weight": 0.1,
+      "value": 0.5,
+      "rarity": "common",
+      "stackable": false,
+      "tags": [
+        "utility",
+        "signal"
+      ]
+    },
+    {
+      "id": "tool_thieves",
+      "name": "Воровские инструменты",
+      "description": "Набор отмычек, свёрл и стилет-заготовок в кожаном чехле. С ними тихий замок поддаётся за минуту — шумный за десять.",
+      "category": "tool",
+      "weight": 1,
+      "value": 25,
+      "rarity": "common",
+      "stackable": false,
+      "tags": [
+        "thieves-tools",
+        "utility"
+      ]
+    },
+    {
+      "id": "tool_smith",
+      "name": "Кузнечные инструменты",
+      "description": "Молоток, клещи, напильники и зубила в деревянном ларце. Мастерят и чинят металл где угодно — была бы наковальня.",
+      "category": "tool",
+      "weight": 8,
+      "value": 20,
+      "rarity": "common",
+      "stackable": false,
+      "tags": [
+        "artisans-tools",
+        "utility"
+      ]
+    },
+    {
+      "id": "tool_carpenter",
+      "name": "Плотницкие инструменты",
+      "description": "Пила, рубанок, стамески и угольник в холщовом мешке. С ними даже пещерный привал превращается в подобие жилища.",
+      "category": "tool",
+      "weight": 6,
+      "value": 8,
+      "rarity": "common",
+      "stackable": false,
+      "tags": [
+        "artisans-tools",
+        "utility"
+      ]
+    },
+    {
+      "id": "tool_leatherworker",
+      "name": "Кожевенные инструменты",
+      "description": "Шилья, иглы, ножи и ножницы для работы с кожей. Чинят доспехи в полевых условиях и шьют походные сумки.",
+      "category": "tool",
+      "weight": 5,
+      "value": 5,
+      "rarity": "common",
+      "stackable": false,
+      "tags": [
+        "artisans-tools",
+        "utility"
+      ]
+    },
+    {
+      "id": "tool_healers_kit",
+      "name": "Целительный набор",
+      "description": "Бинты, иглы, нитки, мази и стимуляторы в пропитанной воском сумке. Позволяют стабилизировать умирающего без магии.",
+      "category": "tool",
+      "weight": 3,
+      "value": 5,
+      "rarity": "common",
+      "stackable": false,
+      "tags": [
+        "healing",
+        "utility"
+      ]
+    },
+    {
+      "id": "tool_poisoners_kit",
+      "name": "Набор отравителя",
+      "description": "Стеклянные сосуды, перегонный куб и реагенты в чёрном футляре. С ним любой ужин может стать последним — или первым за долгое время.",
+      "category": "tool",
+      "weight": 2,
+      "value": 50,
+      "rarity": "uncommon",
+      "stackable": false,
+      "tags": [
+        "poison",
+        "utility"
+      ]
+    },
+    {
+      "id": "tool_disguise_kit",
+      "name": "Набор для маскировки",
+      "description": "Грим, парики, накладные носы и клей. С ним бородатый гном может сойти за бритого эльфа — на расстоянии и в полумраке.",
+      "category": "tool",
+      "weight": 3,
+      "value": 25,
+      "rarity": "common",
+      "stackable": false,
+      "tags": [
+        "disguise",
+        "utility"
+      ]
+    },
+    {
+      "id": "tool_navigators",
+      "name": "Навигационные приборы",
+      "description": "Астролябия, секстант и карты звёздного неба в латунном ларце. На открытой воде или в пустыне заменяют все дороги разом.",
+      "category": "tool",
+      "weight": 2,
+      "value": 50,
+      "rarity": "uncommon",
+      "stackable": false,
+      "tags": [
+        "navigation",
+        "utility"
+      ]
+    },
+    {
+      "id": "tool_herbalism_kit",
+      "name": "Травничий набор",
+      "description": "Ступка, весы, сушилки и связки трав. Из болотных корений и лесных ягод можно сварить и зелье, и противоядие.",
+      "category": "tool",
+      "weight": 3,
+      "value": 5,
+      "rarity": "common",
+      "stackable": false,
+      "tags": [
+        "herbalism",
+        "utility"
+      ]
+    },
+    {
+      "id": "tre_silver_coin",
+      "name": "Серебряная монета",
+      "description": "Лёгкая серебряная монета с профилем правителя. Десять таких — золотому ровня.",
+      "category": "treasure",
+      "weight": 0.02,
+      "value": 0.1,
+      "rarity": "common",
+      "stackable": true,
+      "tags": [
+        "currency",
+        "silver"
+      ]
+    },
+    {
+      "id": "tre_copper_coin",
+      "name": "Медная монета",
+      "description": "Тусклая медная монета с оттиском пучка зерна. Десяток таких — серебряному ровня, на хлеб и сыр хватает.",
+      "category": "treasure",
+      "weight": 0.02,
+      "value": 0.01,
+      "rarity": "common",
+      "stackable": true,
+      "tags": [
+        "currency",
+        "copper"
+      ]
+    },
+    {
+      "id": "tre_gem_emerald",
+      "name": "Изумруд",
+      "description": "Прозрачный зелёный камень, гранёный как лист папоротника. По слухам, украшал корону эльфийских королей Сумеречного леса.",
+      "category": "treasure",
+      "weight": 0.1,
+      "value": 750,
+      "rarity": "rare",
+      "stackable": true,
+      "tags": [
+        "gem",
+        "valuable"
+      ]
+    },
+    {
+      "id": "tre_gem_sapphire",
+      "name": "Сапфир",
+      "description": "Глубокий синий камень цвета ночного неба. В нём мерцает что-то, похожее на далёкие звёзды.",
+      "category": "treasure",
+      "weight": 0.1,
+      "value": 600,
+      "rarity": "rare",
+      "stackable": true,
+      "tags": [
+        "gem",
+        "valuable"
+      ]
+    },
+    {
+      "id": "tre_gem_diamond",
+      "name": "Алмаз",
+      "description": "Чистый, как горный ручей, и твёрдый, как обида дракона. Говорят, он ключ к возрождению павших.",
+      "category": "treasure",
+      "weight": 0.1,
+      "value": 2000,
+      "rarity": "veryRare",
+      "stackable": true,
+      "tags": [
+        "gem",
+        "valuable"
+      ]
+    },
+    {
+      "id": "tre_art_vase",
+      "name": "Древняя ваза",
+      "description": "Тонкая керамика с синей росписью — работа мастеров исчезнувшей империи. Внутри — лишь запах сухих лепестков.",
+      "category": "treasure",
+      "weight": 4,
+      "value": 250,
+      "rarity": "uncommon",
+      "stackable": false,
+      "tags": [
+        "art",
+        "valuable",
+        "collectible"
+      ]
+    },
+    {
+      "id": "tre_art_painting",
+      "name": "Портрет работы старого мастера",
+      "description": "Маленький портрет незнакомой дамы в золочёной раме. Глаза её следят за зрителем из любого угла комнаты.",
+      "category": "treasure",
+      "weight": 5,
+      "value": 400,
+      "rarity": "rare",
+      "stackable": false,
+      "tags": [
+        "art",
+        "valuable",
+        "collectible"
+      ]
+    },
+    {
+      "id": "tre_trade_spice",
+      "name": "Мешочек пряностей",
+      "description": "Полотняный мешочек с шафраном, гвоздикой и корицей. На юге дешевле хлеба, на севере — дороже золота.",
+      "category": "treasure",
+      "weight": 1,
+      "value": 30,
+      "rarity": "common",
+      "stackable": true,
+      "tags": [
+        "trade-good",
+        "valuable"
+      ]
+    },
+    {
+      "id": "mgc_ring_protection",
+      "name": "Кольцо защиты",
+      "description": "Серебряное кольцо с маленьким сапфиром. Носитель ощущает лёгкое, но постоянное покалывание удачи.",
+      "category": "magic",
+      "weight": 0.1,
+      "value": 1500,
+      "rarity": "rare",
+      "stackable": false,
+      "tags": [
+        "magic",
+        "ring",
+        "armor-bonus"
+      ]
+    },
+    {
+      "id": "mgc_amulet_health",
+      "name": "Амулет здоровья",
+      "description": "Перламутровый медальон на медной цепочке. Выпрямляет спину, укрепляет сердце и прибавляет хозяину выносливость быка.",
+      "category": "magic",
+      "weight": 0.2,
+      "value": 2000,
+      "rarity": "rare",
+      "stackable": false,
+      "tags": [
+        "magic",
+        "amulet",
+        "attribute"
+      ]
+    },
+    {
+      "id": "mgc_cloak_elvenkind",
+      "name": "Плащ эльфийского рода",
+      "description": "Серый плащ с тканым узором листвы. В тени леса делает носителя почти невидимым — силуэт сливается с листвой.",
+      "category": "magic",
+      "weight": 1,
+      "value": 1500,
+      "rarity": "uncommon",
+      "stackable": false,
+      "tags": [
+        "magic",
+        "cloak",
+        "stealth"
+      ]
+    },
+    {
+      "id": "mgc_boots_striding",
+      "name": "Сапоги прыгучести",
+      "description": "Мягкие кожаные сапоги с медными пряжками. Шаг становится длиннее, прыжок — выше, а усталость словно обходит стороной.",
+      "category": "magic",
+      "weight": 1,
+      "value": 1200,
+      "rarity": "uncommon",
+      "stackable": false,
+      "tags": [
+        "magic",
+        "boots",
+        "movement"
+      ]
+    },
+    {
+      "id": "mgc_bag_holding",
+      "name": "Сумка хранения",
+      "description": "Обычная с виду холщовая сумка. Внутри, однако, помещается куда больше, чем подсказывает здравый смысл.",
+      "category": "magic",
+      "weight": 5,
+      "value": 2500,
+      "rarity": "rare",
+      "stackable": false,
+      "tags": [
+        "magic",
+        "container",
+        "utility"
+      ]
+    },
+    {
+      "id": "mgc_decanter_water",
+      "name": "Бесконечный кувшин воды",
+      "description": "Глиняный кувшин с рунами течения. Наклонишь — польётся чистая ключевая вода, хоть весь день, хоть неделю.",
+      "category": "magic",
+      "weight": 2,
+      "value": 800,
+      "rarity": "uncommon",
+      "stackable": false,
+      "tags": [
+        "magic",
+        "container",
+        "utility"
+      ]
+    },
+    {
+      "id": "mgc_alchemist_fire",
+      "name": "Алхимический огонь",
+      "description": "Тяжёлая стеклянная колба с тёмно-красной тягучей жидкостью. При ударе о поверхность вспыхивает жарким пламенем, не гаснущим в воде.",
+      "category": "magic",
+      "weight": 1,
+      "value": 50,
+      "rarity": "uncommon",
+      "stackable": true,
+      "consumable": {
+        "effects": [
+          {
+            "name": "Алхимический огонь",
+            "description": "При попадании наносит 1d4 урона огнём в начале хода цели в течение 1d4 раундов.",
+            "duration": 4
+          }
+        ]
+      },
+      "tags": [
+        "magic",
+        "thrown",
+        "fire"
+      ]
+    },
+    {
+      "id": "mgc_holy_symbol",
+      "name": "Священный символ",
+      "description": "Серебряный медальон с изображением священного знака. Проводник божественной силы и утешение для верующего сердца.",
+      "category": "magic",
+      "weight": 0.2,
+      "value": 25,
+      "rarity": "common",
+      "stackable": false,
+      "tags": [
+        "magic",
+        "holy",
+        "spellcasting-focus"
+      ]
     }
   ],
-
   "npcs": [
     {
       "id": "npc_tavern_keeper",
@@ -368,18 +2274,46 @@
       "race": "human",
       "class": "commoner",
       "level": 2,
-      "attributes": { "str": 12, "dex": 10, "con": 14, "int": 11, "per": 12, "cha": 14 },
-      "resources": { "hp": 18, "ac": 11 },
+      "attributes": {
+        "str": 12,
+        "dex": 10,
+        "con": 14,
+        "int": 11,
+        "per": 12,
+        "cha": 14
+      },
+      "resources": {
+        "hp": 18,
+        "ac": 11
+      },
       "speed": 30,
       "disposition": "friendly",
       "behavior": "merchant",
       "description": "Коренастый мужчина с окладистой бородой и вечной ухмылкой. Знает каждого в Долине Туманов — и ещё больше чужих тайн.",
-      "shopInventory": ["cns_ration", "cns_health_potion", "cns_antidote", "tool_torch", "tool_rop"],
+      "shopInventory": [
+        "cns_ration",
+        "cns_health_potion",
+        "cns_antidote",
+        "tool_torch",
+        "tool_rop"
+      ],
       "startingInventory": [
-        { "templateId": "cns_ration", "quantity": 20 },
-        { "templateId": "cns_health_potion", "quantity": 5 },
-        { "templateId": "tool_torch", "quantity": 15 },
-        { "templateId": "key_tavern_cellar", "quantity": 1 }
+        {
+          "templateId": "cns_ration",
+          "quantity": 20
+        },
+        {
+          "templateId": "cns_health_potion",
+          "quantity": 5
+        },
+        {
+          "templateId": "tool_torch",
+          "quantity": 15
+        },
+        {
+          "templateId": "key_tavern_cellar",
+          "quantity": 1
+        }
       ]
     },
     {
@@ -388,20 +2322,58 @@
       "race": "dwarf",
       "class": "fighter",
       "level": 3,
-      "attributes": { "str": 16, "dex": 10, "con": 16, "int": 10, "per": 12, "cha": 8 },
-      "resources": { "hp": 28, "ac": 14 },
+      "attributes": {
+        "str": 16,
+        "dex": 10,
+        "con": 16,
+        "int": 10,
+        "per": 12,
+        "cha": 8
+      },
+      "resources": {
+        "hp": 28,
+        "ac": 14
+      },
       "speed": 25,
       "disposition": "neutral",
       "behavior": "merchant",
       "description": "Коренастая дварфийская мастерица с копной рыжих волос и мозолистыми руками. Кузница Греты — лучшая во всей долине.",
-      "equipment": { "weapon": "wpn_club", "armor": "arm_chain_shirt" },
-      "shopInventory": ["wpn_dagger", "wpn_shortsword", "wpn_longsword", "wpn_greataxe", "wpn_shortbow", "wpn_club", "arm_leather", "arm_chain_shirt", "shd_shield"],
+      "equipment": {
+        "weapon": "wpn_club",
+        "armor": "arm_chain_shirt"
+      },
+      "shopInventory": [
+        "wpn_dagger",
+        "wpn_shortsword",
+        "wpn_longsword",
+        "wpn_greataxe",
+        "wpn_shortbow",
+        "wpn_club",
+        "arm_leather",
+        "arm_chain_shirt",
+        "shd_shield"
+      ],
       "startingInventory": [
-        { "templateId": "wpn_dagger", "quantity": 4 },
-        { "templateId": "wpn_shortsword", "quantity": 3 },
-        { "templateId": "wpn_longsword", "quantity": 2 },
-        { "templateId": "arm_leather", "quantity": 3 },
-        { "templateId": "shd_shield", "quantity": 2 }
+        {
+          "templateId": "wpn_dagger",
+          "quantity": 4
+        },
+        {
+          "templateId": "wpn_shortsword",
+          "quantity": 3
+        },
+        {
+          "templateId": "wpn_longsword",
+          "quantity": 2
+        },
+        {
+          "templateId": "arm_leather",
+          "quantity": 3
+        },
+        {
+          "templateId": "shd_shield",
+          "quantity": 2
+        }
       ]
     },
     {
@@ -410,14 +2382,27 @@
       "race": "human",
       "class": "commoner",
       "level": 1,
-      "attributes": { "str": 8, "dex": 8, "con": 10, "int": 14, "per": 16, "cha": 12 },
-      "resources": { "hp": 9, "ac": 10 },
+      "attributes": {
+        "str": 8,
+        "dex": 8,
+        "con": 10,
+        "int": 14,
+        "per": 16,
+        "cha": 12
+      },
+      "resources": {
+        "hp": 9,
+        "ac": 10
+      },
       "speed": 25,
       "disposition": "friendly",
       "behavior": "questGiver",
       "description": "Седой старик с тростью из тиса. Память долины живёт в его глазах. Ищет потерянный фамильный амулет.",
       "startingInventory": [
-        { "templateId": "tre_gold_coin", "quantity": 50 }
+        {
+          "templateId": "tre_gold_coin",
+          "quantity": 50
+        }
       ]
     },
     {
@@ -426,15 +2411,31 @@
       "race": "human",
       "class": "fighter",
       "level": 1,
-      "attributes": { "str": 13, "dex": 12, "con": 12, "int": 10, "per": 11, "cha": 10 },
-      "resources": { "hp": 11, "ac": 13 },
+      "attributes": {
+        "str": 13,
+        "dex": 12,
+        "con": 12,
+        "int": 10,
+        "per": 11,
+        "cha": 10
+      },
+      "resources": {
+        "hp": 11,
+        "ac": 13
+      },
       "speed": 30,
       "disposition": "allied",
       "behavior": "defensive",
       "description": "Местный стражник в кожаном доспехе. Зевает на посту чаще, чем следовало бы, но в бою не дрогнет.",
-      "equipment": { "weapon": "wpn_shortsword", "armor": "arm_leather" },
+      "equipment": {
+        "weapon": "wpn_shortsword",
+        "armor": "arm_leather"
+      },
       "startingInventory": [
-        { "templateId": "cns_ration", "quantity": 2 }
+        {
+          "templateId": "cns_ration",
+          "quantity": 2
+        }
       ]
     },
     {
@@ -442,8 +2443,18 @@
       "name": "Серый волк",
       "race": "beast",
       "level": 1,
-      "attributes": { "str": 12, "dex": 15, "con": 12, "int": 3, "per": 12, "cha": 6 },
-      "resources": { "hp": 11, "ac": 12 },
+      "attributes": {
+        "str": 12,
+        "dex": 15,
+        "con": 12,
+        "int": 3,
+        "per": 12,
+        "cha": 6
+      },
+      "resources": {
+        "hp": 11,
+        "ac": 12
+      },
       "speed": 40,
       "disposition": "hostile",
       "behavior": "aggressive",
@@ -456,17 +2467,36 @@
       "race": "human",
       "class": "bandit",
       "level": 1,
-      "attributes": { "str": 11, "dex": 12, "con": 12, "int": 10, "per": 10, "cha": 10 },
-      "resources": { "hp": 11, "ac": 12 },
+      "attributes": {
+        "str": 11,
+        "dex": 12,
+        "con": 12,
+        "int": 10,
+        "per": 10,
+        "cha": 10
+      },
+      "resources": {
+        "hp": 11,
+        "ac": 12
+      },
       "speed": 30,
       "disposition": "hostile",
       "behavior": "aggressive",
       "aggroRange": 25,
       "description": "Дорожный грабитель в потёртом плаще с капюшоном. Берёт кошельки там, где пустует королевский патруль.",
-      "equipment": { "weapon": "wpn_dagger", "armor": "arm_leather" },
+      "equipment": {
+        "weapon": "wpn_dagger",
+        "armor": "arm_leather"
+      },
       "startingInventory": [
-        { "templateId": "tre_gold_coin", "quantity": 5 },
-        { "templateId": "key_rusty", "quantity": 1 }
+        {
+          "templateId": "tre_gold_coin",
+          "quantity": 5
+        },
+        {
+          "templateId": "key_rusty",
+          "quantity": 1
+        }
       ]
     },
     {
@@ -474,16 +2504,32 @@
       "name": "Гоблин",
       "race": "goblinoid",
       "level": 1,
-      "attributes": { "str": 8, "dex": 14, "con": 10, "int": 10, "per": 8, "cha": 8 },
-      "resources": { "hp": 7, "ac": 13 },
+      "attributes": {
+        "str": 8,
+        "dex": 14,
+        "con": 10,
+        "int": 10,
+        "per": 8,
+        "cha": 8
+      },
+      "resources": {
+        "hp": 7,
+        "ac": 13
+      },
       "speed": 30,
       "disposition": "hostile",
       "behavior": "aggressive",
       "aggroRange": 30,
       "description": "Маленький зелёный пакостник с кривыми зубами. Любит блестящее и мясо повкуснее человека.",
-      "equipment": { "weapon": "wpn_shortsword", "armor": "arm_leather" },
+      "equipment": {
+        "weapon": "wpn_shortsword",
+        "armor": "arm_leather"
+      },
       "startingInventory": [
-        { "templateId": "tre_gold_coin", "quantity": 3 }
+        {
+          "templateId": "tre_gold_coin",
+          "quantity": 3
+        }
       ]
     },
     {
@@ -492,17 +2538,43 @@
       "race": "human",
       "class": "commoner",
       "level": 2,
-      "attributes": { "str": 9, "dex": 10, "con": 11, "int": 12, "per": 10, "cha": 14 },
-      "resources": { "hp": 13, "ac": 10 },
+      "attributes": {
+        "str": 9,
+        "dex": 10,
+        "con": 11,
+        "int": 12,
+        "per": 10,
+        "cha": 14
+      },
+      "resources": {
+        "hp": 13,
+        "ac": 10
+      },
       "speed": 30,
       "disposition": "neutral",
       "behavior": "merchant",
       "description": "Разъездной купец с навьюченной телегой. Появляется в долине раз в сезон — и всегда с новостями.",
-      "shopInventory": ["cns_health_potion", "cns_antidote", "tool_lockpick", "tre_gem_ruby", "misc_scroll_map", "tre_ancient_coin"],
+      "shopInventory": [
+        "cns_health_potion",
+        "cns_antidote",
+        "tool_lockpick",
+        "tre_gem_ruby",
+        "misc_scroll_map",
+        "tre_ancient_coin"
+      ],
       "startingInventory": [
-        { "templateId": "cns_health_potion", "quantity": 4 },
-        { "templateId": "misc_scroll_map", "quantity": 2 },
-        { "templateId": "tre_ancient_coin", "quantity": 3 }
+        {
+          "templateId": "cns_health_potion",
+          "quantity": 4
+        },
+        {
+          "templateId": "misc_scroll_map",
+          "quantity": 2
+        },
+        {
+          "templateId": "tre_ancient_coin",
+          "quantity": 3
+        }
       ]
     },
     {
@@ -511,16 +2583,36 @@
       "race": "human",
       "class": "cleric",
       "level": 3,
-      "attributes": { "str": 10, "dex": 10, "con": 12, "int": 12, "per": 16, "cha": 13 },
-      "resources": { "hp": 21, "ac": 14 },
+      "attributes": {
+        "str": 10,
+        "dex": 10,
+        "con": 12,
+        "int": 12,
+        "per": 16,
+        "cha": 13
+      },
+      "resources": {
+        "hp": 21,
+        "ac": 14
+      },
       "speed": 30,
       "disposition": "friendly",
       "behavior": "questGiver",
       "description": "Седовласый служитель храма Элдрина. Носит амулет с серебряным солнцем. Знает древние молитвы и старые обиды.",
-      "equipment": { "weapon": "wpn_staff", "armor": "arm_chain_shirt" },
-      "shopInventory": ["cns_health_potion", "cns_antidote", "cns_mana_elixir"],
+      "equipment": {
+        "weapon": "wpn_staff",
+        "armor": "arm_chain_shirt"
+      },
+      "shopInventory": [
+        "cns_health_potion",
+        "cns_antidote",
+        "cns_mana_elixir"
+      ],
       "startingInventory": [
-        { "templateId": "cns_health_potion", "quantity": 6 }
+        {
+          "templateId": "cns_health_potion",
+          "quantity": 6
+        }
       ]
     },
     {
@@ -529,17 +2621,38 @@
       "race": "human",
       "class": "wizard",
       "level": 5,
-      "attributes": { "str": 8, "dex": 12, "con": 12, "int": 18, "per": 14, "cha": 12 },
-      "resources": { "hp": 28, "ac": 12 },
+      "attributes": {
+        "str": 8,
+        "dex": 12,
+        "con": 12,
+        "int": 18,
+        "per": 14,
+        "cha": 12
+      },
+      "resources": {
+        "hp": 28,
+        "ac": 12
+      },
       "speed": 30,
       "disposition": "neutral",
       "behavior": "questGiver",
       "description": "Хозяйка Башни на холме. Говорит мало, знает много. Ночи напролёт листает пыльные фолианты при свете магических огней.",
-      "equipment": { "weapon": "wpn_staff" },
-      "shopInventory": ["cns_mana_elixir", "misc_scroll_map"],
+      "equipment": {
+        "weapon": "wpn_staff"
+      },
+      "shopInventory": [
+        "cns_mana_elixir",
+        "misc_scroll_map"
+      ],
       "startingInventory": [
-        { "templateId": "cns_mana_elixir", "quantity": 4 },
-        { "templateId": "misc_scroll_map", "quantity": 1 }
+        {
+          "templateId": "cns_mana_elixir",
+          "quantity": 4
+        },
+        {
+          "templateId": "misc_scroll_map",
+          "quantity": 1
+        }
       ]
     },
     {
@@ -547,8 +2660,18 @@
       "name": "Медвежонок-сова",
       "race": "beast",
       "level": 1,
-      "attributes": { "str": 14, "dex": 12, "con": 14, "int": 3, "per": 12, "cha": 7 },
-      "resources": { "hp": 18, "ac": 12 },
+      "attributes": {
+        "str": 14,
+        "dex": 12,
+        "con": 14,
+        "int": 3,
+        "per": 12,
+        "cha": 7
+      },
+      "resources": {
+        "hp": 18,
+        "ac": 12
+      },
       "speed": 30,
       "disposition": "neutral",
       "behavior": "aggressive",
@@ -560,19 +2683,1161 @@
       "name": "Призрак убитого стражника",
       "race": "undead",
       "level": 2,
-      "attributes": { "str": 7, "dex": 13, "con": 10, "int": 10, "per": 12, "cha": 11 },
-      "resources": { "hp": 22, "ac": 11 },
+      "attributes": {
+        "str": 7,
+        "dex": 13,
+        "con": 10,
+        "int": 10,
+        "per": 12,
+        "cha": 11
+      },
+      "resources": {
+        "hp": 22,
+        "ac": 11
+      },
       "speed": 0,
       "disposition": "neutral",
       "behavior": "custom",
       "description": "Полупрозрачный силуэт в форме стражника былых времён. Неуязвим к холоду, яду и некротической магии. Помнит, кто его предал.",
       "startingInventory": [
-        { "templateId": "qst_warden_letter", "quantity": 1 },
-        { "templateId": "key_rusty", "quantity": 1 }
+        {
+          "templateId": "qst_warden_letter",
+          "quantity": 1
+        },
+        {
+          "templateId": "key_rusty",
+          "quantity": 1
+        }
+      ]
+    },
+    {
+      "id": "npc_villager",
+      "name": "Житель деревни",
+      "race": "human",
+      "class": "commoner",
+      "level": 1,
+      "attributes": {
+        "str": 10,
+        "dex": 10,
+        "con": 10,
+        "int": 10,
+        "per": 10,
+        "cha": 10
+      },
+      "resources": {
+        "hp": 4,
+        "ac": 10
+      },
+      "speed": 30,
+      "disposition": "neutral",
+      "behavior": "civilian",
+      "description": "Обычный селянин в домотканой одежде. Трудом своим кормится, бед стороной обходит, а коли беда пришла — прячется.",
+      "equipment": {
+        "weapon": "wpn_club"
+      },
+      "startingInventory": [
+        {
+          "templateId": "tre_copper_coin",
+          "quantity": 10
+        }
+      ]
+    },
+    {
+      "id": "npc_noble",
+      "name": "Знатный вельможа",
+      "race": "human",
+      "class": "aristocrat",
+      "level": 3,
+      "attributes": {
+        "str": 11,
+        "dex": 12,
+        "con": 11,
+        "int": 14,
+        "per": 12,
+        "cha": 16
+      },
+      "resources": {
+        "hp": 16,
+        "ac": 11
+      },
+      "speed": 30,
+      "disposition": "neutral",
+      "behavior": "questGiver",
+      "description": "Бледный человек в шёлковом камзоле, расшитом серебром. Слова его сладки, кошелёк тяжёл, а мотивы — туманны.",
+      "equipment": {
+        "weapon": "wpn_rapier"
+      },
+      "startingInventory": [
+        {
+          "templateId": "tre_gold_coin",
+          "quantity": 100
+        },
+        {
+          "templateId": "mgc_ring_protection",
+          "quantity": 1
+        }
+      ]
+    },
+    {
+      "id": "npc_farmer",
+      "name": "Крестьянин",
+      "race": "human",
+      "class": "commoner",
+      "level": 1,
+      "attributes": {
+        "str": 13,
+        "dex": 10,
+        "con": 14,
+        "int": 9,
+        "per": 11,
+        "cha": 10
+      },
+      "resources": {
+        "hp": 6,
+        "ac": 10
+      },
+      "speed": 30,
+      "disposition": "friendly",
+      "behavior": "civilian",
+      "description": "Загорелый до пояса мужик с мозолистыми руками. Пашет от зари до зари и знает каждое дерево на своей полосе.",
+      "equipment": {
+        "weapon": "wpn_handaxe"
+      },
+      "startingInventory": [
+        {
+          "templateId": "tre_copper_coin",
+          "quantity": 25
+        },
+        {
+          "templateId": "cns_ration",
+          "quantity": 3
+        }
+      ]
+    },
+    {
+      "id": "npc_child",
+      "name": "Деревенский ребёнок",
+      "race": "human",
+      "class": "commoner",
+      "level": 1,
+      "attributes": {
+        "str": 6,
+        "dex": 14,
+        "con": 10,
+        "int": 10,
+        "per": 10,
+        "cha": 12
+      },
+      "resources": {
+        "hp": 2,
+        "ac": 10
+      },
+      "speed": 30,
+      "disposition": "neutral",
+      "behavior": "civilian",
+      "description": "Босоногий мальчонка в латаной рубахе. Знает все тайные ходы в деревне и часто видит то, что взрослые проглядели.",
+      "startingInventory": []
+    },
+    {
+      "id": "npc_beggar",
+      "name": "Нищий",
+      "race": "human",
+      "class": "commoner",
+      "level": 1,
+      "attributes": {
+        "str": 8,
+        "dex": 10,
+        "con": 12,
+        "int": 12,
+        "per": 14,
+        "cha": 10
+      },
+      "resources": {
+        "hp": 5,
+        "ac": 10
+      },
+      "speed": 25,
+      "disposition": "neutral",
+      "behavior": "informant",
+      "description": "Седой оборванец на углу рынка. Глаза его повидали больше, чем у иного короля, а слухи он собирает надёжнее любой стражи.",
+      "startingInventory": [
+        {
+          "templateId": "tre_copper_coin",
+          "quantity": 5
+        }
+      ]
+    },
+    {
+      "id": "npc_priest_acolyte",
+      "name": "Служка храма",
+      "race": "human",
+      "class": "cleric",
+      "level": 1,
+      "attributes": {
+        "str": 10,
+        "dex": 10,
+        "con": 12,
+        "int": 12,
+        "per": 14,
+        "cha": 12
+      },
+      "resources": {
+        "hp": 9,
+        "ac": 11
+      },
+      "speed": 30,
+      "disposition": "friendly",
+      "behavior": "questGiver",
+      "description": "Юный послушник в белой рясе с серебряным солнцем на груди. Служит Элдрину, мечтает о сане и тихо влюблён в дочку булочника.",
+      "equipment": {
+        "weapon": "wpn_club",
+        "armor": "arm_padded"
+      },
+      "startingInventory": [
+        {
+          "templateId": "mgc_holy_symbol",
+          "quantity": 1
+        },
+        {
+          "templateId": "cns_health_potion",
+          "quantity": 1
+        }
+      ]
+    },
+    {
+      "id": "npc_innkeeper",
+      "name": "Хозяин постоялого двора",
+      "race": "human",
+      "class": "commoner",
+      "level": 2,
+      "attributes": {
+        "str": 11,
+        "dex": 10,
+        "con": 14,
+        "int": 12,
+        "per": 12,
+        "cha": 14
+      },
+      "resources": {
+        "hp": 16,
+        "ac": 11
+      },
+      "speed": 30,
+      "disposition": "friendly",
+      "behavior": "merchant",
+      "description": "Хозяин постоялого двора с пышными бакенбардами и ключами на поясе. Спать у него чисто, есть сытно, а лишних вопросов он не задаёт.",
+      "equipment": {
+        "weapon": "wpn_club"
+      },
+      "shopInventory": [
+        "cns_ration",
+        "tool_torch",
+        "gear_bedroll",
+        "gear_waterskin",
+        "gear_lantern",
+        "gear_oil_flask"
+      ],
+      "startingInventory": [
+        {
+          "templateId": "cns_ration",
+          "quantity": 10
+        },
+        {
+          "templateId": "gear_bedroll",
+          "quantity": 6
+        }
+      ]
+    },
+    {
+      "id": "npc_dock_worker",
+      "name": "Портовый грузчик",
+      "race": "human",
+      "class": "commoner",
+      "level": 1,
+      "attributes": {
+        "str": 15,
+        "dex": 10,
+        "con": 14,
+        "int": 9,
+        "per": 10,
+        "cha": 10
+      },
+      "resources": {
+        "hp": 9,
+        "ac": 11
+      },
+      "speed": 30,
+      "disposition": "neutral",
+      "behavior": "civilian",
+      "description": "Широкоплечий бородач с мозолями от канатов. Таскает бочки и тюки с рассвета до заката, а под вечер слушает морские байки в портовом кабаке.",
+      "equipment": {
+        "weapon": "wpn_club",
+        "armor": "arm_padded"
+      },
+      "startingInventory": [
+        {
+          "templateId": "tre_copper_coin",
+          "quantity": 15
+        }
+      ]
+    },
+    {
+      "id": "npc_thug",
+      "name": "Громила",
+      "race": "human",
+      "class": "fighter",
+      "level": 2,
+      "attributes": {
+        "str": 15,
+        "dex": 11,
+        "con": 14,
+        "int": 10,
+        "per": 10,
+        "cha": 11
+      },
+      "resources": {
+        "hp": 32,
+        "ac": 12
+      },
+      "speed": 30,
+      "disposition": "hostile",
+      "behavior": "aggressive",
+      "aggroRange": 25,
+      "description": "Широкий плечами наёмник в потёртой кожаной куртке. Бьёт грубо, но верно. Знает пару слов: «кошелёк» и «псих».",
+      "equipment": {
+        "weapon": "wpn_club",
+        "armor": "arm_leather"
+      },
+      "startingInventory": [
+        {
+          "templateId": "tre_silver_coin",
+          "quantity": 20
+        }
+      ]
+    },
+    {
+      "id": "npc_highwayman",
+      "name": "Шоссеек",
+      "race": "human",
+      "class": "rogue",
+      "level": 2,
+      "attributes": {
+        "str": 11,
+        "dex": 14,
+        "con": 12,
+        "int": 11,
+        "per": 12,
+        "cha": 12
+      },
+      "resources": {
+        "hp": 18,
+        "ac": 13
+      },
+      "speed": 30,
+      "disposition": "hostile",
+      "behavior": "aggressive",
+      "aggroRange": 30,
+      "description": "Всадник в маске и широкополой шляпе, поджидающий одиноких путников на большой дороге. Вежлив до поры, потом стреляет.",
+      "equipment": {
+        "weapon": "wpn_rapier",
+        "armor": "arm_leather"
+      },
+      "startingInventory": [
+        {
+          "templateId": "tre_gold_coin",
+          "quantity": 15
+        },
+        {
+          "templateId": "wpn_hand_crossbow",
+          "quantity": 1
+        }
+      ]
+    },
+    {
+      "id": "npc_pirate",
+      "name": "Пират",
+      "race": "human",
+      "class": "fighter",
+      "level": 2,
+      "attributes": {
+        "str": 13,
+        "dex": 13,
+        "con": 14,
+        "int": 10,
+        "per": 11,
+        "cha": 11
+      },
+      "resources": {
+        "hp": 22,
+        "ac": 13
+      },
+      "speed": 30,
+      "disposition": "hostile",
+      "behavior": "aggressive",
+      "aggroRange": 25,
+      "description": "Загорелый морской волк с серьгой в ухе и татуировкой якоря на предплечье. Пахнет ромом, табаком и чужой кровью.",
+      "equipment": {
+        "weapon": "wpn_scimitar",
+        "armor": "arm_leather"
+      },
+      "startingInventory": [
+        {
+          "templateId": "tre_gold_coin",
+          "quantity": 10
+        },
+        {
+          "templateId": "cns_ration",
+          "quantity": 4
+        }
+      ]
+    },
+    {
+      "id": "npc_cultist",
+      "name": "Культист",
+      "race": "human",
+      "class": "cultist",
+      "level": 2,
+      "attributes": {
+        "str": 10,
+        "dex": 12,
+        "con": 10,
+        "int": 12,
+        "per": 11,
+        "cha": 13
+      },
+      "resources": {
+        "hp": 13,
+        "ac": 12
+      },
+      "speed": 30,
+      "disposition": "hostile",
+      "behavior": "aggressive",
+      "aggroRange": 30,
+      "description": "Закутанный в багровый плащ фанатик с татуировкой луны на лбу. Шепчет проклятия, готовит нож — и не боится смерти.",
+      "equipment": {
+        "weapon": "wpn_dagger",
+        "armor": "arm_leather"
+      },
+      "startingInventory": [
+        {
+          "templateId": "tre_ancient_coin",
+          "quantity": 1
+        }
+      ]
+    },
+    {
+      "id": "npc_acolyte_evil",
+      "name": "Тёмный служка",
+      "race": "human",
+      "class": "cleric",
+      "level": 3,
+      "attributes": {
+        "str": 10,
+        "dex": 10,
+        "con": 12,
+        "int": 13,
+        "per": 14,
+        "cha": 12
+      },
+      "resources": {
+        "hp": 22,
+        "ac": 13
+      },
+      "speed": 30,
+      "disposition": "hostile",
+      "behavior": "caster",
+      "aggroRange": 40,
+      "description": "Служитель забытого бога в чёрной рясе. На ладони — шрам от ритуального ножа, в глазах — холод веры в то, чего лучше не называть.",
+      "equipment": {
+        "weapon": "wpn_staff",
+        "armor": "arm_chain_shirt"
+      },
+      "startingInventory": [
+        {
+          "templateId": "cns_scroll_resurrection",
+          "quantity": 1
+        }
+      ]
+    },
+    {
+      "id": "npc_assassin",
+      "name": "Ассасин",
+      "race": "human",
+      "class": "rogue",
+      "level": 5,
+      "attributes": {
+        "str": 11,
+        "dex": 16,
+        "con": 12,
+        "int": 13,
+        "per": 14,
+        "cha": 12
+      },
+      "resources": {
+        "hp": 38,
+        "ac": 15
+      },
+      "speed": 30,
+      "disposition": "hostile",
+      "behavior": "aggressive",
+      "aggroRange": 30,
+      "description": "Тень в чёрном шёлке, двигающаяся бесшумнее кошки. Получил заказ — и цель уже мертва, не успев понять, кто её убил.",
+      "equipment": {
+        "weapon": "wpn_rapier",
+        "armor": "arm_studded_leather"
+      },
+      "startingInventory": [
+        {
+          "templateId": "tool_poisoners_kit",
+          "quantity": 1
+        },
+        {
+          "templateId": "tre_gold_coin",
+          "quantity": 50
+        }
+      ]
+    },
+    {
+      "id": "npc_veteran",
+      "name": "Ветеран",
+      "race": "human",
+      "class": "fighter",
+      "level": 5,
+      "attributes": {
+        "str": 16,
+        "dex": 13,
+        "con": 14,
+        "int": 10,
+        "per": 11,
+        "cha": 12
+      },
+      "resources": {
+        "hp": 65,
+        "ac": 17
+      },
+      "speed": 30,
+      "disposition": "neutral",
+      "behavior": "defensive",
+      "description": "Седой воин со шрамом через всё лицо и цепким взглядом. Прошёл три войны, потерял двух братьев и не боится больше ничего.",
+      "equipment": {
+        "weapon": "wpn_longsword",
+        "armor": "arm_splint",
+        "shield": "shd_steel"
+      },
+      "startingInventory": [
+        {
+          "templateId": "tre_gold_coin",
+          "quantity": 30
+        }
+      ]
+    },
+    {
+      "id": "npc_knight",
+      "name": "Рыцарь",
+      "race": "human",
+      "class": "fighter",
+      "level": 6,
+      "attributes": {
+        "str": 16,
+        "dex": 11,
+        "con": 14,
+        "int": 11,
+        "per": 12,
+        "cha": 13
+      },
+      "resources": {
+        "hp": 75,
+        "ac": 18
+      },
+      "speed": 30,
+      "disposition": "neutral",
+      "behavior": "defensive",
+      "description": "Закутанный в сталь воин с гербом на щите и обетом на устах. За честь и долг положит жизнь не задумываясь.",
+      "equipment": {
+        "weapon": "wpn_longsword",
+        "armor": "arm_plate",
+        "shield": "shd_steel"
+      },
+      "startingInventory": [
+        {
+          "templateId": "tre_gold_coin",
+          "quantity": 80
+        }
+      ]
+    },
+    {
+      "id": "npc_guard_captain",
+      "name": "Капитан стражи",
+      "race": "human",
+      "class": "fighter",
+      "level": 4,
+      "attributes": {
+        "str": 15,
+        "dex": 12,
+        "con": 14,
+        "int": 12,
+        "per": 14,
+        "cha": 13
+      },
+      "resources": {
+        "hp": 48,
+        "ac": 16
+      },
+      "speed": 30,
+      "disposition": "allied",
+      "behavior": "defensive",
+      "description": "Коренастый офицер в форме с нашивками и серьёзным взглядом. Держит строй стражи в кулаке, а пьянство — за воротником.",
+      "equipment": {
+        "weapon": "wpn_longsword",
+        "armor": "arm_chain_mail",
+        "shield": "shd_shield"
+      },
+      "startingInventory": [
+        {
+          "templateId": "key_rusty",
+          "quantity": 1
+        },
+        {
+          "templateId": "tre_gold_coin",
+          "quantity": 25
+        }
+      ]
+    },
+    {
+      "id": "npc_orc",
+      "name": "Орк",
+      "race": "orc",
+      "level": 2,
+      "attributes": {
+        "str": 16,
+        "dex": 12,
+        "con": 16,
+        "int": 7,
+        "per": 11,
+        "cha": 10
+      },
+      "resources": {
+        "hp": 15,
+        "ac": 13
+      },
+      "speed": 30,
+      "disposition": "hostile",
+      "behavior": "aggressive",
+      "aggroRange": 30,
+      "description": "Зеленокожий воин с выступающими клыками и жестокими глазками. Живёт ради боя и добычи, и ради боя не гнушается ничем.",
+      "equipment": {
+        "weapon": "wpn_greataxe",
+        "armor": "arm_hide"
+      },
+      "startingInventory": [
+        {
+          "templateId": "tre_gold_coin",
+          "quantity": 5
+        }
+      ]
+    },
+    {
+      "id": "npc_kobold",
+      "name": "Кобольд",
+      "race": "kobold",
+      "level": 1,
+      "attributes": {
+        "str": 7,
+        "dex": 15,
+        "con": 9,
+        "int": 8,
+        "per": 9,
+        "cha": 8
+      },
+      "resources": {
+        "hp": 5,
+        "ac": 13
+      },
+      "speed": 30,
+      "disposition": "hostile",
+      "behavior": "aggressive",
+      "aggroRange": 30,
+      "description": "Маленький чешуйчатый рептилоид с настороженным взглядом. Слаб поодиночке, но в стае с вожаком-магом — серьёзный противник.",
+      "equipment": {
+        "weapon": "wpn_dagger"
+      },
+      "startingInventory": [
+        {
+          "templateId": "tre_copper_coin",
+          "quantity": 8
+        }
+      ]
+    },
+    {
+      "id": "npc_skeleton",
+      "name": "Скелет",
+      "race": "undead",
+      "level": 1,
+      "attributes": {
+        "str": 10,
+        "dex": 14,
+        "con": 15,
+        "int": 6,
+        "per": 8,
+        "cha": 5
+      },
+      "resources": {
+        "hp": 13,
+        "ac": 13
+      },
+      "speed": 30,
+      "disposition": "hostile",
+      "behavior": "aggressive",
+      "aggroRange": 30,
+      "description": "Белые кости, оживлённые тёмной магией. Не ведает страха, усталости, пощады — лишь приказ хозяина или жажда живой плоти.",
+      "equipment": {
+        "weapon": "wpn_shortsword",
+        "armor": "arm_leather"
+      },
+      "startingInventory": []
+    },
+    {
+      "id": "npc_zombie",
+      "name": "Зомби",
+      "race": "undead",
+      "level": 1,
+      "attributes": {
+        "str": 13,
+        "dex": 6,
+        "con": 16,
+        "int": 3,
+        "per": 6,
+        "cha": 5
+      },
+      "resources": {
+        "hp": 22,
+        "ac": 8
+      },
+      "speed": 20,
+      "disposition": "hostile",
+      "behavior": "aggressive",
+      "aggroRange": 20,
+      "description": "Гниющий труп, поднятый некромантом. Медлителен, туп, но упрям — идёт, пока ноги держат, а держат они до последнего сухожилия.",
+      "equipment": {},
+      "startingInventory": []
+    },
+    {
+      "id": "npc_bear",
+      "name": "Бурый медведь",
+      "race": "beast",
+      "level": 2,
+      "attributes": {
+        "str": 19,
+        "dex": 10,
+        "con": 16,
+        "int": 2,
+        "per": 13,
+        "cha": 7
+      },
+      "resources": {
+        "hp": 34,
+        "ac": 11
+      },
+      "speed": 40,
+      "disposition": "hostile",
+      "behavior": "aggressive",
+      "aggroRange": 30,
+      "description": "Огромный хозяин леса с бурой клокочущей шерстью. Весной голоден и зол, осенью сыт и ленив — но в любой сезон опасен."
+    },
+    {
+      "id": "npc_giant_spider",
+      "name": "Гигантский паук",
+      "race": "beast",
+      "level": 2,
+      "attributes": {
+        "str": 14,
+        "dex": 16,
+        "con": 12,
+        "int": 2,
+        "per": 10,
+        "cha": 4
+      },
+      "resources": {
+        "hp": 26,
+        "ac": 14
+      },
+      "speed": 30,
+      "disposition": "hostile",
+      "behavior": "aggressive",
+      "aggroRange": 30,
+      "description": "Чёрный мохнатый паук размером с пони. Ткёт паутину между деревьями, прыгает с ветвей, парализует ядом — и терпеливо ждёт."
+    },
+    {
+      "id": "npc_ghoul",
+      "name": "Гуль",
+      "race": "undead",
+      "level": 2,
+      "attributes": {
+        "str": 13,
+        "dex": 15,
+        "con": 10,
+        "int": 7,
+        "per": 10,
+        "cha": 6
+      },
+      "resources": {
+        "hp": 22,
+        "ac": 12
+      },
+      "speed": 30,
+      "disposition": "hostile",
+      "behavior": "aggressive",
+      "aggroRange": 30,
+      "description": "Иссохший труп с длинными когтями и зубами-иглами. Питается мертвечиной, но и живую плоть не брезгует. Парализует одним касанием.",
+      "equipment": {},
+      "startingInventory": []
+    },
+    {
+      "id": "npc_wraith",
+      "name": "Призрак тьмы",
+      "race": "undead",
+      "level": 4,
+      "attributes": {
+        "str": 6,
+        "dex": 16,
+        "con": 10,
+        "int": 12,
+        "per": 14,
+        "cha": 15
+      },
+      "resources": {
+        "hp": 45,
+        "ac": 13
+      },
+      "speed": 60,
+      "disposition": "hostile",
+      "behavior": "aggressive",
+      "aggroRange": 60,
+      "description": "Тёмный силуэт в капюшоне, сотканный из теней и ненависти. Прикосновение его высасывает жизнь, а обычное оружие проходит сквозь."
+    },
+    {
+      "id": "npc_troll",
+      "name": "Тролль",
+      "race": "giant",
+      "level": 4,
+      "attributes": {
+        "str": 18,
+        "dex": 13,
+        "con": 20,
+        "int": 7,
+        "per": 9,
+        "cha": 7
+      },
+      "resources": {
+        "hp": 84,
+        "ac": 15
+      },
+      "speed": 30,
+      "disposition": "hostile",
+      "behavior": "aggressive",
+      "aggroRange": 30,
+      "description": "Трёхметровая тварь с зелёной кожей и вечно голодной пастью. Раны её затягиваются на глазах, и страшит её лишь огонь."
+    },
+    {
+      "id": "npc_ogre",
+      "name": "Огр",
+      "race": "giant",
+      "level": 3,
+      "attributes": {
+        "str": 19,
+        "dex": 8,
+        "con": 16,
+        "int": 5,
+        "per": 7,
+        "cha": 7
+      },
+      "resources": {
+        "hp": 57,
+        "ac": 11
+      },
+      "speed": 40,
+      "disposition": "hostile",
+      "behavior": "aggressive",
+      "aggroRange": 30,
+      "description": "Сгрузивший гору мышц двуногий с тупой мордой и огромной дубиной. Жрёт что попало, бьёт чем попало, и всегда очень, очень голоден.",
+      "equipment": {
+        "weapon": "wpn_greataxe"
+      }
+    },
+    {
+      "id": "npc_harpy",
+      "name": "Гарпия",
+      "race": "monstrosity",
+      "level": 3,
+      "attributes": {
+        "str": 12,
+        "dex": 13,
+        "con": 12,
+        "int": 7,
+        "per": 10,
+        "cha": 13
+      },
+      "resources": {
+        "hp": 38,
+        "ac": 11
+      },
+      "speed": 20,
+      "disposition": "hostile",
+      "behavior": "aggressive",
+      "aggroRange": 60,
+      "description": "Женщина-птица с перепончатыми крыльями и кривыми когтями. Её песня сводит путников с дороги — прямо в пропасть."
+    },
+    {
+      "id": "npc_dire_wolf",
+      "name": "Лютоволк",
+      "race": "beast",
+      "level": 2,
+      "attributes": {
+        "str": 17,
+        "dex": 15,
+        "con": 15,
+        "int": 3,
+        "per": 12,
+        "cha": 8
+      },
+      "resources": {
+        "hp": 37,
+        "ac": 14
+      },
+      "speed": 50,
+      "disposition": "hostile",
+      "behavior": "aggressive",
+      "aggroRange": 40,
+      "description": "Огромный волк ростом в холке с телёнка. Серая шерсть встопорщена, жёлтые глаза горят голодом. Вожак стаи, и не боится даже медведя."
+    },
+    {
+      "id": "npc_mage_apprentice",
+      "name": "Ученик мага",
+      "race": "human",
+      "class": "wizard",
+      "level": 1,
+      "attributes": {
+        "str": 8,
+        "dex": 12,
+        "con": 11,
+        "int": 15,
+        "per": 12,
+        "cha": 11
+      },
+      "resources": {
+        "hp": 8,
+        "ac": 11
+      },
+      "speed": 30,
+      "disposition": "neutral",
+      "behavior": "caster",
+      "description": "Юноша в синей мантии с потёртым гримуаром под мышкой. Знает одно заклинание как следует и три — кое-как. Мечтает о собственной башне.",
+      "equipment": {
+        "weapon": "wpn_quarterstaff"
+      },
+      "startingInventory": [
+        {
+          "templateId": "cns_mana_elixir",
+          "quantity": 1
+        },
+        {
+          "templateId": "cns_scroll_identify",
+          "quantity": 1
+        }
+      ]
+    },
+    {
+      "id": "npc_mage",
+      "name": "Странствующий маг",
+      "race": "human",
+      "class": "wizard",
+      "level": 5,
+      "attributes": {
+        "str": 9,
+        "dex": 12,
+        "con": 12,
+        "int": 17,
+        "per": 13,
+        "cha": 12
+      },
+      "resources": {
+        "hp": 30,
+        "ac": 13
+      },
+      "speed": 30,
+      "disposition": "neutral",
+      "behavior": "caster",
+      "description": "Человек в поношенной дорожной мантии, с посохом, увенчанным бледным кристаллом. Идёт от города к городу, обменивая заклинания на ночлег.",
+      "equipment": {
+        "weapon": "wpn_staff"
+      },
+      "shopInventory": [
+        "cns_mana_elixir",
+        "cns_scroll_magic_missile",
+        "cns_scroll_identify"
+      ],
+      "startingInventory": [
+        {
+          "templateId": "cns_mana_elixir",
+          "quantity": 3
+        },
+        {
+          "templateId": "cns_scroll_magic_missile",
+          "quantity": 2
+        }
+      ]
+    },
+    {
+      "id": "npc_evil_mage",
+      "name": "Тёмный маг",
+      "race": "human",
+      "class": "wizard",
+      "level": 7,
+      "attributes": {
+        "str": 9,
+        "dex": 13,
+        "con": 12,
+        "int": 18,
+        "per": 13,
+        "cha": 14
+      },
+      "resources": {
+        "hp": 45,
+        "ac": 14
+      },
+      "speed": 30,
+      "disposition": "hostile",
+      "behavior": "caster",
+      "aggroRange": 50,
+      "description": "Высокий человек в чёрном с серебром одеянии. Пальцы его пахнут серой, посох — костью, а смех заставляет дрожать даже стражу.",
+      "equipment": {
+        "weapon": "wpn_staff",
+        "armor": "arm_studded_leather"
+      },
+      "startingInventory": [
+        {
+          "templateId": "cns_scroll_fireball",
+          "quantity": 2
+        },
+        {
+          "templateId": "tre_gem_ruby",
+          "quantity": 1
+        }
+      ]
+    },
+    {
+      "id": "npc_druid",
+      "name": "Друид",
+      "race": "human",
+      "class": "druid",
+      "level": 4,
+      "attributes": {
+        "str": 10,
+        "dex": 12,
+        "con": 14,
+        "int": 12,
+        "per": 16,
+        "cha": 12
+      },
+      "resources": {
+        "hp": 32,
+        "ac": 13
+      },
+      "speed": 30,
+      "disposition": "neutral",
+      "behavior": "questGiver",
+      "description": "Седой старец в плаще из звериных шкур с венком из омелы. Говорит с деревьями, превращается в волка и помнит заветы Старого леса.",
+      "equipment": {
+        "weapon": "wpn_staff",
+        "armor": "arm_hide"
+      },
+      "shopInventory": [
+        "cns_antidote",
+        "tool_herbalism_kit",
+        "cns_potion_animal_friendship"
+      ],
+      "startingInventory": [
+        {
+          "templateId": "tool_herbalism_kit",
+          "quantity": 1
+        },
+        {
+          "templateId": "cns_antidote",
+          "quantity": 3
+        }
+      ]
+    },
+    {
+      "id": "npc_ranger",
+      "name": "Следопыт",
+      "race": "human",
+      "class": "ranger",
+      "level": 3,
+      "attributes": {
+        "str": 13,
+        "dex": 16,
+        "con": 12,
+        "int": 11,
+        "per": 14,
+        "cha": 11
+      },
+      "resources": {
+        "hp": 26,
+        "ac": 14
+      },
+      "speed": 30,
+      "disposition": "neutral",
+      "behavior": "questGiver",
+      "description": "Молчаливый охотник в зелёном плаще, неразлучный со своим луком. Любой след читает как открытую книгу, любую тропу знает с детства.",
+      "equipment": {
+        "weapon": "wpn_longbow",
+        "armor": "arm_studded_leather"
+      },
+      "startingInventory": [
+        {
+          "templateId": "cns_ration",
+          "quantity": 5
+        },
+        {
+          "templateId": "gear_compass",
+          "quantity": 1
+        }
+      ]
+    },
+    {
+      "id": "npc_barbarian",
+      "name": "Варвар",
+      "race": "human",
+      "class": "barbarian",
+      "level": 4,
+      "attributes": {
+        "str": 17,
+        "dex": 14,
+        "con": 16,
+        "int": 9,
+        "per": 11,
+        "cha": 11
+      },
+      "resources": {
+        "hp": 48,
+        "ac": 14
+      },
+      "speed": 40,
+      "disposition": "neutral",
+      "behavior": "aggressive",
+      "description": "Могучий воин из северных племён, в шкурах и с боевыми шрамами через всю грудь. В бою входит в ярость, и тогда ему не страшен ни клинок, ни магия.",
+      "equipment": {
+        "weapon": "wpn_greataxe",
+        "armor": "arm_hide"
+      },
+      "startingInventory": [
+        {
+          "templateId": "tre_gold_coin",
+          "quantity": 10
+        }
       ]
     }
   ],
-
   "buildings": [
     {
       "id": "bld_tavern",
@@ -581,7 +3846,9 @@
       "description": "Двухэтажный сруб из тёмного дуба. Из трубы вьётся дым, из окон льётся тёплый свет, а из-за двери — пьяный хохот.",
       "enterable": true,
       "shopkeeperTemplateId": "npc_tavern_keeper",
-      "occupantTemplateIds": ["npc_tavern_keeper"]
+      "occupantTemplateIds": [
+        "npc_tavern_keeper"
+      ]
     },
     {
       "id": "bld_smithy",
@@ -590,7 +3857,9 @@
       "description": "Каменное здание с открытым навесом. Стук молота слышен за квартал, а запах угля — за два.",
       "enterable": true,
       "shopkeeperTemplateId": "npc_blacksmith",
-      "occupantTemplateIds": ["npc_blacksmith"]
+      "occupantTemplateIds": [
+        "npc_blacksmith"
+      ]
     },
     {
       "id": "bld_temple",
@@ -599,7 +3868,9 @@
       "description": "Старое святилище с белокаменными колоннами. Серебряное солнце над входом — символ почти забытого бога света.",
       "enterable": true,
       "shopkeeperTemplateId": "npc_priest",
-      "occupantTemplateIds": ["npc_priest"]
+      "occupantTemplateIds": [
+        "npc_priest"
+      ]
     },
     {
       "id": "bld_tower_wizard",
@@ -607,7 +3878,9 @@
       "name": "Башня чародейки",
       "description": "Узкая башня из тёмного камня, оплетённая побегами плюща. На верхнем этаже всегда горит синеватый свет.",
       "enterable": true,
-      "occupantTemplateIds": ["npc_wizard"]
+      "occupantTemplateIds": [
+        "npc_wizard"
+      ]
     },
     {
       "id": "bld_village_house",
@@ -630,7 +3903,9 @@
       "name": "Сторожевая башня",
       "description": "Квадратная башня из серого камня на холме. С её вершины видна вся Долина Туманов — и то, что ползёт к ней из леса.",
       "enterable": true,
-      "occupantTemplateIds": ["npc_town_guard"]
+      "occupantTemplateIds": [
+        "npc_town_guard"
+      ]
     },
     {
       "id": "bld_cave_entrance",
@@ -638,6 +3913,239 @@
       "name": "Вход в пещеру",
       "description": "Тёмный провал в скале, из которого тянет холодом и сыростью. На камнях у входа — старые кости и следы когтей.",
       "enterable": true
+    },
+    {
+      "id": "bld_inn",
+      "type": "inn",
+      "name": "Постоялый двор «Серебряное копыте»",
+      "description": "Двухэтажное бревенчатое здание с вывеской в виде серебряной подковы. На первом этаже — общая зала и кухня, на втором — комнаты для постояльцев.",
+      "enterable": true,
+      "shopkeeperTemplateId": "npc_innkeeper",
+      "occupantTemplateIds": [
+        "npc_innkeeper"
+      ]
+    },
+    {
+      "id": "bld_market_stall",
+      "type": "shop",
+      "name": "Торговая лавка на площади",
+      "description": "Брезентовый навес на четырёх столбах, под которым разложены тюки, корзины и связки сушёной рыбы. Здесь же стоит меняла с кожаным кошелем.",
+      "enterable": false,
+      "shopkeeperTemplateId": "npc_merchant_traveler",
+      "occupantTemplateIds": [
+        "npc_merchant_traveler"
+      ]
+    },
+    {
+      "id": "bld_shop_general",
+      "type": "shop",
+      "name": "Лавка обычных товаров",
+      "description": "Тесная лавчонка с полками до потолка. Пахнет смолой, кожей и сухофруктами. Здесь есть всё: от иголок до верёвок.",
+      "enterable": true,
+      "shopkeeperTemplateId": "npc_merchant_traveler",
+      "occupantTemplateIds": [
+        "npc_merchant_traveler"
+      ]
+    },
+    {
+      "id": "bld_shop_magic",
+      "type": "shop",
+      "name": "Лавка чудес",
+      "description": "Узкий дом с витриной, в которой мерцают непонятные предметы. Над дверью висит деревянная вывеска с изображением всевидящего ока.",
+      "enterable": true,
+      "shopkeeperTemplateId": "npc_mage",
+      "occupantTemplateIds": [
+        "npc_mage"
+      ]
+    },
+    {
+      "id": "bld_shop_armor",
+      "type": "shop",
+      "name": "Лавка доспехов",
+      "description": "Каменное здание, увешанное кольчугами, нагрудниками и шлемами. У входа стоит манекен в полных латах — рекламы ради.",
+      "enterable": true,
+      "shopkeeperTemplateId": "npc_blacksmith",
+      "occupantTemplateIds": [
+        "npc_blacksmith"
+      ]
+    },
+    {
+      "id": "bld_shop_weapon",
+      "type": "shop",
+      "name": "Лавка оружия",
+      "description": "Бревенчатый дом с рядами мечей, копий и топоров на стенах. Пахнет машинным маслом и свежей стружкой.",
+      "enterable": true,
+      "shopkeeperTemplateId": "npc_blacksmith",
+      "occupantTemplateIds": [
+        "npc_blacksmith"
+      ]
+    },
+    {
+      "id": "bld_warehouse",
+      "type": "warehouse",
+      "name": "Склад купеческой гильдии",
+      "description": "Длинное каменное здание с толстыми стенами и узкими окнами. Дверь окована железом, замок — велик с голову ребёнка.",
+      "enterable": true,
+      "locked": true,
+      "occupantTemplateIds": []
+    },
+    {
+      "id": "bld_mill",
+      "type": "mill",
+      "name": "Водяная мельница",
+      "description": "Двухэтажный сруб на берегу ручья. Большое деревянное колесо лениво поскрипывает, гоня на жернова зерно соседских фермеров.",
+      "enterable": true
+    },
+    {
+      "id": "bld_farm_house",
+      "type": "house",
+      "name": "Фермерский дом",
+      "description": "Бревенчатая изба с соломенной крышей и пристройкой-сараем. Вокруг — огород, колодец и несколько кур, клюющих у порога.",
+      "enterable": true,
+      "occupantTemplateIds": [
+        "npc_farmer"
+      ]
+    },
+    {
+      "id": "bld_watchtower",
+      "type": "tower",
+      "name": "Дозорная башня",
+      "description": "Высокая узкая башня из тёсаного камня на холме. На верхней площадке всегда дежурит часовой с медным рогом.",
+      "enterable": true,
+      "occupantTemplateIds": [
+        "npc_town_guard"
+      ]
+    },
+    {
+      "id": "bld_shrine",
+      "type": "shrine",
+      "name": "Священная роща",
+      "description": "Каменный алтарь под старым дубом, увитый гирляндами сухих цветов. Здесь нет ни стен, ни крыши — но всякий путник чувствует покой.",
+      "enterable": true,
+      "occupantTemplateIds": [
+        "npc_priest_acolyte"
+      ]
+    },
+    {
+      "id": "bld_library",
+      "type": "library",
+      "name": "Городская библиотека",
+      "description": "Тихое каменное здание с рядами высоких окон. Внутри пахнет старым пергаментом и пылью веков. Здесь же живёт сторож с ворчливым характером.",
+      "enterable": true,
+      "occupantTemplateIds": [
+        "npc_mage"
+      ]
+    },
+    {
+      "id": "bld_guildhall",
+      "type": "guildhall",
+      "name": "Дом купеческой гильдии",
+      "description": "Внушительное каменное здание с гербом гильдии над входом. Внутри — просторный зал для собраний и тесные конторы наверху.",
+      "enterable": true,
+      "occupantTemplateIds": [
+        "npc_noble"
+      ]
+    },
+    {
+      "id": "bld_manor",
+      "type": "manor",
+      "name": "Поместье лорда",
+      "description": "Двухэтажный особняк из тёсаного камня, окружённый садом и кованой оградой. У ворот дежурит привратник в ливрее.",
+      "enterable": true,
+      "locked": true,
+      "occupantTemplateIds": [
+        "npc_noble"
+      ]
+    },
+    {
+      "id": "bld_cottage",
+      "type": "house",
+      "name": "Хижина лесника",
+      "description": "Крошечный бревенчатый домик на отшибе, у самой кромки леса. Из трубы вьётся дымок, у порога дремлет тощая собака.",
+      "enterable": true,
+      "occupantTemplateIds": [
+        "npc_villager"
+      ]
+    },
+    {
+      "id": "bld_ruins_small",
+      "type": "ruin",
+      "name": "Малые руины",
+      "description": "Обломки кирпичной кладки, поросшие плющом. Внутри — старый колодец, засыпанный камнями, и обугленные брёвна давно сгоревшей крыши.",
+      "enterable": false
+    },
+    {
+      "id": "bld_bridge",
+      "type": "landmark",
+      "name": "Каменный мост",
+      "description": "Старый трёхпролётный мост из серого камня через быструю реку. Перила стёрты от прикосновений тысяч рук.",
+      "enterable": false
+    },
+    {
+      "id": "bld_dock",
+      "type": "dock",
+      "name": "Деревянный причал",
+      "description": "Длинный дощатый пирс, скрипучий под ногами. У пристани покачиваются две лодки и старая рыбацкая шхуна с названием «Чайка».",
+      "enterable": true,
+      "occupantTemplateIds": [
+        "npc_dock_worker"
+      ]
+    },
+    {
+      "id": "bld_lumber_mill",
+      "type": "mill",
+      "name": "Лесопилка",
+      "description": "Открытый навес с большим двуручным станком и штабелями свежих досок. В воздухе висит запах опилок и смолы.",
+      "enterable": true
+    },
+    {
+      "id": "bld_mine_entrance",
+      "type": "cave",
+      "name": "Вход в шахту",
+      "description": "Тёмный провал в скале, укреплённый старыми брёвнами. У входа — ржавая тачка, лопата и грифельная доска с планом выработок.",
+      "enterable": true
+    },
+    {
+      "id": "bld_cemetery_gate",
+      "type": "landmark",
+      "name": "Кладбищенские ворота",
+      "description": "Кованые чугунные ворота между двумя каменными столбами. Сверху — череп и скрещённые кости, ниже — выцветшая надпись: «Покойтесь с миром».",
+      "enterable": true
+    },
+    {
+      "id": "bld_chapel",
+      "type": "temple",
+      "name": "Часовня на холме",
+      "description": "Маленькая каменная часовенка с колоколом на коньке крыши. Внутри — алтарь, скамьи и медная табличка с именами павших.",
+      "enterable": true,
+      "occupantTemplateIds": [
+        "npc_priest_acolyte"
+      ]
+    },
+    {
+      "id": "bld_orphanage",
+      "type": "house",
+      "name": "Приют для сирот",
+      "description": "Покосившийся двухэтажный дом с облупившейся штукатуркой. На окнах — выцветшие занавески, снаружи слышен звонкий детский смех.",
+      "enterable": true,
+      "occupantTemplateIds": [
+        "npc_child"
+      ]
+    },
+    {
+      "id": "bld_stables",
+      "type": "shop",
+      "name": "Городские конюшни",
+      "description": "Длинный бревенчатый сарай с загонами по обе стороны. Пахнет сеном, навозом и лошадиным потом. Здесь можно и коня купить, и почтового нанять.",
+      "enterable": true
+    },
+    {
+      "id": "bld_granary",
+      "type": "warehouse",
+      "name": "Зернохранилище",
+      "description": "Высокий круглый каменный амбар на каменном фундаменте. Толстые стены спасают зерно и от жары, и от крыс, и от любителей чужого добра.",
+      "enterable": true,
+      "locked": true
     }
   ]
 }

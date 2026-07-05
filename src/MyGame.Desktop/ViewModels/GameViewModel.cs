@@ -1459,6 +1459,17 @@ public partial class GameViewModel : ViewModelBase
                 logText = ApplyDrop(player, item);
                 break;
 
+            case Panels.ItemActionKind.Split:
+                // STACK-SPLIT (issue #64): only stackable items in the
+                // carried inventory can be split. The InventoryPanel VM
+                // has already validated this before raising the action,
+                // but we re-check defensively. The split quantity comes
+                // in via ItemAction.Quantity (1..item.Quantity-1).
+                if (template is null || !template.Stackable) return;
+                if (item.Quantity < 2) return;
+                logText = ApplySplit(player, item, template, action.Quantity);
+                break;
+
             default:
                 return;
         }
@@ -1556,6 +1567,46 @@ public partial class GameViewModel : ViewModelBase
         if (loc is not null && _world is not null)
             _world.SpawnItemOnGround(item, loc.Id);
         return $"Брошен «{item.Name}».";
+    }
+
+    /// <summary>
+    /// STACK-SPLIT (issue #64): create a new Item instance with the
+    /// given split quantity, decrement the original stack, and add the
+    /// new stack to the inventory. The new Item gets a fresh EntityId
+    /// (it's a distinct object) but inherits the template, name, weight,
+    /// and enchantments of the original. Returns a one-line log message
+    /// describing the split.
+    /// </summary>
+    /// <param name="player">The active player (must carry <paramref name="item"/>).</param>
+    /// <param name="item">The original stack to split. Must have Quantity &gt;= 2.</param>
+    /// <param name="template">The item's template (used to instantiate the new stack).</param>
+    /// <param name="splitQty">How many units to peel off into the new stack. Clamped to 1..item.Quantity-1.</param>
+    private string ApplySplit(Player player, Item item, ItemTemplate template, int splitQty)
+    {
+        // Clamp the split quantity to a sane range. The InventoryPanel
+        // VM has already validated this, but defensive bounds prevent a
+        // bad client call from emptying the original stack or creating
+        // a negative-quantity item.
+        var qty = splitQty;
+        if (qty < 1) qty = 1;
+        if (qty > item.Quantity - 1) qty = item.Quantity - 1;
+
+        // Instantiate the new stack from the same template. This carries
+        // over Name, Weight, TemplateId, etc. via EntityFactory.
+        var newStack = EntityFactory.InstantiateItem(template, qty);
+        // Carry over runtime-only fields the factory doesn't set.
+        newStack.Enchantments = item.Enchantments;
+        newStack.CustomDamage = item.CustomDamage;
+
+        // Decrement the original stack. If splitting leaves it at 0
+        // (shouldn't happen due to the clamp above, but defensive),
+        // remove the original entry entirely.
+        item.Quantity -= qty;
+        if (item.Quantity <= 0)
+            player.Inventory.Items.Remove(item);
+
+        player.Inventory.Items.Add(newStack);
+        return $"Разделено: «{newStack.Name}» ×{qty} (осталось ×{item.Quantity}).";
     }
 
     /// <summary>

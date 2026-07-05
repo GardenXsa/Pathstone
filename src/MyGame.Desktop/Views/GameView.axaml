@@ -25,7 +25,7 @@
                 <!-- COMBAT-DEATH (issue #88): combat indicator. Red text,
                      only visible when CombatDisplay is non-empty. -->
                 <TextBlock Grid.Column="2" Text="{Binding CombatDisplay}"
-                           Foreground="{StaticResource AppDangerBrush}"
+                           Foreground="{DynamicResource AppDangerBrush}"
                            FontWeight="SemiBold" Classes="Small"
                            VerticalAlignment="Center" Margin="12,0"
                            IsVisible="{Binding CombatDisplay, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"/>
@@ -95,14 +95,14 @@
                                             <TextBlock Grid.Column="1" VerticalAlignment="Center"
                                                        FontFamily="Cascadia Mono,Consolas,Menlo,monospace"
                                                        FontSize="14"
-                                                       Foreground="{StaticResource AppSuccessBrush}"
+                                                       Foreground="{DynamicResource AppSuccessBrush}"
                                                        Text="✓"
                                                        ToolTip.Tip="Готов"
                                                        IsVisible="{Binding Status, Converter={x:Static conv:MemberStatusToReadyVisibilityConverter.Instance}, ConverterParameter=Ready}"/>
                                             <TextBlock Grid.Column="1" VerticalAlignment="Center"
                                                        FontFamily="Cascadia Mono,Consolas,Menlo,monospace"
                                                        FontSize="14"
-                                                       Foreground="{StaticResource AppMutedBrush}"
+                                                       Foreground="{DynamicResource AppMutedBrush}"
                                                        Text="○"
                                                        ToolTip.Tip="Ожидание"
                                                        IsVisible="{Binding Status, Converter={x:Static conv:MemberStatusToReadyVisibilityConverter.Instance}, ConverterParameter=Pending}"/>
@@ -247,7 +247,7 @@
                                                                Margin="8,0"
                                                                Classes="Muted Small"
                                                                Text="готов"
-                                                               Foreground="{StaticResource AppSuccessBrush}"
+                                                               Foreground="{DynamicResource AppSuccessBrush}"
                                                                IsVisible="{Binding Status, Converter={x:Static conv:MemberStatusToReadyVisibilityConverter.Instance}, ConverterParameter=Ready}"/>
                                                     <TextBlock Grid.Column="1" VerticalAlignment="Center"
                                                                Margin="8,0"
@@ -257,13 +257,13 @@
                                                     <TextBlock Grid.Column="2" VerticalAlignment="Center"
                                                                FontFamily="Cascadia Mono,Consolas,Menlo,monospace"
                                                                FontSize="18"
-                                                               Foreground="{StaticResource AppSuccessBrush}"
+                                                               Foreground="{DynamicResource AppSuccessBrush}"
                                                                Text="✓"
                                                                IsVisible="{Binding Status, Converter={x:Static conv:MemberStatusToReadyVisibilityConverter.Instance}, ConverterParameter=Ready}"/>
                                                     <TextBlock Grid.Column="2" VerticalAlignment="Center"
                                                                FontFamily="Cascadia Mono,Consolas,Menlo,monospace"
                                                                FontSize="18"
-                                                               Foreground="{StaticResource AppMutedBrush}"
+                                                               Foreground="{DynamicResource AppMutedBrush}"
                                                                Text="○"
                                                                IsVisible="{Binding Status, Converter={x:Static conv:MemberStatusToReadyVisibilityConverter.Instance}, ConverterParameter=Pending}"/>
                                                 </Grid>
@@ -407,8 +407,8 @@
                 VerticalAlignment="Stretch"
                 ZIndex="100">
             <Border HorizontalAlignment="Center" VerticalAlignment="Center"
-                    Background="{StaticResource AppSurfaceBrush}"
-                    BorderBrush="{StaticResource AppDangerBrush}"
+                    Background="{DynamicResource AppSurfaceBrush}"
+                    BorderBrush="{DynamicResource AppDangerBrush}"
                     BorderThickness="2" CornerRadius="8"
                     Padding="40,30" MinWidth="380" MaxWidth="560">
                 <StackPanel Spacing="14" HorizontalAlignment="Center">
@@ -416,7 +416,7 @@
                     <TextBlock Text="Ваш персонаж погиб."
                                FontSize="22" FontWeight="Bold"
                                HorizontalAlignment="Center"
-                               Foreground="{StaticResource AppDangerBrush}"/>
+                               Foreground="{DynamicResource AppDangerBrush}"/>
                     <TextBlock Text="Путь окончен. Выберите, что делать дальше."
                                Classes="Muted Small"
                                HorizontalAlignment="Center" TextWrapping="Wrap"
@@ -458,8 +458,8 @@
                 VerticalAlignment="Stretch"
                 ZIndex="100">
             <Border HorizontalAlignment="Center" VerticalAlignment="Center"
-                    Background="{StaticResource AppSurfaceBrush}"
-                    BorderBrush="{StaticResource AppDangerBrush}"
+                    Background="{DynamicResource AppSurfaceBrush}"
+                    BorderBrush="{DynamicResource AppDangerBrush}"
                     BorderThickness="2" CornerRadius="8"
                     Padding="40,30" MinWidth="380" MaxWidth="560">
                 <StackPanel Spacing="14" HorizontalAlignment="Center">
@@ -468,7 +468,7 @@
                     <TextBlock Text="Соединение потеряно."
                                FontSize="22" FontWeight="Bold"
                                HorizontalAlignment="Center"
-                               Foreground="{StaticResource AppDangerBrush}"
+                               Foreground="{DynamicResource AppDangerBrush}"
                                IsVisible="{Binding !ReconnectFailed}"/>
                     <TextBlock Text="{Binding DisconnectReason, StringFormat='Причина: {0}'}"
                                Classes="Muted Small"
@@ -479,7 +479,7 @@
                     <TextBlock Text="Не удалось переподключиться."
                                FontSize="22" FontWeight="Bold"
                                HorizontalAlignment="Center"
-                               Foreground="{StaticResource AppDangerBrush}"
+                               Foreground="{DynamicResource AppDangerBrush}"
                                IsVisible="{Binding ReconnectFailed}"/>
                     <TextBlock Text="Сервер недоступен. Проверьте соединение и попробуйте позже."
                                Classes="Muted Small"
@@ -517,8 +517,8 @@
                 ZIndex="50"
                 PointerPressed="OnHelpOverlayClick">
             <Border HorizontalAlignment="Center" VerticalAlignment="Center"
-                    Background="{StaticResource AppSurfaceBrush}"
-                    BorderBrush="{StaticResource AppBorderBrush}"
+                    Background="{DynamicResource AppSurfaceBrush}"
+                    BorderBrush="{DynamicResource AppBorderBrush}"
                     BorderThickness="1" CornerRadius="8"
                     Padding="32,24" MinWidth="460" MaxWidth="620">
                 <StackPanel Spacing="12">
@@ -584,8 +584,8 @@
                 ZIndex="51"
                 PointerPressed="OnLeaveConfirmOverlayClick">
             <Border HorizontalAlignment="Center" VerticalAlignment="Center"
-                    Background="{StaticResource AppSurfaceBrush}"
-                    BorderBrush="{StaticResource AppDangerBrush}"
+                    Background="{DynamicResource AppSurfaceBrush}"
+                    BorderBrush="{DynamicResource AppDangerBrush}"
                     BorderThickness="2" CornerRadius="8"
                     Padding="40,30" MinWidth="380" MaxWidth="560">
                 <StackPanel Spacing="14" HorizontalAlignment="Center">
@@ -593,7 +593,7 @@
                     <TextBlock Text="Выйти из игры?"
                                FontSize="22" FontWeight="Bold"
                                HorizontalAlignment="Center"
-                               Foreground="{StaticResource AppDangerBrush}"/>
+                               Foreground="{DynamicResource AppDangerBrush}"/>
                     <TextBlock Text="Несохранённый прогресс может быть потерян. Перед выходом рекомендуется сохранить (Ctrl+S)."
                                Classes="Muted Small"
                                HorizontalAlignment="Center" TextWrapping="Wrap"

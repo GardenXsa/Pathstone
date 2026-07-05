@@ -15,6 +15,15 @@
         <local:ViewLocator />
     </Application.DataTemplates>
 
+    <!--
+        THEME (issue #47): the Color + SolidColorBrush resources below
+        are the initial dark-theme palette. They're loaded once at app
+        startup and then ThemeService.ApplyTheme() OVERWRITES them at
+        runtime when the user toggles between Dark / Light / accent
+        presets. Every style setter in this file references them via
+        {DynamicResource ...} so the runtime swap propagates to every
+        control without a restart.
+    -->
     <Application.Resources>
         <!-- Color palette (dark theme, matches the TS source's mood). -->
         <Color x:Key="AppBackground">#0F1115</Color>
@@ -43,93 +52,93 @@
     <!-- Per-control style overrides for the dark game look. -->
     <Application.Styles>
         <Style Selector="Window">
-            <Setter Property="Background" Value="{StaticResource AppBackgroundBrush}" />
-            <Setter Property="Foreground" Value="{StaticResource AppForegroundBrush}" />
+            <Setter Property="Background" Value="{DynamicResource AppBackgroundBrush}" />
+            <Setter Property="Foreground" Value="{DynamicResource AppForegroundBrush}" />
         </Style>
         <Style Selector="UserControl">
-            <Setter Property="Background" Value="{StaticResource AppBackgroundBrush}" />
-            <Setter Property="Foreground" Value="{StaticResource AppForegroundBrush}" />
+            <Setter Property="Background" Value="{DynamicResource AppBackgroundBrush}" />
+            <Setter Property="Foreground" Value="{DynamicResource AppForegroundBrush}" />
         </Style>
         <Style Selector="TextBlock">
-            <Setter Property="Foreground" Value="{StaticResource AppForegroundBrush}" />
+            <Setter Property="Foreground" Value="{DynamicResource AppForegroundBrush}" />
         </Style>
 
         <!-- Top bar -->
         <Style Selector="Border.TopBar">
-            <Setter Property="Background" Value="{StaticResource AppSurfaceBrush}" />
-            <Setter Property="BorderBrush" Value="{StaticResource AppBorderBrush}" />
+            <Setter Property="Background" Value="{DynamicResource AppSurfaceBrush}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource AppBorderBrush}" />
             <Setter Property="BorderThickness" Value="0,0,0,1" />
             <Setter Property="Padding" Value="12,6" />
         </Style>
         <Style Selector="Border.StatusBar">
-            <Setter Property="Background" Value="{StaticResource AppSurfaceBrush}" />
-            <Setter Property="BorderBrush" Value="{StaticResource AppBorderBrush}" />
+            <Setter Property="Background" Value="{DynamicResource AppSurfaceBrush}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource AppBorderBrush}" />
             <Setter Property="BorderThickness" Value="0,0,0,1" />
             <Setter Property="Padding" Value="12,3" />
         </Style>
         <Style Selector="Border.ErrorBar">
-            <Setter Property="Background" Value="#3A1A1F" />
+            <Setter Property="Background" Value="{DynamicResource AppSurfaceAltBrush}" />
             <Setter Property="Padding" Value="12,6" />
-            <Setter Property="BorderBrush" Value="{StaticResource AppDangerBrush}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource AppDangerBrush}" />
             <Setter Property="BorderThickness" Value="0,0,0,1" />
         </Style>
         <Style Selector="Border.ErrorBar TextBlock">
-            <Setter Property="Foreground" Value="#F5C2C7" />
+            <Setter Property="Foreground" Value="{DynamicResource AppDangerBrush}" />
         </Style>
         <Style Selector="Border.SidePanel">
-            <Setter Property="Background" Value="{StaticResource AppSurfaceBrush}" />
-            <Setter Property="BorderBrush" Value="{StaticResource AppBorderBrush}" />
+            <Setter Property="Background" Value="{DynamicResource AppSurfaceBrush}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource AppBorderBrush}" />
             <Setter Property="BorderThickness" Value="0,0,1,0" />
             <Setter Property="Padding" Value="12,10" />
         </Style>
         <Style Selector="Border.CenterPanel">
-            <Setter Property="Background" Value="{StaticResource AppBackgroundBrush}" />
+            <Setter Property="Background" Value="{DynamicResource AppBackgroundBrush}" />
             <Setter Property="Padding" Value="0" />
         </Style>
         <Style Selector="Border.ChatPanel">
-            <Setter Property="Background" Value="{StaticResource AppSurfaceAltBrush}" />
-            <Setter Property="BorderBrush" Value="{StaticResource AppBorderBrush}" />
+            <Setter Property="Background" Value="{DynamicResource AppSurfaceAltBrush}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource AppBorderBrush}" />
             <Setter Property="BorderThickness" Value="1" />
             <Setter Property="Padding" Value="8" />
             <Setter Property="CornerRadius" Value="4" />
         </Style>
         <Style Selector="Border.InputBar">
-            <Setter Property="Background" Value="{StaticResource AppSurfaceBrush}" />
-            <Setter Property="BorderBrush" Value="{StaticResource AppBorderBrush}" />
+            <Setter Property="Background" Value="{DynamicResource AppSurfaceBrush}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource AppBorderBrush}" />
             <Setter Property="BorderThickness" Value="0,1,0,0" />
         </Style>
         <Style Selector="Border.LoadPanel">
-            <Setter Property="Background" Value="{StaticResource AppSurfaceAltBrush}" />
-            <Setter Property="BorderBrush" Value="{StaticResource AppBorderBrush}" />
+            <Setter Property="Background" Value="{DynamicResource AppSurfaceAltBrush}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource AppBorderBrush}" />
             <Setter Property="BorderThickness" Value="1" />
             <Setter Property="CornerRadius" Value="4" />
         </Style>
         <Style Selector="Border.InfoBox">
-            <Setter Property="Background" Value="{StaticResource AppSurfaceAltBrush}" />
-            <Setter Property="BorderBrush" Value="{StaticResource AppBorderBrush}" />
+            <Setter Property="Background" Value="{DynamicResource AppSurfaceAltBrush}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource AppBorderBrush}" />
             <Setter Property="BorderThickness" Value="1" />
             <Setter Property="CornerRadius" Value="4" />
         </Style>
         <Style Selector="Border.Separator">
-            <Setter Property="BorderBrush" Value="{StaticResource AppBorderBrush}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource AppBorderBrush}" />
             <Setter Property="BorderThickness" Value="0,1,0,0" />
             <Setter Property="Height" Value="1" />
             <Setter Property="Margin" Value="0,4" />
         </Style>
 
         <Style Selector="Border.MemberRow">
-            <Setter Property="Background" Value="{StaticResource AppSurfaceAltBrush}" />
+            <Setter Property="Background" Value="{DynamicResource AppSurfaceAltBrush}" />
             <Setter Property="CornerRadius" Value="3" />
             <Setter Property="Margin" Value="0,0,0,2" />
         </Style>
         <Style Selector="Border.ActionRow">
-            <Setter Property="Background" Value="{StaticResource AppSurfaceAltBrush}" />
+            <Setter Property="Background" Value="{DynamicResource AppSurfaceAltBrush}" />
             <Setter Property="CornerRadius" Value="3" />
             <Setter Property="Margin" Value="0,0,0,2" />
         </Style>
         <Style Selector="Border.SaveRow">
-            <Setter Property="Background" Value="{StaticResource AppSurfaceAltBrush}" />
-            <Setter Property="BorderBrush" Value="{StaticResource AppBorderBrush}" />
+            <Setter Property="Background" Value="{DynamicResource AppSurfaceAltBrush}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource AppBorderBrush}" />
             <Setter Property="BorderThickness" Value="1" />
             <Setter Property="CornerRadius" Value="4" />
             <Setter Property="Margin" Value="0,0,0,4" />
@@ -157,16 +166,16 @@
         <Style Selector="TextBlock.SectionTitle">
             <Setter Property="FontSize" Value="13" />
             <Setter Property="FontWeight" Value="SemiBold" />
-            <Setter Property="Foreground" Value="{StaticResource AppMutedBrush}" />
+            <Setter Property="Foreground" Value="{DynamicResource AppMutedBrush}" />
             <Setter Property="Margin" Value="0,0,0,4" />
         </Style>
         <Style Selector="TextBlock.FieldLabel">
             <Setter Property="FontSize" Value="12" />
-            <Setter Property="Foreground" Value="{StaticResource AppMutedBrush}" />
+            <Setter Property="Foreground" Value="{DynamicResource AppMutedBrush}" />
             <Setter Property="Margin" Value="0,0,0,2" />
         </Style>
         <Style Selector="TextBlock.Muted">
-            <Setter Property="Foreground" Value="{StaticResource AppMutedBrush}" />
+            <Setter Property="Foreground" Value="{DynamicResource AppMutedBrush}" />
         </Style>
         <Style Selector="TextBlock.Small">
             <Setter Property="FontSize" Value="11" />
@@ -181,37 +190,38 @@
             <Setter Property="FontSize" Value="14" />
             <Setter Property="FontWeight" Value="SemiBold" />
             <Setter Property="CornerRadius" Value="6" />
-            <Setter Property="Background" Value="{StaticResource AppSurfaceAltBrush}" />
-            <Setter Property="Foreground" Value="{StaticResource AppForegroundBrush}" />
-            <Setter Property="BorderBrush" Value="{StaticResource AppBorderBrush}" />
+            <Setter Property="Background" Value="{DynamicResource AppSurfaceAltBrush}" />
+            <Setter Property="Foreground" Value="{DynamicResource AppForegroundBrush}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource AppBorderBrush}" />
             <Setter Property="BorderThickness" Value="1" />
         </Style>
         <Style Selector="Button.MenuButton.Primary">
-            <Setter Property="Background" Value="{StaticResource AppAccentBrush}" />
-            <Setter Property="Foreground" Value="{StaticResource AppAccentFgBrush}" />
-            <Setter Property="BorderBrush" Value="{StaticResource AppAccentBrush}" />
+            <Setter Property="Background" Value="{DynamicResource AppAccentBrush}" />
+            <Setter Property="Foreground" Value="{DynamicResource AppAccentFgBrush}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource AppAccentBrush}" />
         </Style>
         <Style Selector="Button.MenuButton.Primary:pointerover /template/ ContentPresenter">
-            <Setter Property="Background" Value="#6B4FE6" />
+            <Setter Property="Background" Value="{DynamicResource AppAccentBrush}" />
+            <Setter Property="Opacity" Value="0.88" />
         </Style>
         <Style Selector="Button.SmallButton">
             <Setter Property="Padding" Value="10,5" />
             <Setter Property="FontSize" Value="12" />
             <Setter Property="CornerRadius" Value="4" />
-            <Setter Property="Background" Value="{StaticResource AppSurfaceAltBrush}" />
-            <Setter Property="Foreground" Value="{StaticResource AppForegroundBrush}" />
-            <Setter Property="BorderBrush" Value="{StaticResource AppBorderBrush}" />
+            <Setter Property="Background" Value="{DynamicResource AppSurfaceAltBrush}" />
+            <Setter Property="Foreground" Value="{DynamicResource AppForegroundBrush}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource AppBorderBrush}" />
             <Setter Property="BorderThickness" Value="1" />
         </Style>
         <Style Selector="Button.SmallButton.Primary">
-            <Setter Property="Background" Value="{StaticResource AppAccentBrush}" />
-            <Setter Property="Foreground" Value="{StaticResource AppAccentFgBrush}" />
-            <Setter Property="BorderBrush" Value="{StaticResource AppAccentBrush}" />
+            <Setter Property="Background" Value="{DynamicResource AppAccentBrush}" />
+            <Setter Property="Foreground" Value="{DynamicResource AppAccentFgBrush}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource AppAccentBrush}" />
         </Style>
         <Style Selector="Button.SmallButton.Danger">
-            <Setter Property="Background" Value="#3A1A1F" />
-            <Setter Property="Foreground" Value="#F5C2C7" />
-            <Setter Property="BorderBrush" Value="{StaticResource AppDangerBrush}" />
+            <Setter Property="Background" Value="{DynamicResource AppSurfaceAltBrush}" />
+            <Setter Property="Foreground" Value="{DynamicResource AppDangerBrush}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource AppDangerBrush}" />
         </Style>
         <Style Selector="Button.TinyButton">
             <Setter Property="Padding" Value="6,2" />
@@ -222,8 +232,8 @@
              the user sees it's clickable without dominating the panel. -->
         <Style Selector="Button.ExitButton">
             <Setter Property="Background" Value="Transparent" />
-            <Setter Property="Foreground" Value="{StaticResource AppForegroundBrush}" />
-            <Setter Property="BorderBrush" Value="{StaticResource AppBorderBrush}" />
+            <Setter Property="Foreground" Value="{DynamicResource AppForegroundBrush}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource AppBorderBrush}" />
             <Setter Property="BorderThickness" Value="1" />
             <Setter Property="CornerRadius" Value="4" />
             <Setter Property="Padding" Value="6,3" />
@@ -231,7 +241,7 @@
             <Setter Property="HorizontalContentAlignment" Value="Stretch" />
         </Style>
         <Style Selector="Button.ExitButton:pointerover /template/ ContentPresenter">
-            <Setter Property="Background" Value="{StaticResource AppSurfaceAltBrush}" />
+            <Setter Property="Background" Value="{DynamicResource AppSurfaceAltBrush}" />
         </Style>
         <Style Selector="Button.ExitButton:disabled /template/ ContentPresenter">
             <Setter Property="Opacity" Value="0.55" />
@@ -242,7 +252,7 @@
              padding for the panel. -->
         <Style Selector="Button.QuestHeaderButton">
             <Setter Property="Background" Value="Transparent" />
-            <Setter Property="Foreground" Value="{StaticResource AppForegroundBrush}" />
+            <Setter Property="Foreground" Value="{DynamicResource AppForegroundBrush}" />
             <Setter Property="BorderBrush" Value="Transparent" />
             <Setter Property="BorderThickness" Value="0" />
             <Setter Property="CornerRadius" Value="3" />
@@ -250,7 +260,7 @@
             <Setter Property="HorizontalContentAlignment" Value="Stretch" />
         </Style>
         <Style Selector="Button.QuestHeaderButton:pointerover /template/ ContentPresenter">
-            <Setter Property="Background" Value="{StaticResource AppSurfaceAltBrush}" />
+            <Setter Property="Background" Value="{DynamicResource AppSurfaceAltBrush}" />
         </Style>
         <!-- Pet-progress section header button (issue #76): flat header
              for the collapsible «Pet-агенты» block in the world-build
@@ -258,7 +268,7 @@
              whole header row. -->
         <Style Selector="Button.PetSectionHeader">
             <Setter Property="Background" Value="Transparent" />
-            <Setter Property="Foreground" Value="{StaticResource AppForegroundBrush}" />
+            <Setter Property="Foreground" Value="{DynamicResource AppForegroundBrush}" />
             <Setter Property="BorderBrush" Value="Transparent" />
             <Setter Property="BorderThickness" Value="0" />
             <Setter Property="CornerRadius" Value="3" />
@@ -266,21 +276,21 @@
             <Setter Property="HorizontalContentAlignment" Value="Stretch" />
         </Style>
         <Style Selector="Button.PetSectionHeader:pointerover /template/ ContentPresenter">
-            <Setter Property="Background" Value="{StaticResource AppSurfaceAltBrush}" />
+            <Setter Property="Background" Value="{DynamicResource AppSurfaceAltBrush}" />
         </Style>
 
         <!-- Inputs -->
         <Style Selector="TextBox">
-            <Setter Property="Background" Value="{StaticResource AppSurfaceAltBrush}" />
-            <Setter Property="Foreground" Value="{StaticResource AppForegroundBrush}" />
-            <Setter Property="BorderBrush" Value="{StaticResource AppBorderBrush}" />
+            <Setter Property="Background" Value="{DynamicResource AppSurfaceAltBrush}" />
+            <Setter Property="Foreground" Value="{DynamicResource AppForegroundBrush}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource AppBorderBrush}" />
             <Setter Property="CornerRadius" Value="4" />
             <Setter Property="Padding" Value="8,4" />
         </Style>
         <Style Selector="NumericUpDown">
-            <Setter Property="Background" Value="{StaticResource AppSurfaceAltBrush}" />
-            <Setter Property="Foreground" Value="{StaticResource AppForegroundBrush}" />
-            <Setter Property="BorderBrush" Value="{StaticResource AppBorderBrush}" />
+            <Setter Property="Background" Value="{DynamicResource AppSurfaceAltBrush}" />
+            <Setter Property="Foreground" Value="{DynamicResource AppForegroundBrush}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource AppBorderBrush}" />
         </Style>
 
         <!-- Narrative log: monospace so it reads like a journal. -->
@@ -292,15 +302,15 @@
 
         <!-- ─── Panel-specific styles (Character/Inventory/Quest/World) ─── -->
         <Style Selector="Border.PanelSection">
-            <Setter Property="Background" Value="{StaticResource AppSurfaceAltBrush}" />
-            <Setter Property="BorderBrush" Value="{StaticResource AppBorderBrush}" />
+            <Setter Property="Background" Value="{DynamicResource AppSurfaceAltBrush}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource AppBorderBrush}" />
             <Setter Property="BorderThickness" Value="1" />
             <Setter Property="CornerRadius" Value="4" />
             <Setter Property="Padding" Value="10" />
         </Style>
         <Style Selector="Border.ItemRow">
-            <Setter Property="Background" Value="{StaticResource AppSurfaceAltBrush}" />
-            <Setter Property="BorderBrush" Value="{StaticResource AppBorderBrush}" />
+            <Setter Property="Background" Value="{DynamicResource AppSurfaceAltBrush}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource AppBorderBrush}" />
             <Setter Property="BorderThickness" Value="1" />
             <Setter Property="CornerRadius" Value="3" />
         </Style>
@@ -316,7 +326,7 @@
             because EquippedRow sets BorderBrush explicitly).
         -->
         <Style Selector="Border.ItemRow.EquippedRow">
-            <Setter Property="BorderBrush" Value="{StaticResource AppAccentBrush}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource AppAccentBrush}" />
             <Setter Property="BorderThickness" Value="1" />
         </Style>
         <!-- Effects section: warm-tinted border so the user notices
@@ -326,28 +336,28 @@
             <Setter Property="BorderThickness" Value="1" />
         </Style>
         <Style Selector="Border.QuestRow">
-            <Setter Property="Background" Value="{StaticResource AppSurfaceAltBrush}" />
-            <Setter Property="BorderBrush" Value="{StaticResource AppBorderBrush}" />
+            <Setter Property="Background" Value="{DynamicResource AppSurfaceAltBrush}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource AppBorderBrush}" />
             <Setter Property="BorderThickness" Value="1" />
             <Setter Property="CornerRadius" Value="4" />
         </Style>
         <Style Selector="Border.QuestRow.Active">
-            <Setter Property="BorderBrush" Value="{StaticResource AppAccentBrush}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource AppAccentBrush}" />
         </Style>
         <Style Selector="Border.QuestRow.Completed">
             <Setter Property="Opacity" Value="0.6" />
         </Style>
         <Style Selector="Border.QuestRow.Failed">
-            <Setter Property="BorderBrush" Value="{StaticResource AppDangerBrush}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource AppDangerBrush}" />
             <Setter Property="Opacity" Value="0.6" />
         </Style>
         <Style Selector="Border.RewardBox">
-            <Setter Property="Background" Value="{StaticResource AppSurfaceBrush}" />
+            <Setter Property="Background" Value="{DynamicResource AppSurfaceBrush}" />
             <Setter Property="CornerRadius" Value="3" />
         </Style>
         <Style Selector="Border.Chip">
-            <Setter Property="Background" Value="{StaticResource AppSurfaceBrush}" />
-            <Setter Property="BorderBrush" Value="{StaticResource AppBorderBrush}" />
+            <Setter Property="Background" Value="{DynamicResource AppSurfaceBrush}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource AppBorderBrush}" />
             <Setter Property="BorderThickness" Value="1" />
             <Setter Property="CornerRadius" Value="10" />
         </Style>
@@ -355,7 +365,142 @@
             <Setter Property="FontSize" Value="12" />
         </Style>
         <Style Selector="TextBlock.Muted">
-            <Setter Property="Foreground" Value="{StaticResource AppMutedBrush}" />
+            <Setter Property="Foreground" Value="{DynamicResource AppMutedBrush}" />
+        </Style>
+
+        <!-- ─── ANIMATIONS (issue #46) ───────────────────────────────────
+             Every transition / entrance animation is scoped to
+             Window.Anim. ThemeService adds the "Anim" class to the main
+             Window when Settings.EnableAnimations = true (default) and
+             removes it when false. Removing the class turns every
+             transition off across the whole app in one shot — no
+             tree-walk, no per-control flag. Durations stay in the
+             150–300 ms band with CubicEaseOut easing (subtle, never
+             flashy).
+        -->
+
+        <!-- 4d: button hover/press opacity transitions. Applies to every
+             Button in the app. The :pointerover / :pressed pseudoclasses
+             flip Opacity to 0.88 / 0.78; the base style's Transitions
+             setter smooths the change. Without the Anim class the
+             Transitions setter doesn't apply — opacity still flips but
+             instantly (acceptable for the no-animation path). -->
+        <Style Selector="Window.Anim Button">
+            <Setter Property="Transitions">
+                <Transitions>
+                    <DoubleTransition Property="Opacity" Duration="0:0:0.15" Easing="CubicEaseOut"/>
+                </Transitions>
+            </Setter>
+        </Style>
+
+        <!-- 4c: log entry appearance — fade in. Uses Style.Animations
+             (keyframe) rather than Transitions because we want the
+             animation to fire once on each item's first render
+             (Transitions need a property CHANGE to fire). Each new
+             LogEntry in the narrative log will fade from 0 → 1 over
+             200 ms. We skip the slide-down effect (would require
+             setting a TranslateTransform RenderTransform on every
+             LogEntry Border, which complicates the template — the fade
+             alone is subtle and matches the rest of the motion budget). -->
+        <Style Selector="Window.Anim Border.LogEntry">
+            <Style.Animations>
+                <Animation Duration="0:0:0.2" Easing="CubicEaseOut">
+                    <KeyFrame Cue="0%">
+                        <Setter Property="Opacity" Value="0"/>
+                    </KeyFrame>
+                    <KeyFrame Cue="100%">
+                        <Setter Property="Opacity" Value="1"/>
+                    </KeyFrame>
+                </Animation>
+            </Style.Animations>
+        </Style>
+
+        <!-- 4e: progress bar smooth fill — DoubleTransition on Value so
+             the WorldBuild progress bar animates from its old value to
+             the new one over ~300 ms instead of jumping. Also applies
+             to the inventory carrying-capacity bar (and any other
+             ProgressBar in the app). -->
+        <Style Selector="Window.Anim ProgressBar">
+            <Setter Property="Transitions">
+                <Transitions>
+                    <DoubleTransition Property="Value" Duration="0:0:0.3" Easing="CubicEaseOut"/>
+                </Transitions>
+            </Setter>
+        </Style>
+
+        <!-- 4b: tab-panel entrance — fade the side-panel root Border in
+             when its tab becomes selected. Each panel view attaches the
+             PanelRoot class to its root Border; this style fires the
+             animation whenever the Border enters the visual tree (i.e.,
+             when its tab is selected). Sliding via TranslateTransform
+             would require a RenderTransform on each panel root — we
+             skip the slide for simplicity and keep just the fade, which
+             is subtle and matches the rest of the app's motion budget. -->
+        <Style Selector="Window.Anim Border.PanelRoot">
+            <Style.Animations>
+                <Animation Duration="0:0:0.18" Easing="CubicEaseOut">
+                    <KeyFrame Cue="0%">
+                        <Setter Property="Opacity" Value="0"/>
+                    </KeyFrame>
+                    <KeyFrame Cue="100%">
+                        <Setter Property="Opacity" Value="1"/>
+                    </KeyFrame>
+                </Animation>
+            </Style.Animations>
+        </Style>
+
+        <!-- STACK-SPLIT (issue #64): the modal split dialog overlay's
+             inner panel. A drop-in equivalent of the death / reconnect
+             overlay styling — centered, surface background, accent border. -->
+        <Style Selector="Border.SplitDialog">
+            <Setter Property="Background" Value="{DynamicResource AppSurfaceBrush}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource AppAccentBrush}" />
+            <Setter Property="BorderThickness" Value="2" />
+            <Setter Property="CornerRadius" Value="8" />
+            <Setter Property="Padding" Value="24,18" />
+            <Setter Property="MinWidth" Value="320" />
+            <Setter Property="MaxWidth" Value="440" />
+        </Style>
+
+        <!-- SETTINGS (issue #78): the settings tab strip uses SmallButton-
+             sized tab headers. TabItem gets a flat look with an accent
+             underline on :selected. -->
+        <Style Selector="TabControl.SettingsTabs">
+            <Setter Property="Padding" Value="0" />
+            <Setter Property="Margin" Value="0" />
+        </Style>
+        <Style Selector="TabControl.SettingsTabs TabItem">
+            <Setter Property="Padding" Value="14,6" />
+            <Setter Property="FontSize" Value="13" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="Foreground" Value="{DynamicResource AppMutedBrush}" />
+            <Setter Property="BorderBrush" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0,0,0,2" />
+        </Style>
+        <Style Selector="TabControl.SettingsTabs TabItem:pointerover">
+            <Setter Property="Foreground" Value="{DynamicResource AppForegroundBrush}" />
+        </Style>
+        <Style Selector="TabControl.SettingsTabs TabItem:selected">
+            <Setter Property="Foreground" Value="{DynamicResource AppForegroundBrush}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource AppAccentBrush}" />
+        </Style>
+
+        <!-- APPEARANCE (issue #47): accent-color swatch buttons in the
+             Settings screen's «Оформление» tab. Round, color-filled,
+             with an accent ring on the selected one. -->
+        <Style Selector="Button.AccentSwatch">
+            <Setter Property="Width" Value="28" />
+            <Setter Property="Height" Value="28" />
+            <Setter Property="CornerRadius" Value="14" />
+            <Setter Property="Padding" Value="0" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="Margin" Value="0,2,8,2" />
+            <Setter Property="Cursor" Value="Hand" />
+        </Style>
+        <Style Selector="Button.AccentSwatch:selected">
+            <Setter Property="BorderBrush" Value="{DynamicResource AppForegroundBrush}" />
+            <Setter Property="BorderThickness" Value="2" />
         </Style>
     </Application.Styles>
 </Application>

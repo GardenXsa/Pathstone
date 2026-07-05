@@ -594,6 +594,24 @@ internal static class GiveItemTool
             return ToolResult.Error(string.Empty, $"Шаблон предмета «{templateId}» не найден. Доступные: {sample}.");
         }
 
+        // STACK-MERGE (issue #64): if the template is stackable AND the
+        // player already carries an item with the same TemplateId, merge
+        // into that stack instead of creating a new entry. This keeps the
+        // inventory tidy — five separate «Зелье лечения ×1» rows collapse
+        // into one «Зелье лечения ×5». Non-stackable templates always
+        // instantiate a fresh Item (each instance is a distinct object).
+        if (tpl.Stackable)
+        {
+            var existing = p.Inventory.Items.FirstOrDefault(i =>
+                i.TemplateId == templateId && !i.Equipped);
+            if (existing is not null)
+            {
+                existing.Quantity += qty;
+                return ToolResult.Ok(string.Empty,
+                    $"Выдан «{existing.Name}» ×{qty} (всего ×{existing.Quantity}).");
+            }
+        }
+
         var item = EntityFactory.InstantiateItem(tpl, qty);
         p.Inventory.Items.Add(item);
         return ToolResult.Ok(string.Empty, $"Выдан «{item.Name}» ×{qty}.");

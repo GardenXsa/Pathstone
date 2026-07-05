@@ -13,7 +13,7 @@
         <StackPanel Spacing="12" Margin="12">
 
             <!-- World header -->
-            <Border Classes="PanelSection">
+            <Border Classes="PanelSection PanelRoot">
                 <StackPanel Spacing="2">
                     <TextBlock Text="{Binding WorldTitle}" FontWeight="SemiBold" FontSize="14"/>
                     <Grid ColumnDefinitions="*,Auto">

@@ -5,6 +5,7 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using MyGame.Core.AI;
 using MyGame.Core.Profile;
+using MyGame.Desktop.Services;
 
 namespace MyGame.Desktop.ViewModels;
 
@@ -15,6 +16,25 @@ namespace MyGame.Desktop.ViewModels;
 /// NOT edited here — it lives inline on the main menu (no separate
 /// profile screen, since the nickname is the only profile field and
 /// there's no auth).
+///
+/// <para>
+/// <b>Tabbed dialog (issue #78):</b> the screen exposes four groups of
+/// settings — AI (existing), Оформление (theme + accent + animations,
+/// issue #47), Мультиплеер (server host/port + auto-reconnect), and
+/// Продвинутое (autosave, max tool iterations, stream-narrative). All
+/// four persist on <see cref="SaveCommand"/>; the Cancel command
+/// discards every tab's edits.
+/// </para>
+///
+/// <para>
+/// <b>Live theme preview (issue #47):</b> changing <see cref="ThemeMode"/>,
+/// <see cref="AccentColor"/>, or <see cref="EnableAnimations"/> calls
+/// <see cref="ThemeService.ApplyTheme"/> immediately so the user sees the
+/// effect without saving. If they hit Cancel, the previous settings are
+/// re-applied (because Cancel doesn't persist, but the live preview has
+/// already mutated the running app — we re-apply from the on-disk
+/// settings to revert).
+/// </para>
 /// </summary>
 public partial class SettingsViewModel : ViewModelBase
 {
@@ -40,6 +60,21 @@ public partial class SettingsViewModel : ViewModelBase
     // ─── Context-window threshold (issue #25) ─────────────────────────
     private int _maxContextTokens;
 
+    // ─── Appearance (issue #47) ───────────────────────────────────────
+    private string _themeMode = "Dark";
+    private string _accentColor = "Indigo";
+    private bool _enableAnimations = true;
+
+    // ─── Multiplayer (issue #78) ──────────────────────────────────────
+    private string? _lastServerHost;
+    private int? _lastServerPort;
+    private bool _autoReconnect;
+
+    // ─── Advanced (issue #78) ─────────────────────────────────────────
+    private int _autosaveIntervalSeconds;
+    private int _maxToolIterations;
+    private bool _streamNarrative;
+
     public SettingsViewModel(
         SettingsStore settingsStore,
         MainViewModel shell)
@@ -61,6 +96,21 @@ public partial class SettingsViewModel : ViewModelBase
             _narratorModel = settings.Ai.NarratorModel;
             _petModel = settings.Ai.PetModel;
             _maxContextTokens = settings.MaxContextTokens;
+
+            // Appearance
+            _themeMode = string.IsNullOrWhiteSpace(settings.ThemeMode) ? "Dark" : settings.ThemeMode;
+            _accentColor = string.IsNullOrWhiteSpace(settings.AccentColor) ? "Indigo" : settings.AccentColor;
+            _enableAnimations = settings.EnableAnimations;
+
+            // Multiplayer
+            _lastServerHost = settings.LastServerHost;
+            _lastServerPort = settings.LastServerPort;
+            _autoReconnect = settings.AutoReconnect;
+
+            // Advanced
+            _autosaveIntervalSeconds = settings.AutosaveIntervalSeconds;
+            _maxToolIterations = settings.MaxToolIterations;
+            _streamNarrative = settings.StreamNarrative;
         }
         catch (Exception ex)
         {
@@ -77,6 +127,15 @@ public partial class SettingsViewModel : ViewModelBase
             _narratorModel = null;
             _petModel = null;
             _maxContextTokens = new Settings().MaxContextTokens;
+
+            var s = new Settings();
+            _themeMode = s.ThemeMode;
+            _accentColor = s.AccentColor;
+            _enableAnimations = s.EnableAnimations;
+            _autoReconnect = s.AutoReconnect;
+            _autosaveIntervalSeconds = s.AutosaveIntervalSeconds;
+            _maxToolIterations = s.MaxToolIterations;
+            _streamNarrative = s.StreamNarrative;
             ErrorMessage = $"Не удалось загрузить настройки: {ex.Message}";
         }
     }
@@ -165,6 +224,149 @@ public partial class SettingsViewModel : ViewModelBase
         set => SetProperty(ref _maxContextTokens, value);
     }
 
+    // ─── Appearance (issue #47) ──────────────────────────────────────
+
+    /// <summary>
+    /// "Dark", "Light", or "System". Changing this re-applies the theme
+    /// immediately (live preview) — the user sees the swap before they
+    /// hit Save.
+    /// </summary>
+    public string ThemeMode
+    {
+        get => _themeMode;
+        set
+        {
+            if (SetProperty(ref _themeMode, value))
+                ApplyLiveTheme();
+        }
+    }
+
+    /// <summary>
+    /// Accent preset name (Indigo / Emerald / Amber / Rose / Cyan /
+    /// Violet). Changing this re-applies the accent immediately.
+    /// </summary>
+    public string AccentColor
+    {
+        get => _accentColor;
+        set
+        {
+            if (SetProperty(ref _accentColor, value))
+                ApplyLiveTheme();
+        }
+    }
+
+    /// <summary>
+    /// Whether transitions/animations play across the app. Toggling
+    /// adds/removes the Window's <c>Anim</c> class via ThemeService,
+    /// turning every <c>Window.Anim</c>-scoped transition style on/off.
+    /// </summary>
+    public bool EnableAnimations
+    {
+        get => _enableAnimations;
+        set
+        {
+            if (SetProperty(ref _enableAnimations, value))
+                ApplyLiveTheme();
+        }
+    }
+
+    /// <summary>
+    /// Read-only list of the 6 accent preset names. Bound to the row of
+    /// color-swatch buttons in the «Оформление» tab; clicking a swatch
+    /// sets <see cref="AccentColor"/> via <see cref="SelectAccentCommand"/>.
+    /// </summary>
+    public IReadOnlyList<string> AccentPresets => ThemeService.AccentPresetNames;
+
+    /// <summary>
+    /// Hex color for a given accent preset name. Used by the view's
+    /// accent-swatch buttons (Background binding) so each swatch shows
+    /// its actual color.
+    /// </summary>
+    public string AccentHex(string name) => ThemeService.GetAccentHex(name);
+
+    /// <summary>
+    /// Apply the live (in-memory) theme values to the running app. Used
+    /// by the property setters above for live preview. ThemeService is
+    /// idempotent so calling it on every keystroke is fine.
+    /// </summary>
+    private void ApplyLiveTheme() =>
+        ThemeService.ApplyTheme(_themeMode, _accentColor, _enableAnimations);
+
+    /// <summary>
+    /// Apply the accent preset matching the given name and update the
+    /// bound AccentColor property. Bound to each swatch button in the
+    /// appearance tab.
+    /// </summary>
+    [RelayCommand]
+    private void SelectAccent(string? name)
+    {
+        if (string.IsNullOrWhiteSpace(name)) return;
+        AccentColor = name;
+    }
+
+    // ─── Multiplayer (issue #78) ─────────────────────────────────────
+
+    /// <summary>
+    /// Last server host the user connected to (for the "Recent servers"
+    /// dropdown). Null if the user has never joined a remote host.
+    /// </summary>
+    public string? LastServerHost
+    {
+        get => _lastServerHost;
+        set => SetProperty(ref _lastServerHost, value);
+    }
+
+    /// <summary>
+    /// Last server port. Null if the user has never joined a remote host.
+    /// </summary>
+    public int? LastServerPort
+    {
+        get => _lastServerPort;
+        set => SetProperty(ref _lastServerPort, value);
+    }
+
+    /// <summary>
+    /// Whether the multiplayer client should auto-reconnect on an
+    /// unexpected WebSocket drop. Default false.
+    /// </summary>
+    public bool AutoReconnect
+    {
+        get => _autoReconnect;
+        set => SetProperty(ref _autoReconnect, value);
+    }
+
+    // ─── Advanced (issue #78) ────────────────────────────────────────
+
+    /// <summary>
+    /// Autosave cadence in seconds. 0 = disabled (user must save
+    /// manually). Default 120 (every 2 minutes).
+    /// </summary>
+    public int AutosaveIntervalSeconds
+    {
+        get => _autosaveIntervalSeconds;
+        set => SetProperty(ref _autosaveIntervalSeconds, value);
+    }
+
+    /// <summary>
+    /// Hard cap on tool-call iterations per GM turn. Stops a misbehaving
+    /// model from looping spawn-NPC forever. Default 8.
+    /// </summary>
+    public int MaxToolIterations
+    {
+        get => _maxToolIterations;
+        set => SetProperty(ref _maxToolIterations, value);
+    }
+
+    /// <summary>
+    /// Whether narrative events stream into the UI as they're generated
+    /// (true) or only after the GM turn completes (false).
+    /// </summary>
+    public bool StreamNarrative
+    {
+        get => _streamNarrative;
+        set => SetProperty(ref _streamNarrative, value);
+    }
+
     // ─── Provider presets (issue #27) ───────────────────────────────
     //
     // The presets list is bound to a row of buttons in the settings
@@ -217,8 +419,9 @@ public partial class SettingsViewModel : ViewModelBase
     // ─── Commands ────────────────────────────────────────────────────
 
     /// <summary>
-    /// Persist the AI settings, then return to the main menu. Catches
-    /// disk errors and surfaces them inline rather than crashing.
+    /// Persist every tab's settings (AI + appearance + multiplayer +
+    /// advanced), then return to the main menu. Catches disk errors and
+    /// surfaces them inline rather than crashing.
     /// </summary>
     [RelayCommand]
     private async Task SaveAsync()
@@ -249,10 +452,32 @@ public partial class SettingsViewModel : ViewModelBase
             // system prompt + a couple turns); 200000 is the ceiling
             // (covers even 200k-context models like gpt-4-turbo-long).
             var clampedContext = Math.Max(1024, Math.Min(200000, _maxContextTokens));
+
+            // Clamp autosave interval to a sane range — 0 (disabled) to
+            // 3600 (hour). Negative values are coerced to 0.
+            var clampedAutosave = Math.Max(0, Math.Min(3600, _autosaveIntervalSeconds));
+            // Clamp MaxToolIterations to 1..50 — too small and the GM
+            // can't finish a turn; too large and a misbehaving model
+            // could burn the whole request budget.
+            var clampedIterations = Math.Max(1, Math.Min(50, _maxToolIterations));
+
+            // Server port range — 1..65535. Null is preserved (no last
+            // server). 0 is treated as null.
+            int? clampedPort = _lastServerPort is int p && p > 0 && p <= 65535 ? p : null;
+
             _settingsStore.Update(s => s with
             {
                 Ai = patchedAi,
                 MaxContextTokens = clampedContext,
+                ThemeMode = _themeMode,
+                AccentColor = _accentColor,
+                EnableAnimations = _enableAnimations,
+                LastServerHost = string.IsNullOrWhiteSpace(_lastServerHost) ? null : _lastServerHost.Trim(),
+                LastServerPort = clampedPort,
+                AutoReconnect = _autoReconnect,
+                AutosaveIntervalSeconds = clampedAutosave,
+                MaxToolIterations = clampedIterations,
+                StreamNarrative = _streamNarrative,
             });
 
             await Task.CompletedTask;
@@ -268,9 +493,21 @@ public partial class SettingsViewModel : ViewModelBase
         }
     }
 
-    /// <summary>Discard changes and return to the menu.</summary>
+    /// <summary>
+    /// Discard changes and return to the menu. Live-preview theme
+    /// changes are reverted by re-applying the on-disk settings (the
+    /// user's last saved state).
+    /// </summary>
     [RelayCommand]
-    private void Cancel() => _shell.NavigateToMenu();
+    private void Cancel()
+    {
+        // Revert live-preview theme changes by re-applying the on-disk
+        // settings. If the load fails, fall back to defaults so the UI
+        // is at least in a known state.
+        try { ThemeService.ApplyFromSettings(_settingsStore.Load()); }
+        catch { ThemeService.ApplyTheme("Dark", "Indigo", enableAnimations: true); }
+        _shell.NavigateToMenu();
+    }
 }
 
 /// <summary>

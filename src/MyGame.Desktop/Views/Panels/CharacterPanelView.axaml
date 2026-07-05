@@ -11,7 +11,7 @@
         <StackPanel Spacing="12" Margin="12">
 
             <!-- Identity -->
-            <Border Classes="PanelSection">
+            <Border Classes="PanelSection PanelRoot">
                 <StackPanel Spacing="3">
                     <Grid ColumnDefinitions="*,Auto">
                         <TextBlock Grid.Column="0" Text="{Binding Name}" FontWeight="SemiBold" FontSize="16"/>

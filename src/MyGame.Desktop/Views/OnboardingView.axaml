@@ -87,7 +87,7 @@
                             Spacing="14" MaxWidth="540" Margin="32,24"
                             IsVisible="{Binding IsStep3}">
                     <TextBlock Text="✓" FontSize="48" HorizontalAlignment="Center"
-                               Foreground="{StaticResource AppSuccessBrush}"/>
+                               Foreground="{DynamicResource AppSuccessBrush}"/>
                     <TextBlock Text="Готово!"
                                Classes="ScreenTitle" HorizontalAlignment="Center"/>
                     <TextBlock TextWrapping="Wrap" TextAlignment="Center"

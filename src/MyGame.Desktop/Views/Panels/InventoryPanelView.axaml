@@ -16,133 +16,211 @@
         <conv:RarityBrushConverter x:Key="RarityBrush" />
     </UserControl.Resources>
 
-    <DockPanel LastChildFill="True">
+    <Grid>
+        <DockPanel LastChildFill="True">
 
-        <!-- Header: currency + carrying capacity -->
-        <Border DockPanel.Dock="Top" Classes="PanelSection" Margin="12,12,12,6">
-            <StackPanel Spacing="6">
-                <Grid ColumnDefinitions="*,Auto">
-                    <TextBlock Grid.Column="0" Text="Золото" Classes="SectionTitle"
-                               ToolTip.Tip="Золото в сумке персонажа"/>
-                    <TextBlock Grid.Column="1" Text="{Binding Currency}" FontWeight="SemiBold"
-                               FontFamily="Cascadia Mono,Consolas,Menlo,monospace"/>
-                </Grid>
-                <Grid ColumnDefinitions="*,Auto">
-                    <TextBlock Grid.Column="0" Text="Переносимый вес" Classes="Small Muted"/>
-                    <TextBlock Grid.Column="1" Classes="Small"
-                               FontFamily="Cascadia Mono,Consolas,Menlo,monospace">
-                        <Run Text="{Binding CarriedWeight}"/>
-                        <Run Text=" / "/>
-                        <Run Text="{Binding Capacity}"/>
-                    </TextBlock>
-                </Grid>
-                <ProgressBar Value="{Binding WeightPercent}" Maximum="100" Height="4"/>
-            </StackPanel>
-        </Border>
+            <!-- Header: currency + carrying capacity -->
+            <Border DockPanel.Dock="Top" Classes="PanelSection PanelRoot" Margin="12,12,12,6">
+                <StackPanel Spacing="6">
+                    <Grid ColumnDefinitions="*,Auto">
+                        <TextBlock Grid.Column="0" Text="Золото" Classes="SectionTitle"
+                                   ToolTip.Tip="Золото в сумке персонажа"/>
+                        <TextBlock Grid.Column="1" Text="{Binding Currency}" FontWeight="SemiBold"
+                                   FontFamily="Cascadia Mono,Consolas,Menlo,monospace"/>
+                    </Grid>
+                    <Grid ColumnDefinitions="*,Auto">
+                        <TextBlock Grid.Column="0" Text="Переносимый вес" Classes="Small Muted"/>
+                        <TextBlock Grid.Column="1" Classes="Small"
+                                   FontFamily="Cascadia Mono,Consolas,Menlo,monospace">
+                            <Run Text="{Binding CarriedWeight}"/>
+                            <Run Text=" / "/>
+                            <Run Text="{Binding Capacity}"/>
+                        </TextBlock>
+                    </Grid>
+                    <ProgressBar Value="{Binding WeightPercent}" Maximum="100" Height="4"/>
+                </StackPanel>
+            </Border>
 
-        <ScrollViewer HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto">
-            <StackPanel Spacing="8" Margin="12,0,12,12">
+            <ScrollViewer HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto">
+                <StackPanel Spacing="8" Margin="12,0,12,12">
 
-                <!-- Carried items -->
-                <TextBlock Text="Сумка" Classes="SectionTitle" IsVisible="{Binding HasItems}"
-                           ToolTip.Tip="Предметы в рюкзаке"/>
-                <ItemsControl ItemsSource="{Binding Items}" IsVisible="{Binding HasItems}">
-                    <ItemsControl.ItemTemplate>
-                        <DataTemplate DataType="vm:InventoryItemRow">
-                            <!-- ITEM-RARITY (issue #66): the carried-item
-                                 row gets a 2px left-border accent in the
-                                 rarity color (BorderBrush bound via
-                                 RarityBrushConverter, BorderThickness
-                                 overridden inline to 2,1,1,1). The ItemRow
-                                 base style still applies for background
-                                 and corner radius. -->
-                            <Border Classes="ItemRow"
-                                    BorderBrush="{Binding Rarity, Converter={StaticResource RarityBrush}}"
-                                    BorderThickness="2,1,1,1"
-                                    Padding="6,4" Margin="0,0,0,4"
-                                    ToolTip.Tip="{Binding Description}">
-                                <StackPanel Spacing="2">
-                                    <Grid ColumnDefinitions="*,Auto">
-                                        <TextBlock Grid.Column="0" Text="{Binding Name}" FontWeight="SemiBold" Classes="Small"
+                    <!-- Carried items -->
+                    <TextBlock Text="Сумка" Classes="SectionTitle" IsVisible="{Binding HasItems}"
+                               ToolTip.Tip="Предметы в рюкзаке"/>
+                    <ItemsControl ItemsSource="{Binding Items}" IsVisible="{Binding HasItems}">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate DataType="vm:InventoryItemRow">
+                                <!-- ITEM-RARITY (issue #66): the carried-item
+                                     row gets a 2px left-border accent in the
+                                     rarity color (BorderBrush bound via
+                                     RarityBrushConverter, BorderThickness
+                                     overridden inline to 2,1,1,1). The ItemRow
+                                     base style still applies for background
+                                     and corner radius. -->
+                                <Border Classes="ItemRow"
+                                        BorderBrush="{Binding Rarity, Converter={StaticResource RarityBrush}}"
+                                        BorderThickness="2,1,1,1"
+                                        Padding="6,4" Margin="0,0,0,4"
+                                        ToolTip.Tip="{Binding Description}">
+                                    <StackPanel Spacing="2">
+                                        <Grid ColumnDefinitions="*,Auto">
+                                            <TextBlock Grid.Column="0" Text="{Binding Name}" FontWeight="SemiBold" Classes="Small"
+                                                       Foreground="{Binding Rarity, Converter={StaticResource RarityBrush}}"/>
+                                            <!-- STACK-SPLIT (issue #64): the ×N
+                                                 badge is shown for stackable
+                                                 items in bold + accent color
+                                                 so the user can tell at a
+                                                 glance that the stack is
+                                                 splittable. Non-stackable
+                                                 rows still show ×1 in muted
+                                                 gray. -->
+                                            <Border Grid.Column="1" Classes="Chip" Padding="4,1"
+                                                    IsVisible="{Binding Stackable}"
+                                                    VerticalAlignment="Center">
+                                                <TextBlock Classes="Small">
+                                                    <Run Text="×"/>
+                                                    <Run Text="{Binding Quantity}" FontWeight="SemiBold"/>
+                                                </TextBlock>
+                                            </Border>
+                                            <TextBlock Grid.Column="1" Classes="Small Muted"
+                                                       IsVisible="{Binding !Stackable}">
+                                                <Run Text="×"/>
+                                                <Run Text="{Binding Quantity}"/>
+                                            </TextBlock>
+                                        </Grid>
+                                        <!-- Rarity label (Russian adjective,
+                                             color-matched to the name). -->
+                                        <TextBlock Text="{Binding RarityLabel}"
+                                                   FontStyle="Italic" Classes="Small"
                                                    Foreground="{Binding Rarity, Converter={StaticResource RarityBrush}}"/>
-                                        <TextBlock Grid.Column="1" Classes="Small Muted">
-                                            <Run Text="×"/>
-                                            <Run Text="{Binding Quantity}"/>
-                                        </TextBlock>
-                                    </Grid>
-                                    <!-- Rarity label (Russian adjective,
-                                         color-matched to the name). -->
-                                    <TextBlock Text="{Binding RarityLabel}"
-                                               FontStyle="Italic" Classes="Small"
-                                               Foreground="{Binding Rarity, Converter={StaticResource RarityBrush}}"/>
-                                    <TextBlock Text="{Binding Description}" Classes="Muted Small" TextWrapping="Wrap"
-                                               IsVisible="{Binding Description, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"/>
-                                    <!-- Inline action buttons. Commands live on the parent VM;
-                                         RelativeSource walks up to the UserControl. -->
-                                    <StackPanel Orientation="Horizontal" Spacing="4" Margin="0,3,0,0">
-                                        <Button Content="Исп." Classes="TinyButton"
-                                                Command="{Binding DataContext.UseCommand, ElementName=Root}"
-                                                CommandParameter="{Binding}"
-                                                IsVisible="{Binding CanUse}"
-                                                ToolTip.Tip="Использовать предмет"/>
-                                        <Button Content="Экип." Classes="TinyButton"
-                                                Command="{Binding DataContext.EquipCommand, ElementName=Root}"
-                                                CommandParameter="{Binding}"
-                                                IsVisible="{Binding CanEquip}"
-                                                ToolTip.Tip="Экипировать предмет"/>
-                                        <Button Content="Бросить" Classes="TinyButton Danger"
-                                                Command="{Binding DataContext.DropCommand, ElementName=Root}"
-                                                CommandParameter="{Binding}"
-                                                ToolTip.Tip="Выбросить предмет на землю"/>
+                                        <TextBlock Text="{Binding Description}" Classes="Muted Small" TextWrapping="Wrap"
+                                                   IsVisible="{Binding Description, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"/>
+                                        <!-- Inline action buttons. Commands live on the parent VM;
+                                             RelativeSource walks up to the UserControl. -->
+                                        <StackPanel Orientation="Horizontal" Spacing="4" Margin="0,3,0,0">
+                                            <Button Content="Исп." Classes="TinyButton"
+                                                    Command="{Binding DataContext.UseCommand, ElementName=Root}"
+                                                    CommandParameter="{Binding}"
+                                                    IsVisible="{Binding CanUse}"
+                                                    ToolTip.Tip="Использовать предмет"/>
+                                            <Button Content="Экип." Classes="TinyButton"
+                                                    Command="{Binding DataContext.EquipCommand, ElementName=Root}"
+                                                    CommandParameter="{Binding}"
+                                                    IsVisible="{Binding CanEquip}"
+                                                    ToolTip.Tip="Экипировать предмет"/>
+                                            <!-- STACK-SPLIT (issue #64): the
+                                                 «Разделить» button shows for
+                                                 stackable items with more
+                                                 than one unit. Clicking opens
+                                                 the split dialog overlay. -->
+                                            <Button Content="Разд." Classes="TinyButton"
+                                                    Command="{Binding DataContext.OpenSplitCommand, ElementName=Root}"
+                                                    CommandParameter="{Binding}"
+                                                    IsVisible="{Binding CanSplit}"
+                                                    ToolTip.Tip="Разделить стопку на две"/>
+                                            <Button Content="Бросить" Classes="TinyButton Danger"
+                                                    Command="{Binding DataContext.DropCommand, ElementName=Root}"
+                                                    CommandParameter="{Binding}"
+                                                    ToolTip.Tip="Выбросить предмет на землю"/>
+                                        </StackPanel>
                                     </StackPanel>
-                                </StackPanel>
-                            </Border>
-                        </DataTemplate>
-                    </ItemsControl.ItemTemplate>
-                </ItemsControl>
+                                </Border>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
 
-                <TextBlock Text="(сумка пуста)" Classes="Muted Small" IsVisible="{Binding !HasItems}"/>
+                    <TextBlock Text="(сумка пуста)" Classes="Muted Small" IsVisible="{Binding !HasItems}"/>
 
-                <!-- Equipped items -->
-                <TextBlock Text="Надето" Classes="SectionTitle" Margin="0,8,0,0" IsVisible="{Binding HasEquipped}"
-                           ToolTip.Tip="Экипированные предметы"/>
-                <ItemsControl ItemsSource="{Binding Equipped}" IsVisible="{Binding HasEquipped}">
-                    <ItemsControl.ItemTemplate>
-                        <DataTemplate DataType="vm:InventoryItemRow">
-                            <!-- Equipped rows keep the EquippedRow class
-                                 (accent purple border, 1px). The name +
-                                 rarity label TextBlocks still get rarity
-                                 color via the Foreground binding; the
-                                 Slot Run has its own muted Foreground
-                                 which overrides the parent. -->
-                            <Border Classes="ItemRow EquippedRow" Padding="6,4" Margin="0,0,0,4"
-                                    ToolTip.Tip="{Binding Description}">
-                                <StackPanel Spacing="1">
-                                    <TextBlock Classes="Small"
-                                               Foreground="{Binding Rarity, Converter={StaticResource RarityBrush}}">
-                                        <Run Text="{Binding Slot}" Foreground="{DynamicResource SystemControlForegroundChromeMediumBrush}"/>
-                                        <Run Text=": "/>
-                                        <Run Text="{Binding Name}" FontWeight="SemiBold"/>
-                                    </TextBlock>
-                                    <!-- Rarity label (Russian adjective,
-                                         color-matched to the name). -->
-                                    <TextBlock Text="{Binding RarityLabel}"
-                                               FontStyle="Italic" Classes="Small"
-                                               Foreground="{Binding Rarity, Converter={StaticResource RarityBrush}}"/>
-                                    <TextBlock Text="{Binding Description}" Classes="Muted Small" TextWrapping="Wrap"
-                                               IsVisible="{Binding Description, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"/>
-                                    <Button Content="Снять" Classes="TinyButton"
-                                            Command="{Binding DataContext.UnequipCommand, ElementName=Root}"
-                                            CommandParameter="{Binding}"
-                                            Margin="0,3,0,0"
-                                            ToolTip.Tip="Снять предмет в сумку"/>
-                                </StackPanel>
-                            </Border>
-                        </DataTemplate>
-                    </ItemsControl.ItemTemplate>
-                </ItemsControl>
+                    <!-- Equipped items -->
+                    <TextBlock Text="Надето" Classes="SectionTitle" Margin="0,8,0,0" IsVisible="{Binding HasEquipped}"
+                               ToolTip.Tip="Экипированные предметы"/>
+                    <ItemsControl ItemsSource="{Binding Equipped}" IsVisible="{Binding HasEquipped}">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate DataType="vm:InventoryItemRow">
+                                <!-- Equipped rows keep the EquippedRow class
+                                     (accent purple border, 1px). The name +
+                                     rarity label TextBlocks still get rarity
+                                     color via the Foreground binding; the
+                                     Slot Run has its own muted Foreground
+                                     which overrides the parent. -->
+                                <Border Classes="ItemRow EquippedRow" Padding="6,4" Margin="0,0,0,4"
+                                        ToolTip.Tip="{Binding Description}">
+                                    <StackPanel Spacing="1">
+                                        <TextBlock Classes="Small"
+                                                   Foreground="{Binding Rarity, Converter={StaticResource RarityBrush}}">
+                                            <Run Text="{Binding Slot}" Foreground="{DynamicResource AppMutedBrush}"/>
+                                            <Run Text=": "/>
+                                            <Run Text="{Binding Name}" FontWeight="SemiBold"/>
+                                        </TextBlock>
+                                        <!-- Rarity label (Russian adjective,
+                                             color-matched to the name). -->
+                                        <TextBlock Text="{Binding RarityLabel}"
+                                                   FontStyle="Italic" Classes="Small"
+                                                   Foreground="{Binding Rarity, Converter={StaticResource RarityBrush}}"/>
+                                        <TextBlock Text="{Binding Description}" Classes="Muted Small" TextWrapping="Wrap"
+                                                   IsVisible="{Binding Description, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"/>
+                                        <Button Content="Снять" Classes="TinyButton"
+                                                Command="{Binding DataContext.UnequipCommand, ElementName=Root}"
+                                                CommandParameter="{Binding}"
+                                                Margin="0,3,0,0"
+                                                ToolTip.Tip="Снять предмет в сумку"/>
+                                    </StackPanel>
+                                </Border>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
 
-            </StackPanel>
-        </ScrollViewer>
-    </DockPanel>
+                </StackPanel>
+            </ScrollViewer>
+        </DockPanel>
+
+        <!--
+            STACK-SPLIT (issue #64): modal split-stack dialog overlay.
+            Covers the inventory panel with a semi-opaque backdrop when
+            IsSplitDialogOpen is true. The inner Border.SplitDialog is
+            centered, shows the item name + current quantity, a
+            NumericUpDown (1..qty-1), and Разделить / Отмена buttons.
+            Confirm raises an ItemAction(Split); Cancel just closes.
+            Pattern mirrors the death / reconnect overlays in GameView.
+        -->
+        <Border Background="#CC000000"
+                IsVisible="{Binding IsSplitDialogOpen}"
+                HorizontalAlignment="Stretch"
+                VerticalAlignment="Stretch"
+                ZIndex="100">
+            <Border Classes="SplitDialog"
+                    HorizontalAlignment="Center"
+                    VerticalAlignment="Center">
+                <StackPanel Spacing="12">
+                    <TextBlock Text="Разделить стопку" FontSize="16" FontWeight="Bold"
+                               HorizontalAlignment="Center"/>
+                    <TextBlock Classes="Muted Small" HorizontalAlignment="Center" TextAlignment="Center">
+                        <Run Text="«"/>
+                        <Run Text="{Binding SplitTarget.Name}"/>
+                        <Run Text="»"/>
+                        <Run Text=" (×"/>
+                        <Run Text="{Binding SplitTarget.Quantity}"/>
+                        <Run Text=")"/>
+                    </TextBlock>
+                    <StackPanel Spacing="4">
+                        <TextBlock Text="Сколько забрать в новую стопку?" Classes="FieldLabel"/>
+                        <NumericUpDown Value="{Binding SplitQuantity}"
+                                       Minimum="1"
+                                       Maximum="{Binding SplitTarget.Quantity, Converter={x:Static conv:SplitMaxMinusOneConverter.Instance}}"
+                                       Increment="1" FormatString="0"
+                                       ToolTip.Tip="Количество, которое будет перенесено в новую стопку (1..N-1)."/>
+                    </StackPanel>
+                    <Border Classes="Separator" Margin="0,4"/>
+                    <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Right">
+                        <Button Content="Отмена" Classes="SmallButton"
+                                Command="{Binding CancelSplitCommand}"
+                                ToolTip.Tip="Закрыть без разделения"/>
+                        <Button Content="Разделить" Classes="SmallButton Primary"
+                                Command="{Binding ConfirmSplitCommand}"
+                                ToolTip.Tip="Создать новую стопку с указанным количеством"/>
+                    </StackPanel>
+                </StackPanel>
+            </Border>
+        </Border>
+    </Grid>
 </UserControl>

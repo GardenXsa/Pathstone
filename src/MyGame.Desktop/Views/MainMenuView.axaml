@@ -203,8 +203,8 @@
                 ZIndex="100"
                 PointerPressed="OnDeleteConfirmOverlayClick">
             <Border HorizontalAlignment="Center" VerticalAlignment="Center"
-                    Background="{StaticResource AppSurfaceBrush}"
-                    BorderBrush="{StaticResource AppDangerBrush}"
+                    Background="{DynamicResource AppSurfaceBrush}"
+                    BorderBrush="{DynamicResource AppDangerBrush}"
                     BorderThickness="2" CornerRadius="8"
                     Padding="40,30" MinWidth="380" MaxWidth="560">
                 <StackPanel Spacing="14" HorizontalAlignment="Center">
@@ -212,7 +212,7 @@
                     <TextBlock Text="Удалить выбранные сохранения?"
                                FontSize="20" FontWeight="Bold"
                                HorizontalAlignment="Center"
-                               Foreground="{StaticResource AppDangerBrush}"/>
+                               Foreground="{DynamicResource AppDangerBrush}"/>
                     <TextBlock Text="Это действие нельзя отменить. Выбранные сохранения будут удалены с диска."
                                Classes="Muted Small"
                                HorizontalAlignment="Center" TextWrapping="Wrap"

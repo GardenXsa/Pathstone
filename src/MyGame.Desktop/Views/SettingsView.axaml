@@ -3,6 +3,7 @@
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              xmlns:vm="using:MyGame.Desktop.ViewModels"
+             xmlns:conv="using:MyGame.Desktop.Converters"
              mc:Ignorable="d" d:DesignWidth="800" d:DesignHeight="600"
              x:Class="MyGame.Desktop.Views.SettingsView"
              x:Name="Root"
@@ -30,126 +31,294 @@
             <TextBlock Text="{Binding ErrorMessage}" />
         </Border>
 
-        <ScrollViewer HorizontalScrollBarVisibility="Disabled">
-            <StackPanel Margin="32,24" Spacing="18" MaxWidth="640" HorizontalAlignment="Center">
-
-                <TextBlock Text="Подключение к ИИ (OpenAI-совместимый API)" Classes="SectionTitle"/>
-                <StackPanel Spacing="12">
-                    <!-- Provider presets (issue #27). Click to fill in
-                         BaseUrl + Model (+ clear ApiKey for local
-                         providers). Tooltips explain each provider.
-                         The button's Command is bound UP to the parent
-                         SettingsViewModel via ElementName=Root (the
-                         UserControl's own DataContext) because the
-                         button's own DataContext is the AiPreset row
-                         (used for the CommandParameter). Mirrors the
-                         InventoryPanel's pattern for parent-VM commands
-                         fired from inside an ItemsControl template. -->
-                    <StackPanel Spacing="6">
-                        <TextBlock Text="Пресеты" Classes="FieldLabel"/>
-                        <ItemsControl ItemsSource="{Binding Presets}">
-                            <ItemsControl.ItemsPanel>
-                                <ItemsPanelTemplate>
-                                    <WrapPanel Orientation="Horizontal"/>
-                                </ItemsPanelTemplate>
-                            </ItemsControl.ItemsPanel>
-                            <ItemsControl.ItemTemplate>
-                                <DataTemplate DataType="vm:AiPreset">
-                                    <Button Content="{Binding Label}"
-                                            Command="{Binding DataContext.ApplyPresetCommand, ElementName=Root}"
-                                            CommandParameter="{Binding}"
-                                            Classes="TinyButton"
-                                            Margin="0,0,4,4"
-                                            ToolTip.Tip="{Binding Tooltip}"/>
-                                </DataTemplate>
-                            </ItemsControl.ItemTemplate>
-                        </ItemsControl>
-                    </StackPanel>
-                    <StackPanel Spacing="6">
-                        <TextBlock Text="Base URL" Classes="FieldLabel"/>
-                        <TextBox Text="{Binding BaseUrl}" PlaceholderText="https://api.openai.com/v1"
-                                 ToolTip.Tip="API endpoint, напр. https://api.openai.com/v1"/>
-                    </StackPanel>
-                    <StackPanel Spacing="6">
-                        <TextBlock Text="API Key" Classes="FieldLabel"/>
-                        <TextBox Text="{Binding ApiKey}" PlaceholderText="sk-… (оставьте пустым для локальных серверов)"
-                                 PasswordChar="•"
-                                 ToolTip.Tip="Ключ API; пусто для локальных серверов"/>
-                    </StackPanel>
-                    <StackPanel Spacing="6">
-                        <TextBlock Text="Модель" Classes="FieldLabel"/>
-                        <TextBox Text="{Binding Model}" PlaceholderText="gpt-4o-mini, deepseek-chat, llama3.1:8b…"
-                                 ToolTip.Tip="Имя модели по умолчанию, напр. gpt-4o-mini"/>
-                    </StackPanel>
-                    <Grid ColumnDefinitions="*,*">
-                        <StackPanel Grid.Column="0" Spacing="6">
-                            <TextBlock Text="Temperature" Classes="FieldLabel"/>
-                            <NumericUpDown Value="{Binding Temperature}" Minimum="0" Maximum="2"
-                                           Increment="0.1" FormatString="0.0"
-                                           ToolTip.Tip="0=детерминированно, 2=креативно"/>
-                        </StackPanel>
-                        <StackPanel Grid.Column="1" Spacing="6" Margin="12,0,0,0">
-                            <TextBlock Text="Max tokens" Classes="FieldLabel"/>
-                            <NumericUpDown Value="{Binding MaxTokens}" Minimum="64" Maximum="32000"
-                                           Increment="256"
-                                           ToolTip.Tip="Лимит токенов на ответ"/>
-                        </StackPanel>
-                    </Grid>
-                </StackPanel>
-
-                <!-- Per-role model overrides (issue #26) ───────────────────────── -->
-                <TextBlock Text="Модели по ролям (необязательно)" Classes="SectionTitle"
-                           ToolTip.Tip="Можно задать разные модели для разных ролей; пусто = использовать основную модель"/>
-                <StackPanel Spacing="12">
-                    <StackPanel Spacing="6">
-                        <TextBlock Text="Планировщик мира (Planner)" Classes="FieldLabel"/>
-                        <TextBox Text="{Binding PlannerModel}" PlaceholderText="по умолчанию (= Модель)"
-                                 ToolTip.Tip="Модель для планировщика мира (один вызов на генерацию мира). Пусто = основная модель."/>
-                    </StackPanel>
-                    <StackPanel Spacing="6">
-                        <TextBlock Text="Мастер игры (GM)" Classes="FieldLabel"/>
-                        <TextBox Text="{Binding GMModel}" PlaceholderText="по умолчанию (= Модель)"
-                                 ToolTip.Tip="Модель для мастера игры (основной цикл, частые вызовы). Пусто = основная модель."/>
-                    </StackPanel>
-                    <StackPanel Spacing="6">
-                        <TextBlock Text="Нарратор (Narrator)" Classes="FieldLabel"/>
-                        <TextBox Text="{Binding NarratorModel}" PlaceholderText="по умолчанию (= Модель)"
-                                 ToolTip.Tip="Модель для вступительной наррации мира (один вызов на генерацию). Пусто = основная модель."/>
-                    </StackPanel>
-                    <StackPanel Spacing="6">
-                        <TextBlock Text="Pet-агент" Classes="FieldLabel"/>
-                        <TextBox Text="{Binding PetModel}" PlaceholderText="по умолчанию (= Модель)"
-                                 ToolTip.Tip="Модель для делегированных pet-агентов (побочные задачи). Пусто = основная модель."/>
-                    </StackPanel>
-                    <TextBlock Text="Поля выше необязательны — оставьте пустым, чтобы использовать основную модель."
-                               Classes="Muted Small" TextWrapping="Wrap"/>
-                </StackPanel>
-
-                <!-- Context-window threshold (issue #25) ────────────────────────── -->
-                <TextBlock Text="Контекстное окно" Classes="SectionTitle"
-                           ToolTip.Tip="Порог суммаризации истории диалога"/>
-                <StackPanel Spacing="6">
-                    <TextBlock Text="Max context tokens" Classes="FieldLabel"/>
-                    <NumericUpDown Value="{Binding MaxContextTokens}" Minimum="1024" Maximum="200000"
-                                   Increment="1000" FormatString="0"
-                                   ToolTip.Tip="Порог ранней суммаризации истории. 80% от этого значения = старая история сжимается в краткое изложение."/>
-                    <TextBlock Text="При превышении 80% от этого порога старая история сжимается в краткое изложение (~300 слов), чтобы не переполнять контекст модели."
-                               Classes="Muted Small" TextWrapping="Wrap"/>
-                </StackPanel>
-
-                <TextBlock Text="Никнейм редактируется прямо на главном экране (поле в правом верхнем углу)."
-                           Classes="Muted Small" TextWrapping="Wrap"/>
-
-                <Border Classes="Separator"/>
-
-                <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Right">
-                    <Button Content="Отмена" Command="{Binding CancelCommand}" Classes="MenuButton"
-                            ToolTip.Tip="Отменить изменения"/>
-                    <Button Content="Сохранить" Command="{Binding SaveCommand}" Classes="MenuButton Primary"
-                            IsEnabled="{Binding !IsBusy}"
-                            ToolTip.Tip="Сохранить и вернуться в меню"/>
-                </StackPanel>
+        <!--
+            Bottom action bar (issue #78 #2b): Save / Cancel stay
+            anchored outside the TabControl so they're always visible
+            regardless of which tab is active.
+        -->
+        <Border DockPanel.Dock="Bottom" Classes="StatusBar">
+            <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Right">
+                <Button Content="Отмена" Command="{Binding CancelCommand}" Classes="SmallButton"
+                        ToolTip.Tip="Отменить изменения"/>
+                <Button Content="Сохранить" Command="{Binding SaveCommand}" Classes="SmallButton Primary"
+                        IsEnabled="{Binding !IsBusy}"
+                        ToolTip.Tip="Сохранить и вернуться в меню"/>
             </StackPanel>
-        </ScrollViewer>
+        </Border>
+
+        <!--
+            Tabbed body (issue #78 #2a). Four tabs: AI (existing),
+            Оформление (theme + accent + animations), Мультиплеер
+            (server + reconnect), Продвинутое (autosave + iterations +
+            stream). The TabControl's SettingsTabs class gives it a flat
+            look with an accent underline on the selected header
+            (defined in App.axaml).
+        -->
+        <TabControl Classes="SettingsTabs" Padding="0" Margin="0">
+            <TabItem Header="AI">
+                <ScrollViewer HorizontalScrollBarVisibility="Disabled" Padding="24,18">
+                    <StackPanel Spacing="18" MaxWidth="640" HorizontalAlignment="Left">
+
+                        <TextBlock Text="Подключение к ИИ (OpenAI-совместимый API)" Classes="SectionTitle"/>
+                        <StackPanel Spacing="12">
+                            <!-- Provider presets (issue #27). Click to fill in
+                                 BaseUrl + Model (+ clear ApiKey for local
+                                 providers). Tooltips explain each provider.
+                                 The button's Command is bound UP to the parent
+                                 SettingsViewModel via ElementName=Root (the
+                                 UserControl's own DataContext) because the
+                                 button's own DataContext is the AiPreset row
+                                 (used for the CommandParameter). Mirrors the
+                                 InventoryPanel's pattern for parent-VM commands
+                                 fired from inside an ItemsControl template. -->
+                            <StackPanel Spacing="6">
+                                <TextBlock Text="Пресеты" Classes="FieldLabel"/>
+                                <ItemsControl ItemsSource="{Binding Presets}">
+                                    <ItemsControl.ItemsPanel>
+                                        <ItemsPanelTemplate>
+                                            <WrapPanel Orientation="Horizontal"/>
+                                        </ItemsPanelTemplate>
+                                    </ItemsControl.ItemsPanel>
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate DataType="vm:AiPreset">
+                                            <Button Content="{Binding Label}"
+                                                    Command="{Binding DataContext.ApplyPresetCommand, ElementName=Root}"
+                                                    CommandParameter="{Binding}"
+                                                    Classes="TinyButton"
+                                                    Margin="0,0,4,4"
+                                                    ToolTip.Tip="{Binding Tooltip}"/>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                            </StackPanel>
+                            <StackPanel Spacing="6">
+                                <TextBlock Text="Base URL" Classes="FieldLabel"/>
+                                <TextBox Text="{Binding BaseUrl}" PlaceholderText="https://api.openai.com/v1"
+                                         ToolTip.Tip="API endpoint, напр. https://api.openai.com/v1"/>
+                            </StackPanel>
+                            <StackPanel Spacing="6">
+                                <TextBlock Text="API Key" Classes="FieldLabel"/>
+                                <TextBox Text="{Binding ApiKey}" PlaceholderText="sk-… (оставьте пустым для локальных серверов)"
+                                         PasswordChar="•"
+                                         ToolTip.Tip="Ключ API; пусто для локальных серверов"/>
+                            </StackPanel>
+                            <StackPanel Spacing="6">
+                                <TextBlock Text="Модель" Classes="FieldLabel"/>
+                                <TextBox Text="{Binding Model}" PlaceholderText="gpt-4o-mini, deepseek-chat, llama3.1:8b…"
+                                         ToolTip.Tip="Имя модели по умолчанию, напр. gpt-4o-mini"/>
+                            </StackPanel>
+                            <Grid ColumnDefinitions="*,*">
+                                <StackPanel Grid.Column="0" Spacing="6">
+                                    <TextBlock Text="Temperature" Classes="FieldLabel"/>
+                                    <NumericUpDown Value="{Binding Temperature}" Minimum="0" Maximum="2"
+                                                   Increment="0.1" FormatString="0.0"
+                                                   ToolTip.Tip="0=детерминированно, 2=креативно"/>
+                                </StackPanel>
+                                <StackPanel Grid.Column="1" Spacing="6" Margin="12,0,0,0">
+                                    <TextBlock Text="Max tokens" Classes="FieldLabel"/>
+                                    <NumericUpDown Value="{Binding MaxTokens}" Minimum="64" Maximum="32000"
+                                                   Increment="256"
+                                                   ToolTip.Tip="Лимит токенов на ответ"/>
+                                </StackPanel>
+                            </Grid>
+                        </StackPanel>
+
+                        <!-- Per-role model overrides (issue #26) ───────────────────────── -->
+                        <TextBlock Text="Модели по ролям (необязательно)" Classes="SectionTitle"
+                                   ToolTip.Tip="Можно задать разные модели для разных ролей; пусто = использовать основную модель"/>
+                        <StackPanel Spacing="12">
+                            <StackPanel Spacing="6">
+                                <TextBlock Text="Планировщик мира (Planner)" Classes="FieldLabel"/>
+                                <TextBox Text="{Binding PlannerModel}" PlaceholderText="по умолчанию (= Модель)"
+                                         ToolTip.Tip="Модель для планировщика мира (один вызов на генерацию мира). Пусто = основная модель."/>
+                            </StackPanel>
+                            <StackPanel Spacing="6">
+                                <TextBlock Text="Мастер игры (GM)" Classes="FieldLabel"/>
+                                <TextBox Text="{Binding GMModel}" PlaceholderText="по умолчанию (= Модель)"
+                                         ToolTip.Tip="Модель для мастера игры (основной цикл, частые вызовы). Пусто = основная модель."/>
+                            </StackPanel>
+                            <StackPanel Spacing="6">
+                                <TextBlock Text="Нарратор (Narrator)" Classes="FieldLabel"/>
+                                <TextBox Text="{Binding NarratorModel}" PlaceholderText="по умолчанию (= Модель)"
+                                         ToolTip.Tip="Модель для вступительной наррации мира (один вызов на генерацию). Пусто = основная модель."/>
+                            </StackPanel>
+                            <StackPanel Spacing="6">
+                                <TextBlock Text="Pet-агент" Classes="FieldLabel"/>
+                                <TextBox Text="{Binding PetModel}" PlaceholderText="по умолчанию (= Модель)"
+                                         ToolTip.Tip="Модель для делегированных pet-агентов (побочные задачи). Пусто = основная модель."/>
+                            </StackPanel>
+                            <TextBlock Text="Поля выше необязательны — оставьте пустым, чтобы использовать основную модель."
+                                       Classes="Muted Small" TextWrapping="Wrap"/>
+                        </StackPanel>
+
+                        <!-- Context-window threshold (issue #25) ────────────────────────── -->
+                        <TextBlock Text="Контекстное окно" Classes="SectionTitle"
+                                   ToolTip.Tip="Порог суммаризации истории диалога"/>
+                        <StackPanel Spacing="6">
+                            <TextBlock Text="Max context tokens" Classes="FieldLabel"/>
+                            <NumericUpDown Value="{Binding MaxContextTokens}" Minimum="1024" Maximum="200000"
+                                           Increment="1000" FormatString="0"
+                                           ToolTip.Tip="Порог ранней суммаризации истории. 80% от этого значения = старая история сжимается в краткое изложение."/>
+                            <TextBlock Text="При превышении 80% от этого порога старая история сжимается в краткое изложение (~300 слов), чтобы не переполнять контекст модели."
+                                       Classes="Muted Small" TextWrapping="Wrap"/>
+                        </StackPanel>
+                    </StackPanel>
+                </ScrollViewer>
+            </TabItem>
+
+            <!-- ════════════════ Оформление (Display) tab (issue #47) ════════════════ -->
+            <TabItem Header="Оформление">
+                <ScrollViewer HorizontalScrollBarVisibility="Disabled" Padding="24,18">
+                    <StackPanel Spacing="18" MaxWidth="640" HorizontalAlignment="Left">
+
+                        <TextBlock Text="Оформление" Classes="SectionTitle"/>
+
+                        <!-- Theme mode (Dark / Light / System). Three radio-style
+                             buttons in a WrapPanel. Changing the selection
+                             re-applies the theme immediately (live preview). -->
+                        <StackPanel Spacing="6">
+                            <TextBlock Text="Тема" Classes="FieldLabel"/>
+                            <StackPanel Orientation="Horizontal" Spacing="8">
+                                <RadioButton Content="Тёмная" GroupName="ThemeMode"
+                                             IsChecked="{Binding ThemeMode, Converter={x:Static conv:ThemeModeEqualsConverter.Instance}, ConverterParameter=Dark, Mode=TwoWay}"
+                                             ToolTip.Tip="Тёмная палитра (по умолчанию)"/>
+                                <RadioButton Content="Светлая" GroupName="ThemeMode"
+                                             IsChecked="{Binding ThemeMode, Converter={x:Static conv:ThemeModeEqualsConverter.Instance}, ConverterParameter=Light, Mode=TwoWay}"
+                                             ToolTip.Tip="Светлая палитра"/>
+                                <RadioButton Content="Системная" GroupName="ThemeMode"
+                                             IsChecked="{Binding ThemeMode, Converter={x:Static conv:ThemeModeEqualsConverter.Instance}, ConverterParameter=System, Mode=TwoWay}"
+                                             ToolTip.Tip="Следовать системной теме"/>
+                            </StackPanel>
+                        </StackPanel>
+
+                        <!-- Accent color presets (issue #47 1b). 6 swatch
+                             buttons, each filled with the preset's accent
+                             color. Clicking a swatch sets AccentColor on
+                             the VM via SelectAccentCommand, which fires
+                             ApplyLiveTheme() so the user sees the swap
+                             immediately across the whole UI. The current
+                             selection is shown as text below the swatches. -->
+                        <StackPanel Spacing="6">
+                            <TextBlock Text="Акцентный цвет" Classes="FieldLabel"/>
+                            <ItemsControl ItemsSource="{Binding AccentPresets}">
+                                <ItemsControl.ItemsPanel>
+                                    <ItemsPanelTemplate>
+                                        <WrapPanel Orientation="Horizontal"/>
+                                    </ItemsPanelTemplate>
+                                </ItemsControl.ItemsPanel>
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate DataType="x:String">
+                                        <Button Classes="AccentSwatch"
+                                                Background="{Binding ., Converter={x:Static conv:AccentHexConverter.Instance}}"
+                                                Command="{Binding DataContext.SelectAccentCommand, ElementName=Root}"
+                                                CommandParameter="{Binding}"
+                                                ToolTip.Tip="{Binding .}"/>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                            <StackPanel Orientation="Horizontal" Spacing="6" Margin="0,4,0,0">
+                                <TextBlock Text="Выбранный акцент:"
+                                           Classes="Muted Small"/>
+                                <TextBlock Text="{Binding AccentColor}" Classes="Small" FontWeight="SemiBold"/>
+                            </StackPanel>
+                        </StackPanel>
+
+                        <!-- Animations toggle. On change, ThemeService adds/removes
+                             the Window's "Anim" class so every Window.Anim-scoped
+                             transition style turns on/off in one shot. -->
+                        <StackPanel Spacing="6">
+                            <TextBlock Text="Анимации" Classes="FieldLabel"/>
+                            <CheckBox Content="Включить анимации и переходы"
+                                      IsChecked="{Binding EnableAnimations}"
+                                      ToolTip.Tip="Снимите флажок, чтобы отключить все переходы (для медленных машин или при чувствительности к движению)."/>
+                            <TextBlock Text="Отключает плавные переходы между экранами, появление записей в журнале, анимацию заполнения прогресс-баров и подсветку кнопок."
+                                       Classes="Muted Small" TextWrapping="Wrap"/>
+                        </StackPanel>
+
+                        <Border Classes="Separator"/>
+
+                        <TextBlock Text="Изменения применяются сразу и сохраняются при нажатии «Сохранить». Кнопка «Отмена» откатывает живой предпросмотр к последнему сохранённому состоянию."
+                                   Classes="Muted Small" TextWrapping="Wrap"/>
+                    </StackPanel>
+                </ScrollViewer>
+            </TabItem>
+
+            <!-- ════════════════ Мультиплеер (Multiplayer) tab (issue #78) ═══════════ -->
+            <TabItem Header="Мультиплеер">
+                <ScrollViewer HorizontalScrollBarVisibility="Disabled" Padding="24,18">
+                    <StackPanel Spacing="18" MaxWidth="640" HorizontalAlignment="Left">
+
+                        <TextBlock Text="Мультиплеер" Classes="SectionTitle"/>
+
+                        <StackPanel Spacing="6">
+                            <TextBlock Text="Последний хост" Classes="FieldLabel"/>
+                            <TextBox Text="{Binding LastServerHost}" PlaceholderText="напр. 192.168.1.42 или example.com"
+                                     ToolTip.Tip="Адрес последнего хоста, к которому вы подключались (используется как значение по умолчанию в окне подключения)."/>
+                        </StackPanel>
+
+                        <StackPanel Spacing="6">
+                            <TextBlock Text="Последний порт" Classes="FieldLabel"/>
+                            <NumericUpDown Value="{Binding LastServerPort}" Minimum="1" Maximum="65535"
+                                           Increment="1" FormatString="0"
+                                           ToolTip.Tip="Порт последнего хоста. Оставьте 0, чтобы очистить значение."/>
+                            <TextBlock Text="0 = нет сохранённого порта. Диапазон: 1–65535."
+                                       Classes="Muted Small" TextWrapping="Wrap"/>
+                        </StackPanel>
+
+                        <StackPanel Spacing="6">
+                            <TextBlock Text="Режим переподключения" Classes="FieldLabel"/>
+                            <CheckBox Content="Автоматически переподключаться при разрыве соединения"
+                                      IsChecked="{Binding AutoReconnect}"
+                                      ToolTip.Tip="Если флажок снят (по умолчанию), при разрыве соединения появится оверлей с кнопкой «Переподключиться». Если флажок установлен, клиент будет пытаться переподключиться автоматически."/>
+                            <TextBlock Text="По умолчанию выключено — оверлей с кнопкой даёт пользователю контроль над моментом повторной попытки."
+                                       Classes="Muted Small" TextWrapping="Wrap"/>
+                        </StackPanel>
+                    </StackPanel>
+                </ScrollViewer>
+            </TabItem>
+
+            <!-- ════════════════ Продвинутое (Advanced) tab (issue #78) ═════════════ -->
+            <TabItem Header="Продвинутое">
+                <ScrollViewer HorizontalScrollBarVisibility="Disabled" Padding="24,18">
+                    <StackPanel Spacing="18" MaxWidth="640" HorizontalAlignment="Left">
+
+                        <TextBlock Text="Продвинутое" Classes="SectionTitle"/>
+
+                        <StackPanel Spacing="6">
+                            <TextBlock Text="Интервал автосохранения (секунды)" Classes="FieldLabel"/>
+                            <NumericUpDown Value="{Binding AutosaveIntervalSeconds}" Minimum="0" Maximum="3600"
+                                           Increment="30" FormatString="0"
+                                           ToolTip.Tip="0 = автосохранение выключено (только по Ctrl+S). По умолчанию 120 (раз в 2 минуты)."/>
+                            <TextBlock Text="0 = выключено. По умолчанию 120 (раз в 2 минуты)."
+                                       Classes="Muted Small" TextWrapping="Wrap"/>
+                        </StackPanel>
+
+                        <StackPanel Spacing="6">
+                            <TextBlock Text="Максимум итераций инструментов" Classes="FieldLabel"/>
+                            <NumericUpDown Value="{Binding MaxToolIterations}" Minimum="1" Maximum="50"
+                                           Increment="1" FormatString="0"
+                                           ToolTip.Tip="Верхний предел числа вызовов инструментов за один ход GM. Предотвращает зацикливание. По умолчанию 8."/>
+                            <TextBlock Text="Останавливает зацикливание, если модель вызывает инструменты бесконечно. По умолчанию 8."
+                                       Classes="Muted Small" TextWrapping="Wrap"/>
+                        </StackPanel>
+
+                        <StackPanel Spacing="6">
+                            <TextBlock Text="Стрим нарратива" Classes="FieldLabel"/>
+                            <CheckBox Content="Показывать нарратив по мере генерации"
+                                      IsChecked="{Binding StreamNarrative}"
+                                      ToolTip.Tip="Если флажок установлен (по умолчанию), текст нарратива появляется по мере генерации (лучше UX, чуть больше CPU). Если снят — только после завершения хода GM."/>
+                        </StackPanel>
+
+                        <Border Classes="Separator"/>
+
+                        <TextBlock Text="Уровень логирования (заглушка)"
+                                   Classes="SectionTitle"
+                                   ToolTip.Tip="Будет доступно в будущей версии"/>
+                        <TextBlock Text="Подробное логирование пока недоступно. Аварийные дампы пишутся в папку профиля при сбое."
+                                   Classes="Muted Small" TextWrapping="Wrap"/>
+                    </StackPanel>
+                </ScrollViewer>
+            </TabItem>
+        </TabControl>
     </DockPanel>
 </UserControl>

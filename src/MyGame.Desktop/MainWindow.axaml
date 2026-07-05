@@ -11,8 +11,20 @@
         Width="1280" Height="800"
         WindowStartupLocation="CenterScreen">
 
-    <!-- The content is whatever ViewModel is currently set on the
-         shell's MainViewModel.CurrentView. The ViewLocator DataTemplate
-         (registered in App.axaml) resolves it to the matching *View. -->
-    <ContentControl Content="{Binding CurrentView}" />
+    <!--
+        ANIMATIONS (issue #46 #4a): wrap the shell content in a
+        TransitioningContentControl so that switching screens
+        (MainViewModel.CurrentView changes) cross-fades the old view
+        out and the new view in over ~250 ms. The PageTransition is a
+        CrossFade with CubicEaseOut easing — short + subtle, never
+        flashy. When Settings.EnableAnimations is false, ThemeService
+        removes the Window's "Anim" class and the
+        Window.Anim TransitioningContentControl style overrides
+        PageTransition to null (instant swap).
+    -->
+    <TransitioningContentControl Content="{Binding CurrentView}">
+        <TransitioningContentControl.PageTransition>
+            <CrossFade Duration="0:0:0.25" />
+        </TransitioningContentControl.PageTransition>
+    </TransitioningContentControl>
 </Window>

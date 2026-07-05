@@ -81,7 +81,7 @@
                             <ItemsControl.ItemTemplate>
                                 <DataTemplate DataType="vm:PetDelegationProgress">
                                     <Border Margin="0,0,0,4" Padding="6,4"
-                                            BorderBrush="{StaticResource AppBorderBrush}"
+                                            BorderBrush="{DynamicResource AppBorderBrush}"
                                             BorderThickness="1" CornerRadius="3">
                                         <StackPanel Spacing="2">
                                             <Grid ColumnDefinitions="Auto,*,Auto">

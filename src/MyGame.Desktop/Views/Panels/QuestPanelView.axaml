@@ -15,7 +15,7 @@
                  three sections (active/completed/failed). Sort only
                  affects the active section (completed/failed are short
                  summaries in creation order). -->
-            <Border Classes="PanelSection" Padding="6">
+            <Border Classes="PanelSection PanelRoot" Padding="6">
                 <StackPanel Spacing="6">
                     <TextBox Text="{Binding SearchText}" PlaceholderText="Поиск по названию или описанию…"
                              ToolTip.Tip="Фильтр по всем квестам (без учёта регистра)"/>

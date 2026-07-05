@@ -107,6 +107,35 @@ public sealed record Settings
     /// </summary>
     public bool EnableAnimations { get; init; } = true;
 
+    // ─── Appearance / theme (issue #47) ──────────────────────────────
+
+    /// <summary>
+    /// UI theme mode. One of <c>"Dark"</c> (default, matches the original
+    /// Pathstone look), <c>"Light"</c>, or <c>"System"</c> (follows the OS
+    /// preference at startup; we don't react to OS theme changes mid-session).
+    /// Applied at app startup by <c>ThemeService.ApplyTheme</c> and on
+    /// every SettingsStore.Changed event.
+    /// </summary>
+    public string ThemeMode { get; init; } = "Dark";
+
+    /// <summary>
+    /// Accent color preset name. One of <c>"Indigo"</c> (default),
+    /// <c>"Emerald"</c>, <c>"Amber"</c>, <c>"Rose"</c>, <c>"Cyan"</c>,
+    /// <c>"Violet"</c>. ThemeService resolves the name to a hex color and
+    /// writes it into the AppAccent / AppAccentFg application resources.
+    /// </summary>
+    public string AccentColor { get; init; } = "Indigo";
+
+    // ─── Multiplayer (issue #78) ─────────────────────────────────────
+
+    /// <summary>
+    /// Whether the multiplayer client should auto-reconnect on an
+    /// unexpected WebSocket drop (vs. surfacing the disconnect overlay
+    /// and waiting for the user to click «Переподключиться»). Default
+    /// false — explicit reconnect keeps the user in control.
+    /// </summary>
+    public bool AutoReconnect { get; init; } = false;
+
     // ─── Onboarding / tutorial (issue #73) ────────────────────────────
 
     /// <summary>
