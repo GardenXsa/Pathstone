@@ -106,4 +106,23 @@ public sealed record Settings
     /// machines or with motion sensitivity.
     /// </summary>
     public bool EnableAnimations { get; init; } = true;
+
+    // ─── Onboarding / tutorial (issue #73) ────────────────────────────
+
+    /// <summary>
+    /// Number of times the user has visited the main menu. Used to
+    /// decide whether to show the first-time tooltip hints under the
+    /// menu buttons (Новая игра / Создать мир / Хост игры). The hints
+    /// are shown for the first three sessions (<c>SessionCount &lt; 3</c>)
+    /// and hidden afterwards. Defaults to 0 — old settings.json files
+    /// (written before this field existed) load with 0, which correctly
+    /// triggers the hints for users who haven't seen them yet.
+    /// </summary>
+    /// <remarks>
+    /// Incremented once per main-menu visit by
+    /// <see cref="MyGame.Desktop.ViewModels.MainMenuViewModel"/> on
+    /// construction. Never reset (a future "show hints again" affordance
+    /// could reset it to 0).
+    /// </remarks>
+    public int SessionCount { get; init; } = 0;
 }

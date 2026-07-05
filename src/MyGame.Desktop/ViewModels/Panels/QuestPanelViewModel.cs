@@ -4,6 +4,7 @@ using System.Collections.ObjectModel;
 using System.Linq;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using MyGame.Core.Common;
 using MyGame.Core.World;
 using MyGame.Core.World.Entities;
 
@@ -14,6 +15,16 @@ namespace MyGame.Desktop.ViewModels.Panels;
 /// quests with their objectives (with done/pending markers) and rewards.
 /// Read-only — quest state changes happen via the GM tool flow (the GM
 /// marks objectives done via <c>update_quest</c>).
+///
+/// <para>
+/// <b>Reward claiming (issue #70):</b> completed quests with unclaimed
+/// rewards (<see cref="Quest.UnclaimedRewards"/> != null) show a
+/// «Получить награду» button. Clicking it raises
+/// <see cref="ClaimRewardsRequested"/>, which GameViewModel subscribes
+/// to. The host grants the currency / XP / items, clears
+/// <see cref="Quest.UnclaimedRewards"/>, appends a log entry, refreshes
+/// the panels, and persists.
+/// </para>
 ///
 /// <para>
 /// <b>Polish (issue #69):</b> the panel supports:
@@ -45,6 +56,15 @@ public partial class QuestPanelViewModel : ObservableObject
     private readonly List<QuestRow> _allCompleted = new();
     private readonly List<QuestRow> _allFailed = new();
 
+    /// <summary>
+    /// Raised when the user clicks «Получить награду» on a completed
+    /// quest with unclaimed rewards (issue #70). The GameViewModel
+    /// subscribes and grants the rewards (currency, XP, items), clears
+    /// <see cref="Quest.UnclaimedRewards"/>, appends a log entry,
+    /// refreshes the panels, and persists.
+    /// </summary>
+    public event Action<EntityId>? ClaimRewardsRequested;
+
     /// <summary>Refresh from the given world.</summary>
     public void RefreshFromWorld(World world)
     {
@@ -57,7 +77,14 @@ public partial class QuestPanelViewModel : ObservableObject
             foreach (var q in world.Quests)
             {
                 var locationName = ResolveGiverLocationName(world, q);
-                var row = new QuestRow(q, locationName);
+                // Pass a callback the row invokes when its «Получить
+                // награду» button is clicked. The callback re-raises
+                // ClaimRewardsRequested on this panel; GameViewModel
+                // subscribes and grants the rewards. This keeps the row
+                // decoupled from the host (the row doesn't need a
+                // reference to the panel or the GameViewModel).
+                var row = new QuestRow(q, locationName,
+                    claimCallback: id => ClaimRewardsRequested?.Invoke(id));
                 switch (q.Status)
                 {
                     case QuestStatus.Active:
@@ -262,19 +289,39 @@ public sealed record QuestSortOption(string Label, QuestSortMode Mode);
 /// </summary>
 public sealed partial class QuestRow : ObservableObject
 {
-    public QuestRow(Quest q, string? locationName = null)
+    private readonly Action<EntityId>? _claimRewardsCallback;
+
+    public QuestRow(Quest q, string? locationName = null, Action<EntityId>? claimCallback = null)
     {
+        Id = q.Id;
         Name = q.Name;
         Description = q.Description ?? "";
         Status = q.Status.ToString();
         Objectives = (q.Objectives ?? new()).Select(o => new QuestObjectiveRow(o)).ToList();
-        RewardCurrency = q.Reward?.Currency ?? 0;
+        RewardCurrency = q.Reward?.Currency ?? q.Reward?.Gold ?? 0;
         RewardExperience = q.Reward?.Experience ?? 0;
         RewardItemIds = q.Reward?.Items ?? new();
         CompletedObjectives = Objectives.Count(o => o.Done);
         TotalObjectives = Objectives.Count;
         LocationName = locationName;
+        // Issue #70: surface whether the quest has unclaimed rewards so
+        // the View can show a «Получить награду» button. The button is
+        // only shown for completed quests (the QuestPanelView template
+        // checks both HasUnclaimedRewards AND Status=="Completed" before
+        // rendering the button — defensive, since old saves may have
+        // non-completed quests with a stale UnclaimedRewards field from
+        // a prior implementation).
+        HasUnclaimedRewards = q.UnclaimedRewards is not null;
+        _claimRewardsCallback = claimCallback;
     }
+
+    /// <summary>
+    /// The quest's <see cref="Entity.Id"/> — passed back to the
+    /// GameViewModel via <see cref="ClaimRewardsCommand"/> so the host
+    /// can locate the quest in the live <see cref="World"/> and grant
+    /// its rewards.
+    /// </summary>
+    public EntityId Id { get; }
 
     public string Name { get; }
     public string Description { get; }
@@ -288,6 +335,12 @@ public sealed partial class QuestRow : ObservableObject
     public string? LocationName { get; }
     public bool HasRewards => RewardCurrency > 0 || RewardExperience > 0 || RewardItemIds.Count > 0;
     public bool HasLocation => !string.IsNullOrEmpty(LocationName);
+
+    /// <summary>
+    /// True when the quest has rewards waiting to be claimed (issue #70).
+    /// Drives the «Получить награду» button visibility in the View.
+    /// </summary>
+    public bool HasUnclaimedRewards { get; }
 
     private bool _isExpanded = true;
     /// <summary>
@@ -309,6 +362,17 @@ public sealed partial class QuestRow : ObservableObject
     /// </summary>
     [RelayCommand]
     public void ToggleExpanded() => IsExpanded = !IsExpanded;
+
+    /// <summary>
+    /// Claim this quest's unclaimed rewards (issue #70). Invokes the
+    /// callback the panel passed in at construction, which re-raises
+    /// <see cref="QuestPanelViewModel.ClaimRewardsRequested"/>. The
+    /// GameViewModel handles the actual grant (currency, XP, items) +
+    /// clears <see cref="Quest.UnclaimedRewards"/> + appends a log entry
+    /// + refreshes the panels + persists.
+    /// </summary>
+    [RelayCommand]
+    private void ClaimRewards() => _claimRewardsCallback?.Invoke(Id);
 }
 
 /// <summary>One objective in a quest.</summary>

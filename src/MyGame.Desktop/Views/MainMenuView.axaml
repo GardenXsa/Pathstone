@@ -3,6 +3,7 @@
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              xmlns:vm="using:MyGame.Desktop.ViewModels"
+             xmlns:saves="using:MyGame.Core.Saves"
              mc:Ignorable="d" d:DesignWidth="1280" d:DesignHeight="800"
              x:Class="MyGame.Desktop.Views.MainMenuView"
              x:DataType="vm:MainMenuViewModel">
@@ -40,16 +41,57 @@
         <ScrollViewer HorizontalScrollBarVisibility="Disabled">
             <Grid RowDefinitions="*,Auto,*">
                 <StackPanel Grid.Row="1" HorizontalAlignment="Center" VerticalAlignment="Center"
-                            Spacing="10" MaxWidth="420">
+                            Spacing="10" MaxWidth="560">
 
                     <TextBlock Text="Главное меню" Classes="ScreenTitle" HorizontalAlignment="Center"/>
 
-                    <Button Content="Новая игра" Command="{Binding NewGameCommand}" Classes="MenuButton"
-                            ToolTip.Tip="Создать новую игру со стандартным миром"/>
-                    <Button Content="✨ Создать мир (AI)" Command="{Binding CreateWorldCommand}" Classes="MenuButton Primary"
-                            ToolTip.Tip="Сгенерировать мир через AI по вашему брифу"/>
-                    <Button Content="Хост игры" Command="{Binding HostGameCommand}" Classes="MenuButton"
-                            ToolTip.Tip="Запустить сетевую игру на этом компьютере"/>
+                    <!-- Resume-pending-build prompt (issue #19).
+                         Shown when a leftover worldbuilder-state.json is
+                         detected at app startup. Offers to resume the
+                         cancelled build (Продолжить) or discard it
+                         (Отменить). The summary line shows the saved
+                         stage + timestamp so the user can decide. -->
+                    <Border Classes="InfoBox" Padding="10" Margin="0,8,0,0"
+                            IsVisible="{Binding HasPendingResumeBuild}">
+                        <StackPanel Spacing="6">
+                            <TextBlock Text="Незавершённая генерация мира. Продолжить?"
+                                       FontWeight="SemiBold" TextWrapping="Wrap"/>
+                            <TextBlock Text="{Binding PendingResumeSummary}" Classes="Muted Small" TextWrapping="Wrap"/>
+                            <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Right">
+                                <Button Content="Отменить" Command="{Binding DiscardPendingResumeCommand}"
+                                        Classes="SmallButton"
+                                        ToolTip.Tip="Удалить сохранённое состояние и начать заново"/>
+                                <Button Content="Продолжить" Command="{Binding ResumeBuildCommand}"
+                                        Classes="SmallButton Primary"
+                                        ToolTip.Tip="Возобновить генерацию мира с того места, где она была остановлена"/>
+                            </StackPanel>
+                        </StackPanel>
+                    </Border>
+
+                    <!-- Primary menu buttons. The hints below (issue #73)
+                         are shown only for the first three sessions
+                         (ShowHints=true) and disappear afterwards. -->
+                    <StackPanel Spacing="2">
+                        <Button Content="Новая игра" Command="{Binding NewGameCommand}" Classes="MenuButton"
+                                ToolTip.Tip="Создать новую игру со стандартным миром"/>
+                        <TextBlock Text="Новая игра — стандартный мир"
+                                   Classes="Muted Small" Margin="14,0,0,2"
+                                   IsVisible="{Binding ShowHints}"/>
+                    </StackPanel>
+                    <StackPanel Spacing="2">
+                        <Button Content="✨ Создать мир (AI)" Command="{Binding CreateWorldCommand}" Classes="MenuButton Primary"
+                                ToolTip.Tip="Сгенерировать мир через AI по вашему брифу"/>
+                        <TextBlock Text="Создать мир (AI) — опишите мир, AI построит"
+                                   Classes="Muted Small" Margin="14,0,0,2"
+                                   IsVisible="{Binding ShowHints}"/>
+                    </StackPanel>
+                    <StackPanel Spacing="2">
+                        <Button Content="Хост игры" Command="{Binding HostGameCommand}" Classes="MenuButton"
+                                ToolTip.Tip="Запустить сетевую игру на этом компьютере"/>
+                        <TextBlock Text="Хост игры — пригласите друзей по IP"
+                                   Classes="Muted Small" Margin="14,0,0,2"
+                                   IsVisible="{Binding ShowHints}"/>
+                    </StackPanel>
                     <Button Content="Подключиться" Command="{Binding JoinGameCommand}" Classes="MenuButton"
                             ToolTip.Tip="Подключиться к сетевой игре по IP:порт"/>
                     <Button Content="Загрузить" Command="{Binding ToggleLoadCommand}" Classes="MenuButton"
@@ -60,7 +102,11 @@
                     <Button Content="Настройки" Command="{Binding OpenSettingsCommand}" Classes="MenuButton"
                             ToolTip.Tip="Настроить подключение к AI"/>
 
-                    <!-- Saves list (collapsible) -->
+                    <!-- Saves list (collapsible). Issue #74 layout:
+                         toolbar row (search + sort + delete-selected)
+                         above each save row showing name + character +
+                         world + location + turn + updated-at + playtime
+                         + size. Play button stays on the right. -->
                     <Border Classes="LoadPanel" IsVisible="{Binding SavesLoaded}" Padding="10" Margin="0,12,0,0">
                         <StackPanel Spacing="6">
                             <Grid ColumnDefinitions="*,Auto">
@@ -69,21 +115,61 @@
                                         Classes="TinyButton" ToolTip.Tip="Обновить список"/>
                             </Grid>
 
+                            <!-- Toolbar: search box + sort dropdown + delete-selected button -->
+                            <Grid ColumnDefinitions="*,Auto,Auto" Margin="0,2">
+                                <TextBox Grid.Column="0" Text="{Binding SearchText}"
+                                         PlaceholderText="Поиск…"
+                                         ToolTip.Tip="Фильтр по имени сохранения, миру или персонажу"/>
+                                <ComboBox Grid.Column="1" SelectedIndex="{Binding SortModeIndex}"
+                                          Margin="6,0,0,0" MinWidth="140"
+                                          ToolTip.Tip="Сортировка списка сохранений">
+                                    <ComboBoxItem Content="По дате"/>
+                                    <ComboBoxItem Content="По имени"/>
+                                    <ComboBoxItem Content="По дате создания"/>
+                                </ComboBox>
+                                <Button Grid.Column="2" Content="🗑 Удалить выбранные"
+                                        Command="{Binding RequestDeleteSelectedCommand}"
+                                        Classes="SmallButton Danger"
+                                        Margin="6,0,0,0"
+                                        IsEnabled="{Binding HasSelectedSaves}"
+                                        ToolTip.Tip="Удалить все отмеченные сохранения"/>
+                            </Grid>
+
                             <ItemsControl ItemsSource="{Binding Saves}">
                                 <ItemsControl.ItemTemplate>
                                     <DataTemplate DataType="vm:SaveSlotViewModel">
                                         <Border Classes="SaveRow" Padding="8">
-                                            <Grid ColumnDefinitions="*,Auto">
-                                                <StackPanel Grid.Column="0" Spacing="2">
-                                                    <TextBlock Text="{Binding Name}" FontWeight="SemiBold"/>
-                                                    <TextBlock Text="{Binding Character}" Classes="Muted"/>
+                                            <Grid ColumnDefinitions="Auto,*,Auto">
+                                                <!-- Checkbox for multi-select delete (issue #74) -->
+                                                <CheckBox Grid.Column="0"
+                                                          IsChecked="{Binding IsSelected}"
+                                                          VerticalAlignment="Center"
+                                                          Margin="0,0,8,0"
+                                                          ToolTip.Tip="Отметить для удаления"/>
+                                                <StackPanel Grid.Column="1" Spacing="2">
                                                     <StackPanel Orientation="Horizontal" Spacing="8">
-                                                        <TextBlock Text="{Binding World}" Classes="Muted"/>
-                                                        <TextBlock Text="{Binding TurnInfo}" Classes="Muted"/>
-                                                        <TextBlock Text="{Binding UpdatedAt}" Classes="Muted"/>
+                                                        <TextBlock Text="{Binding Name}" FontWeight="SemiBold"/>
+                                                        <TextBlock Text="{Binding TurnInfo}" Classes="Muted Small"/>
                                                     </StackPanel>
+                                                    <TextBlock Text="{Binding Character}" Classes="Muted Small"/>
+                                                    <StackPanel Orientation="Horizontal" Spacing="10">
+                                                        <TextBlock Text="{Binding WorldTitle}" Classes="Muted Small"/>
+                                                        <TextBlock Text="•" Classes="Muted Small"/>
+                                                        <TextBlock Text="{Binding LocationName}" Classes="Muted Small"/>
+                                                    </StackPanel>
+                                                    <StackPanel Orientation="Horizontal" Spacing="10">
+                                                        <TextBlock Text="{Binding UpdatedAt}" Classes="Muted Small"/>
+                                                        <TextBlock Text="•" Classes="Muted Small"/>
+                                                        <TextBlock Text="{Binding Playtime}" Classes="Muted Small"
+                                                                   ToolTip.Tip="Суммарное время в игре"/>
+                                                        <TextBlock Text="•" Classes="Muted Small"/>
+                                                        <TextBlock Text="{Binding SaveSize}" Classes="Muted Small"
+                                                                   ToolTip.Tip="Размер папки сохранения на диске"/>
+                                                    </StackPanel>
+                                                    <TextBlock Text="{Binding EngineVersion, StringFormat='Движок: {0}'}"
+                                                               Classes="Muted Small" Opacity="0.6"/>
                                                 </StackPanel>
-                                                <Button Grid.Column="1" Content="Играть"
+                                                <Button Grid.Column="2" Content="Играть"
                                                         Command="{Binding LoadCommand}"
                                                         Classes="SmallButton Primary"
                                                         VerticalAlignment="Center"
@@ -104,6 +190,45 @@
                 </StackPanel>
             </Grid>
         </ScrollViewer>
+
+        <!-- Multi-select delete confirmation overlay (issue #74).
+             Shown when the user clicks «Удалить выбранные» and at
+             least one save is checked. «Да» deletes the checked saves;
+             «Отмена» closes the overlay without deleting. Clicking the
+             dim backdrop also cancels. -->
+        <Border Background="#CC000000"
+                IsVisible="{Binding IsDeleteConfirmVisible}"
+                HorizontalAlignment="Stretch"
+                VerticalAlignment="Stretch"
+                ZIndex="100"
+                PointerPressed="OnDeleteConfirmOverlayClick">
+            <Border HorizontalAlignment="Center" VerticalAlignment="Center"
+                    Background="{StaticResource AppSurfaceBrush}"
+                    BorderBrush="{StaticResource AppDangerBrush}"
+                    BorderThickness="2" CornerRadius="8"
+                    Padding="40,30" MinWidth="380" MaxWidth="560">
+                <StackPanel Spacing="14" HorizontalAlignment="Center">
+                    <TextBlock Text="🗑" FontSize="40" HorizontalAlignment="Center"/>
+                    <TextBlock Text="Удалить выбранные сохранения?"
+                               FontSize="20" FontWeight="Bold"
+                               HorizontalAlignment="Center"
+                               Foreground="{StaticResource AppDangerBrush}"/>
+                    <TextBlock Text="Это действие нельзя отменить. Выбранные сохранения будут удалены с диска."
+                               Classes="Muted Small"
+                               HorizontalAlignment="Center" TextWrapping="Wrap"
+                               TextAlignment="Center"/>
+                    <Border Classes="Separator" Margin="0,4"/>
+                    <Button Content="Удалить" Command="{Binding ConfirmDeleteSelectedCommand}"
+                            Classes="MenuButton Primary"
+                            HorizontalAlignment="Stretch"
+                            ToolTip.Tip="Удалить все отмеченные сохранения без возможности восстановления"/>
+                    <Button Content="Отмена" Command="{Binding CancelDeleteSelectedCommand}"
+                            Classes="MenuButton"
+                            HorizontalAlignment="Stretch"
+                            ToolTip.Tip="Не удалять — закрыть окно"/>
+                </StackPanel>
+            </Border>
+        </Border>
 
     </DockPanel>
 </UserControl>

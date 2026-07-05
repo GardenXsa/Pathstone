@@ -117,10 +117,28 @@
                     <ItemsControl.ItemTemplate>
                         <DataTemplate DataType="vm:QuestRow">
                             <Border Classes="QuestRow Completed" Padding="6,4" Margin="0,0,0,4">
-                                <StackPanel Spacing="1">
-                                    <TextBlock Text="{Binding Name}" Classes="Small" FontWeight="SemiBold"/>
-                                    <TextBlock Text="{Binding Description}" Classes="Muted Small" TextWrapping="Wrap"/>
-                                </StackPanel>
+                                <Grid ColumnDefinitions="*,Auto">
+                                    <StackPanel Grid.Column="0" Spacing="1">
+                                        <TextBlock Text="{Binding Name}" Classes="Small" FontWeight="SemiBold"/>
+                                        <TextBlock Text="{Binding Description}" Classes="Muted Small" TextWrapping="Wrap"/>
+                                    </StackPanel>
+                                    <!-- Claim-rewards button (issue #70).
+                                         Shown only when the quest has
+                                         unclaimed rewards (the GM's
+                                         update_quest complete staged them
+                                         in Quest.UnclaimedRewards). Click
+                                         → ClaimRewardsCommand → panel's
+                                         ClaimRewardsRequested → GameViewModel
+                                         grants currency/XP/items + clears
+                                         the field + refreshes. -->
+                                    <Button Grid.Column="1" Content="Получить награду"
+                                            Command="{Binding ClaimRewardsCommand}"
+                                            Classes="TinyButton Primary"
+                                            VerticalAlignment="Center"
+                                            Margin="6,0,0,0"
+                                            IsVisible="{Binding HasUnclaimedRewards}"
+                                            ToolTip.Tip="Забрать награду за квест (золото, опыт, предметы)"/>
+                                </Grid>
                             </Border>
                         </DataTemplate>
                     </ItemsControl.ItemTemplate>

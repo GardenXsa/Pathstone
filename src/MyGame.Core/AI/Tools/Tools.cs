@@ -722,14 +722,17 @@ internal static class EquipPlayerTool
 
 /// <summary>
 /// Change quest state: activate / complete / fail / objective_done /
-/// objective_undone. Completion grants rewards (currency, XP, items) inline.
+/// objective_undone. Completion STAGES the reward (currency, XP, items)
+/// in <see cref="Quest.UnclaimedRewards"/> rather than granting it
+/// inline — the player must claim it via the Quest panel's
+/// «Получить награду» button (issue #70).
 /// </summary>
 internal static class UpdateQuestTool
 {
     public static ToolDefinition Definition { get; } = new()
     {
         Name = "update_quest",
-        Description = "Изменить состояние квеста: activate / complete / fail / objective_done / objective_undone. При complete выдаёт награды (валюта, опыт, предметы).",
+        Description = "Изменить состояние квеста: activate / complete / fail / objective_done / objective_undone. При complete награда ожидает получения игроком во вкладке Квесты.",
         ParametersJson = """
         {
           "type": "object",
@@ -771,40 +774,17 @@ internal static class UpdateQuestTool
 
             case "complete":
             {
+                // Issue #70: stage the reward in UnclaimedRewards rather
+                // than granting it inline. The player must click
+                // «Получить награду» in the Quest panel to actually
+                // receive the currency / XP / items. The host
+                // (GameViewModel) detects this transition via the tool-
+                // call result text + emits a system log entry telling
+                // the player to go claim.
                 quest.Status = QuestStatus.Completed;
-                var sb = new System.Text.StringBuilder();
-                sb.AppendLine($"Квест «{quest.Name}» выполнен.");
-                var reward = quest.Reward;
-                var p = world.ActivePlayer ?? world.Players.FirstOrDefault();
-                if (reward is not null && p is not null)
-                {
-                    int currency = reward.Currency ?? reward.Gold ?? 0;
-                    if (currency > 0)
-                    {
-                        p.Inventory.Currency += currency;
-                        sb.AppendLine($"Награда: {currency} валюты.");
-                    }
-                    int xp = reward.Experience ?? 0;
-                    if (xp > 0)
-                    {
-                        var (leveled, newLevel) = AwardXpTool.GrantXp(p, xp);
-                        sb.Append($"Награда: {xp} опыта.");
-                        if (leveled) sb.Append($" Новый уровень: {newLevel}!");
-                        sb.AppendLine();
-                    }
-                    if (reward.Items is not null)
-                    {
-                        foreach (var tplId in reward.Items)
-                        {
-                            var tpl = world.Registries.Items.Get(tplId);
-                            if (tpl is null) continue;
-                            var inst = EntityFactory.InstantiateItem(tpl, 1);
-                            p.Inventory.Items.Add(inst);
-                            sb.AppendLine($"Награда: «{inst.Name}».");
-                        }
-                    }
-                }
-                return ToolResult.Ok(string.Empty, sb.ToString().TrimEnd());
+                quest.UnclaimedRewards = quest.Reward;
+                return ToolResult.Ok(string.Empty,
+                    $"Квест «{quest.Name}» выполнен. Награда ожидает получения во вкладке Квесты.");
             }
 
             case "objective_done":

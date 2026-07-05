@@ -34,13 +34,14 @@ replaced with a native desktop architecture: C# / .NET 8 / Avalonia UI, raw
 6. [Desktop application](#desktop-application)
 7. [Build and run](#build-and-run)
 8. [Configuration](#configuration)
-9. [AI pipeline](#ai-pipeline)
-10. [Multiplayer protocol](#multiplayer-protocol)
-11. [Save file format](#save-file-format)
-12. [Project conventions](#project-conventions)
-13. [Roadmap](#roadmap)
-14. [Contributing](#contributing)
-15. [License](#license)
+9. [Local AI setup](#local-ai-setup-issue-27)
+10. [AI pipeline](#ai-pipeline)
+11. [Multiplayer protocol](#multiplayer-protocol)
+12. [Save file format](#save-file-format)
+13. [Project conventions](#project-conventions)
+14. [Roadmap](#roadmap)
+15. [Contributing](#contributing)
+16. [License](#license)
 
 ---
 
@@ -479,6 +480,88 @@ The AI settings support any OpenAI-compatible endpoint. Set `BaseUrl` to the
 provider's API root (e.g. `https://api.openai.com/v1`,
 `http://localhost:11434/v1` for Ollama). The `ApiKey` is sent as a Bearer
 token; leave null for providers that don't require auth.
+
+---
+
+## Local AI setup (issue #27)
+
+Pathstone works with any OpenAI-compatible provider, including local model
+servers like [Ollama](https://ollama.ai) and [llama.cpp](https://github.com/ggerganov/llama.cpp).
+This lets you run the entire game offline — no API key, no per-token billing.
+Trade-off: local models are slower than cloud ones, and smaller context
+windows mean the GM's history summarization triggers more often.
+
+### Ollama (recommended for first-time local users)
+
+1. **Install Ollama** — download the installer for your platform from
+   <https://ollama.ai> (Windows / macOS / Linux). On Linux you can also
+   `curl -fsSL https://ollama.ai/install.sh | sh`.
+2. **Pull a model that supports tool calling** — Pathstone's GM uses
+   function-calling (the `tools` field), so you need a model with a
+   tool-call template. Verified options:
+   ```bash
+   ollama pull llama3.1:8b       # 4.7 GB, good balance
+   ollama pull mistral:7b        # 4.1 GB, slightly weaker tools
+   ollama pull qwen2.5:7b        # 4.7 GB, strong on Russian
+   ```
+   Older models (llama2, llama3.0, phi-2) silently ignore the `tools`
+   field and the GM loop won't progress — stick to llama3.1+ / mistral /
+   qwen2 / qwen2.5.
+3. **Configure Pathstone** — open the app, go to **Настройки**, click
+   the **«Ollama (локально)»** preset (or fill the fields manually):
+   - Base URL: `http://localhost:11434/v1`
+   - Model: `llama3.1:8b` (or whichever you pulled)
+   - API Key: leave empty (Ollama doesn't require auth; the `Authorization`
+     header is skipped when the key is blank)
+4. **Set context window** — Ollama's default context is 4k tokens, which
+   the GM blows through in ~6 turns. In **Настройки → Контекстное окно**
+   set `Max context tokens` to `8000` (or higher if your machine has the
+   RAM). The GM will summarize older history when the live context
+   crosses 80% of this threshold.
+
+### llama.cpp server (advanced)
+
+For more control over the model (quantization, custom GGUF files, KV-cache
+tuning), run a [llama.cpp server](https://github.com/ggerganov/llama.cpp/tree/master/tools/server):
+
+```bash
+# Build llama.cpp, then start the server with an OpenAI-compatible API:
+./server -m model.gguf --host 0.0.0.0 --port 8080
+```
+
+In Pathstone's settings click **«llama.cpp»** preset:
+- Base URL: `http://localhost:8080/v1`
+- Model: `local-model` (llama.cpp doesn't care about the model name; any
+  non-empty string works)
+- API Key: leave empty
+
+### Trade-offs vs. cloud models
+
+| Property        | Local (Ollama / llama.cpp)    | Cloud (OpenAI / DeepSeek)   |
+|-----------------|-------------------------------|-----------------------------|
+| Latency         | 5–30 s/turn on consumer HW    | 1–5 s/turn                  |
+| Cost            | Free (electricity + RAM)      | $0.01–0.10/turn             |
+| Privacy         | Full — no data leaves machine | Provider logs requests      |
+| Context window  | 4k–8k typical                 | 16k–128k                    |
+| Tool calling    | llama3.1+ / mistral / qwen2   | All current models          |
+| Quality         | Lower (7B params)             | Higher (175B+ params)       |
+
+For a smooth first experience, start with a cloud provider (OpenAI or
+DeepSeek), then switch to local once you've confirmed the app works.
+
+### Troubleshooting
+
+- **401 Unauthorized on Ollama**: you left an old API key in the settings.
+  Click the «Ollama (локально)» preset (which clears the key) or manually
+  blank the **API Key** field.
+- **GM doesn't progress, narrates but never calls tools**: your model
+  doesn't support tool calling. Pull `llama3.1:8b` (or another tool-capable
+  model) and update the **Model** field.
+- **Stream cuts off mid-narration**: context window too small. Increase
+  **Max context tokens** to 8000+ in Настройки.
+- **`connection refused` on local server**: Ollama isn't running. Start
+  it with `ollama serve` (or just launch the Ollama desktop app — it
+  auto-starts the server).
 
 ---
 

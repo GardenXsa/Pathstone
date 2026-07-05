@@ -2,6 +2,7 @@ using System.Linq;
 using Avalonia.Collections;
 using Avalonia.Controls;
 using Avalonia.Input;
+using Avalonia.Input.Platform;
 using Avalonia.Interactivity;
 using Avalonia.VisualTree;
 using MyGame.Desktop.ViewModels;
@@ -9,7 +10,6 @@ using System.Collections.Specialized;
 using System.ComponentModel;
 
 namespace MyGame.Desktop.Views;
-
 /// <summary>
 /// Code-behind for the game view. Handles two UI-only concerns the
 /// XAML can't express cleanly:
@@ -316,5 +316,33 @@ public partial class GameView : UserControl
     {
         LeaveConfirmOverlay.IsVisible = false;
         e.Handled = true;
+    }
+
+    // ─── Lobby handlers (issue #77) ───────────────────────────────────
+
+    /// <summary>
+    /// Copy the lobby's share address to the clipboard so the host can
+    /// paste it into a chat / email for friends. Best-effort: if the
+    /// clipboard isn't available (headless, no TopLevel), the click is
+    /// a silent no-op. The address stays visible in the panel regardless.
+    /// </summary>
+    private async void OnCopyAddressClick(object? sender, RoutedEventArgs e)
+    {
+        if (_vm is null) return;
+        var address = _vm.ShareAddress;
+        if (string.IsNullOrEmpty(address)) return;
+        try
+        {
+            var topLevel = TopLevel.GetTopLevel(this);
+            if (topLevel?.Clipboard is { } cb)
+            {
+                await cb.SetTextAsync(address);
+            }
+        }
+        catch (System.Exception ex)
+        {
+            System.Diagnostics.Trace.WriteLine(
+                $"[GameView] failed to copy share address: {ex.Message}");
+        }
     }
 }

@@ -182,6 +182,13 @@ public sealed class HostSession
         _server.ChatReceived += c => RaiseEvent(ChatReceived, c);
         _server.ActionQueued += a => RaiseEvent(ActionQueued, a);
         _server.ActionCancelled += id => RaiseEventNullable(ActionCancelled, id);
+        // Issue #77 — bubble up the lobby-ready + status-changed events
+        // so the host UI can react to lobby state changes (members
+        // toggling ready, host starting the game). Without these events,
+        // the host UI would have to poll the Members list + Status
+        // property — wasteful and prone to races.
+        _server.MemberReady += m => RaiseEvent(MemberReady, m);
+        _server.StatusChanged += s => RaiseEvent(StatusChanged, s);
         // Batching window (issue #12): every queued action starts (or
         // advances) a batching window. The window fires ProcessNextTurnAsync
         // after DefaultBatchWindowSeconds OR when all ready non-spectator
@@ -304,6 +311,22 @@ public sealed class HostSession
     /// marshal to the UI thread — the event fires on a ThreadPool thread.
     /// </summary>
     public event Action<int>? BatchCountdownChanged;
+
+    /// <summary>
+    /// Raised when a client toggles their ready state in the lobby
+    /// (issue #77). Carries the updated <see cref="MemberInfo"/>.
+    /// Bubbled up from <see cref="HostServer.MemberReady"/>. The host
+    /// UI subscribes to refresh its lobby members list.
+    /// </summary>
+    public event Action<MemberInfo>? MemberReady;
+
+    /// <summary>
+    /// Raised when the party lifecycle status changes (issue #77).
+    /// Carries the new <see cref="PartyStatus"/>. Bubbled up from
+    /// <see cref="HostServer.StatusChanged"/>. The host UI subscribes
+    /// to refresh its <c>IsLobby</c> flag.
+    /// </summary>
+    public event Action<PartyStatus>? StatusChanged;
 
     // ─── Lifecycle ───────────────────────────────────────────────────
 

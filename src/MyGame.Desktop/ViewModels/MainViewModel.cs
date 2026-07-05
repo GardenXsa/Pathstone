@@ -4,6 +4,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using MyGame.Core.AI.Agents;
 using MyGame.Core.Profile;
 using MyGame.Core.Saves;
 using MyGame.Desktop.Services;
@@ -37,14 +38,27 @@ public partial class MainViewModel : ObservableObject
 
         // The nickname is shown at the top of every screen — keep a
         // snapshot on the shell and refresh whenever we navigate.
-        try
+        //
+        // First-run note (issue #73): if no profile.json exists yet, we
+        // DON'T call GetOrCreate here — that would create the profile as
+        // a side effect and short-circuit the onboarding flow. The
+        // NavigateToMenu() method checks ProfileExists() and routes to
+        // the onboarding wizard instead of the menu when this is the
+        // first launch. Onboarding will create the profile (via
+        // ProfileStore.Rename) and then navigate back to NavigateToMenu,
+        // which on the second call sees the profile exists and shows
+        // the menu.
+        if (_profileStore.ProfileExists())
         {
-            var p = _profileStore.GetOrCreate();
-            _currentNickname = p.Nickname;
-        }
-        catch
-        {
-            _currentNickname = "Игрок";
+            try
+            {
+                var p = _profileStore.GetOrCreate();
+                _currentNickname = p.Nickname;
+            }
+            catch
+            {
+                _currentNickname = "Игрок";
+            }
         }
     }
 
@@ -74,17 +88,46 @@ public partial class MainViewModel : ObservableObject
     /// <summary>
     /// Show the main menu. Called once on app startup (after
     /// ServiceHost is initialized) and whenever we return to the menu.
+    ///
+    /// <para>
+    /// <b>First-run onboarding (issue #73):</b> if no
+    /// <c>profile.json</c> exists yet, this routes to
+    /// <see cref="NavigateToOnboarding"/> instead of the menu. The
+    /// wizard creates the profile (via <see cref="ProfileStore.Rename"/>
+    /// on step 1), then calls <see cref="NavigateToMenu"/> again — at
+    /// which point the profile exists and the menu is shown normally.
+    /// </para>
     /// </summary>
     public void NavigateToMenu()
     {
+        if (!_profileStore.ProfileExists())
+        {
+            NavigateToOnboarding();
+            return;
+        }
+
         try
         {
             CurrentNickname = _profileStore.GetOrCreate().Nickname;
         }
         catch { /* fall back to whatever we had */ }
 
-        var vm = new MainMenuViewModel(this, _saveManager, _profileStore);
+        var vm = new MainMenuViewModel(this, _saveManager, _profileStore, _settingsStore);
         vm.Title = "MyGame";
+        CurrentView = vm;
+    }
+
+    /// <summary>
+    /// Show the first-run onboarding wizard (issue #73). Constructs an
+    /// <see cref="OnboardingViewModel"/> with the shell + profile +
+    /// settings stores; the wizard navigates back to
+    /// <see cref="NavigateToMenu"/> on completion (by which point the
+    /// profile exists and the menu shows normally).
+    /// </summary>
+    public void NavigateToOnboarding()
+    {
+        var vm = new OnboardingViewModel(this, _profileStore, _settingsStore);
+        vm.Title = "Добро пожаловать";
         CurrentView = vm;
     }
 
@@ -140,6 +183,37 @@ public partial class MainViewModel : ObservableObject
         vm.Title = "Создание мира";
         CurrentView = vm;
         // Auto-start the build on navigation.
+        vm.StartCommand.Execute(null);
+    }
+
+    /// <summary>
+    /// Navigate to the world-build progress screen with a saved
+    /// <see cref="WorldBuilderState"/> to resume from (issue #19).
+    /// Constructs the VM with the original brief, stages the state for
+    /// loading on the orchestrator (which happens inside
+    /// <see cref="WorldBuildViewModel.StartAsync"/> once the orchestrator
+    /// is constructed), and auto-starts the build. The resumed run skips
+    /// already-completed stages (planning → committer → pets → narration)
+    /// and continues from where the previous run left off.
+    /// </summary>
+    /// <param name="state">Saved orchestrator state (must not be null).</param>
+    /// <param name="brief">The original world brief (read from the state
+    /// file by the caller — typically <see cref="MainMenuViewModel"/>).</param>
+    /// <param name="petDelegations">Optional pet delegations (resumed
+    /// runs that completed some delegations will skip them via
+    /// <see cref="WorldBuilderState.Iteration"/>).</param>
+    public void NavigateToWorldBuildForResume(
+        WorldBuilderState state,
+        string brief,
+        IReadOnlyCollection<MyGame.Core.AI.Agents.PetDelegation>? petDelegations = null)
+    {
+        if (state is null) throw new ArgumentNullException(nameof(state));
+        var vm = new WorldBuildViewModel(_profileStore, _settingsStore, _saveManager, this, brief ?? string.Empty, petDelegations);
+        vm.Title = "Возобновление генерации мира";
+        vm.LoadStateForResume(state, brief ?? string.Empty);
+        CurrentView = vm;
+        // Auto-start the build on navigation. StartAsync will see the
+        // staged state and call orchestrator.LoadState() before RunAsync.
         vm.StartCommand.Execute(null);
     }
 

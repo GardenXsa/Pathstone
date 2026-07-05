@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Threading.Tasks;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
@@ -164,6 +165,55 @@ public partial class SettingsViewModel : ViewModelBase
         set => SetProperty(ref _maxContextTokens, value);
     }
 
+    // ─── Provider presets (issue #27) ───────────────────────────────
+    //
+    // The presets list is bound to a row of buttons in the settings
+    // view. Clicking a preset fills in BaseUrl + Model (+ ApiKey for
+    // cloud providers) so the user doesn't have to look up the endpoint
+    // URLs for OpenAI / DeepSeek / Ollama / llama.cpp. The presets are
+    // defined statically here (no settings file round-trip) — they
+    // represent known provider configurations.
+
+    /// <summary>
+    /// Read-only list of provider presets shown in the settings UI
+    /// (issue #27). Each preset is a <see cref="PresetCommand"/> relay
+    /// that fills in BaseUrl + Model (+ ApiKey when
+    /// <see cref="AiPreset.ClearsApiKey"/> is true).
+    /// </summary>
+    public IReadOnlyList<AiPreset> Presets { get; } = new[]
+    {
+        new AiPreset("OpenAI", "https://api.openai.com/v1", "gpt-4o-mini",
+            ClearsApiKey: false,
+            Tooltip: "OpenAI — облачный API, требуется ключ."),
+        new AiPreset("DeepSeek", "https://api.deepseek.com/v1", "deepseek-chat",
+            ClearsApiKey: false,
+            Tooltip: "DeepSeek — облачный API, требуется ключ."),
+        new AiPreset("Ollama (локально)", "http://localhost:11434/v1", "llama3.1:8b",
+            ClearsApiKey: true,
+            Tooltip: "Ollama — локальный сервер, ключ не нужен. Сначала установите Ollama и выполните `ollama pull llama3.1:8b`."),
+        new AiPreset("llama.cpp", "http://localhost:8080/v1", "local-model",
+            ClearsApiKey: true,
+            Tooltip: "llama.cpp server — локальный сервер, ключ не нужен. Запустите сервер с флагом --host 0.0.0.0."),
+    };
+
+    /// <summary>
+    /// Apply a preset: set BaseUrl + Model from the preset, and clear
+    /// ApiKey when the preset is for a local provider (Ollama /
+    /// llama.cpp). Cloud-provider presets (OpenAI, DeepSeek) leave the
+    /// existing ApiKey intact so the user doesn't have to re-enter it
+    /// when switching between cloud providers.
+    /// </summary>
+    /// <param name="preset">The preset to apply. Must not be null.</param>
+    [RelayCommand]
+    private void ApplyPreset(AiPreset? preset)
+    {
+        if (preset is null) return;
+        BaseUrl = preset.BaseUrl;
+        Model = preset.Model;
+        if (preset.ClearsApiKey)
+            ApiKey = null;
+    }
+
     // ─── Commands ────────────────────────────────────────────────────
 
     /// <summary>
@@ -222,3 +272,16 @@ public partial class SettingsViewModel : ViewModelBase
     [RelayCommand]
     private void Cancel() => _shell.NavigateToMenu();
 }
+
+/// <summary>
+/// One AI-provider preset for the settings UI (issue #27). Pairs a
+/// human-readable label (shown on the preset button) with a BaseUrl +
+/// Model + a flag for whether the preset should clear the existing
+/// ApiKey (local providers don't use one).
+/// </summary>
+public sealed record AiPreset(
+    string Label,
+    string BaseUrl,
+    string Model,
+    bool ClearsApiKey = false,
+    string? Tooltip = null);

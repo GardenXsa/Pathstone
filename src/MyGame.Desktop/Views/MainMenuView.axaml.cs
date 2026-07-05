@@ -15,7 +15,10 @@ namespace MyGame.Desktop.Views;
 /// save-on-blur without needing a separate Save button. The
 /// «Импорт персонажа» button uses a code-behind Click handler because
 /// the file picker needs Avalonia's StorageProvider API, which requires
-/// the TopLevel — the VM can't reach it directly (issue #62).
+/// the TopLevel — the VM can't reach it directly (issue #62). The
+/// multi-select delete confirmation overlay (issue #74) uses a code-
+/// behind PointerPressed handler on its dim backdrop to dismiss the
+/// overlay when the user clicks outside the centered panel.
 /// </summary>
 public partial class MainMenuView : UserControl
 {
@@ -92,5 +95,20 @@ public partial class MainMenuView : UserControl
             // a safety net for unexpected StorageProvider exceptions.
             System.Diagnostics.Trace.WriteLine($"[MainMenuView] import picker failed: {ex.Message}");
         }
+    }
+
+    /// <summary>
+    /// Click on the delete-confirm overlay's dim backdrop cancels the
+    /// delete (matches the «Отмена» button behavior). Clicks on the
+    /// inner panel don't reach this handler — they're eaten by the
+    /// inner Border (which is a child of the backdrop Border, but the
+    /// backdrop's PointerPressed only fires when the pointer is over
+    /// the backdrop area not covered by the child).
+    /// </summary>
+    private void OnDeleteConfirmOverlayClick(object? sender, PointerPressedEventArgs e)
+    {
+        if (DataContext is not MainMenuViewModel vm) return;
+        vm.CancelDeleteSelectedCommand.Execute(null);
+        e.Handled = true;
     }
 }

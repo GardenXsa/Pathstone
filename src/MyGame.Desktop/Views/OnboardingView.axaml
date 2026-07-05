@@ -1,0 +1,109 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:vm="using:MyGame.Desktop.ViewModels"
+             mc:Ignorable="d" d:DesignWidth="720" d:DesignHeight="560"
+             x:Class="MyGame.Desktop.Views.OnboardingView"
+             x:DataType="vm:OnboardingViewModel">
+
+    <DockPanel LastChildFill="True">
+
+        <!-- Top bar: title + step indicator -->
+        <Border DockPanel.Dock="Top" Classes="TopBar">
+            <Grid ColumnDefinitions="*,Auto">
+                <TextBlock Grid.Column="0" Text="Pathstone" Classes="AppTitle"
+                           VerticalAlignment="Center"/>
+                <TextBlock Grid.Column="1" Text="{Binding Step, StringFormat='Шаг {0} из 3'}"
+                           Classes="Muted Small" VerticalAlignment="Center"/>
+            </Grid>
+        </Border>
+
+        <!-- Error bar (nickname / API key errors) -->
+        <Border DockPanel.Dock="Top" Classes="ErrorBar"
+                IsVisible="{Binding NicknameError, Converter={x:Static StringConverters.IsNotNullOrEmpty}}">
+            <TextBlock Text="{Binding NicknameError}" />
+        </Border>
+        <Border DockPanel.Dock="Top" Classes="ErrorBar"
+                IsVisible="{Binding ApiKeyError, Converter={x:Static StringConverters.IsNotNullOrEmpty}}">
+            <TextBlock Text="{Binding ApiKeyError}" />
+        </Border>
+
+        <ScrollViewer HorizontalScrollBarVisibility="Disabled">
+            <Grid>
+                <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center"
+                            Spacing="14" MaxWidth="540" Margin="32,24"
+                            IsVisible="{Binding IsStep1}">
+                    <TextBlock Text="🜂" FontSize="48" HorizontalAlignment="Center"/>
+                    <TextBlock Text="Добро пожаловать в Pathstone!"
+                               Classes="ScreenTitle" HorizontalAlignment="Center"/>
+                    <TextBlock TextWrapping="Wrap" TextAlignment="Center"
+                               Text="Текстовая RPG с AI-мастером игры. Перед началом введите ваш ник — он будет виден в сохранениях и в сетевой партии."/>
+                    <Border Classes="Separator" Margin="0,4"/>
+                    <StackPanel Spacing="6">
+                        <TextBlock Text="Ваш ник" Classes="FieldLabel"/>
+                        <TextBox Text="{Binding Nickname}" PlaceholderText="напр. Странник-AB12"
+                                 ToolTip.Tip="2-20 символов: буквы (латиница/кириллица), цифры, пробелы, дефисы, подчёркивания"/>
+                        <TextBlock Text="2-20 символов. Можно изменить позже на главном экране."
+                                   Classes="Muted Small" TextWrapping="Wrap"/>
+                    </StackPanel>
+                    <Button Content="Далее →" Command="{Binding NextFromStep1Command}"
+                            Classes="MenuButton Primary" HorizontalAlignment="Stretch"
+                            ToolTip.Tip="Сохранить ник и продолжить"/>
+                </StackPanel>
+
+                <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center"
+                            Spacing="14" MaxWidth="540" Margin="32,24"
+                            IsVisible="{Binding IsStep2}">
+                    <TextBlock Text="🤖" FontSize="48" HorizontalAlignment="Center"/>
+                    <TextBlock Text="Подключение к AI"
+                               Classes="ScreenTitle" HorizontalAlignment="Center"/>
+                    <TextBlock TextWrapping="Wrap" TextAlignment="Center"
+                               Text="Для игры нужен AI (Game Master). Введите API-ключ OpenAI или совместимого провайдера (DeepSeek, OpenAI, локальный Ollama/llama.cpp)."/>
+                    <Border Classes="Separator" Margin="0,4"/>
+                    <StackPanel Spacing="6">
+                        <TextBlock Text="API-ключ" Classes="FieldLabel"/>
+                        <TextBox Text="{Binding ApiKey}" PasswordChar="•"
+                                 PlaceholderText="sk-… (пусто для локальных серверов)"
+                                 ToolTip.Tip="Ключ OpenAI-совместимого API. Для Ollama/llama.cpp оставьте пустым."/>
+                        <TextBlock TextWrapping="Wrap" Classes="Muted Small"
+                                   Text="Ключ сохраняется в settings.json. Для локальных серверов (Ollama, llama.cpp) оставьте поле пустым."/>
+                    </StackPanel>
+                    <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Center">
+                        <Button Content="Пропустить" Command="{Binding SkipStep2Command}"
+                                Classes="MenuButton"
+                                ToolTip.Tip="Продолжить без ключа — его можно добавить позже в Настройках"/>
+                        <Button Content="Далее →" Command="{Binding NextFromStep2Command}"
+                                Classes="MenuButton Primary"
+                                ToolTip.Tip="Сохранить ключ и продолжить"/>
+                    </StackPanel>
+                    <Button Content="Расширенные настройки →"
+                            Command="{Binding OpenSettingsCommand}"
+                            Classes="TinyButton" HorizontalAlignment="Center"
+                            ToolTip.Tip="Открыть экран настроек (BaseUrl, модель, пресеты провайдеров)"/>
+                </StackPanel>
+
+                <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center"
+                            Spacing="14" MaxWidth="540" Margin="32,24"
+                            IsVisible="{Binding IsStep3}">
+                    <TextBlock Text="✓" FontSize="48" HorizontalAlignment="Center"
+                               Foreground="{StaticResource AppSuccessBrush}"/>
+                    <TextBlock Text="Готово!"
+                               Classes="ScreenTitle" HorizontalAlignment="Center"/>
+                    <TextBlock TextWrapping="Wrap" TextAlignment="Center"
+                               Text="Теперь вы можете: создать новый мир через AI, начать стандартную игру, или подключиться к другу по IP."/>
+                    <Border Classes="Separator" Margin="0,4"/>
+                    <StackPanel Spacing="4" Margin="0,4">
+                        <TextBlock Text="• «Новая игра» — стандартный мир, готовый к игре." Classes="Muted Small"/>
+                        <TextBlock Text="• «Создать мир (AI)» — опишите мир, AI построит его за вас." Classes="Muted Small"/>
+                        <TextBlock Text="• «Хост игры» — пригласите друзей по IP (сетевая игра)." Classes="Muted Small"/>
+                        <TextBlock Text="• «Подключиться» — введите IP:порт друга, чтобы присоединиться." Classes="Muted Small"/>
+                    </StackPanel>
+                    <Button Content="Начать →" Command="{Binding FinishCommand}"
+                            Classes="MenuButton Primary" HorizontalAlignment="Stretch"
+                            ToolTip.Tip="Перейти в главное меню"/>
+                </StackPanel>
+            </Grid>
+        </ScrollViewer>
+    </DockPanel>
+</UserControl>

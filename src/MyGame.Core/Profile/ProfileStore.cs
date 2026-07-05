@@ -204,6 +204,16 @@ public sealed class ProfileStore
         lock (_lock) _current = null;
     }
 
+    /// <summary>
+    /// True when a <c>profile.json</c> file already exists on disk —
+    /// i.e. this isn't the first launch. Used by the onboarding flow
+    /// (issue #73) to decide whether to show the welcome wizard before
+    /// the main menu. Safe to call before <see cref="GetOrCreate"/>
+    /// (unlike <see cref="Current"/>, this method does NOT create the
+    /// profile as a side effect).
+    /// </summary>
+    public bool ProfileExists() => File.Exists(ProfileFilePath);
+
     // ─── Disk I/O ──────────────────────────────────────────────────────
 
     private Profile? TryLoadFromDisk()

@@ -135,6 +135,42 @@ public enum AiErrorKind
 /// configuration.
 /// </para>
 ///
+/// <para><b>Local-provider compatibility (issue #27):</b>
+/// The client works with any OpenAI-compatible endpoint. Verified
+/// providers + their quirks:
+/// <list type="bullet">
+///  <item><b>Ollama</b> (<c>http://localhost:11434/v1</c>): no API key
+///    required — leave <see cref="AiSettings.ApiKey"/> null and the
+///    <c>Authorization</c> header is skipped (Ollama rejects an empty
+///    Bearer token with 401 on some builds). Tool calling requires
+///    llama3.1+ / mistral / qwen2 — older models silently ignore the
+///    <c>tools</c> field. Streaming works via SSE; the final
+///    <c>usage</c> block is only emitted when
+///    <c>stream_options.include_usage=true</c> (we always set it). Ollama
+///    reports prompt/completion tokens as <c>prompt_tokens</c> /
+///    <c>completion_tokens</c> (matching OpenAI's schema), so our
+///    <see cref="StreamUsage"/> + <see cref="ParseChatResponse"/> parsers
+///    handle it without provider-specific branching. One quirk: Ollama's
+///    <c>usage</c> block on streaming arrives in a SEPARATE chunk after
+///    the last <c>choices</c> chunk, often with an empty
+///    <c>choices: []</c> array — our streaming loop already handles this
+///    (the <c>if (chunk.Usage is { } usage)</c> check is OUTSIDE the
+///    choices branch).</item>
+///  <item><b>llama.cpp server</b> (<c>http://localhost:8080/v1</c>):
+///    same OpenAI-compatible surface as Ollama. No auth required. Tool
+///    calling supported on GGUF models with tool-call templates
+///    (chatml-gemma, llama3, mistral). Smaller context windows (4k–8k
+///    typical) — set <see cref="Settings.MaxContextTokens"/> accordingly
+///    so the GM's summarization triggers before the model runs out of
+///    context.</item>
+///  <item><b>DeepSeek</b> (<c>https://api.deepseek.com/v1</c>): standard
+///    OpenAI-compatible cloud. API key required. Tool calling supported.
+///    No quirks observed.</item>
+///  <item><b>OpenAI</b> (<c>https://api.openai.com/v1</c>): the
+///    reference implementation — works out of the box.</item>
+/// </list>
+/// </para>
+///
 /// NO references to the z-ai-web-dev-sdk. This is pure HTTP.
 /// </summary>
 public sealed class AiClient

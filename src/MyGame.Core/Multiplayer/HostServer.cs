@@ -209,6 +209,28 @@ public sealed class HostServer
     /// (or null if the id wasn't in the queue).</summary>
     public event Action<string?>? ActionCancelled;
 
+    /// <summary>
+    /// Raised when a client toggles their ready state in the lobby
+    /// (issue #77). Carries the updated <see cref="MemberInfo"/> (with
+    /// <see cref="MemberInfo.Status"/> set to Ready or Pending). The
+    /// host UI uses this to refresh its lobby members list. Raised
+    /// AFTER the new MemberInfo has been stored on the connection +
+    /// AFTER the MemberReadyMsg has been broadcast to all clients — so
+    /// by the time this event fires, the host UI can re-read
+    /// <see cref="Members"/> and get the current snapshot.
+    /// </summary>
+    public event Action<MemberInfo>? MemberReady;
+
+    /// <summary>
+    /// Raised when the party lifecycle status changes (issue #77).
+    /// Carries the new <see cref="PartyStatus"/>. The host UI subscribes
+    /// to refresh its <c>IsLobby</c> flag (so the lobby layout
+    /// disappears when the host starts the game via
+    /// <see cref="HostSession.SetStatusAsync"/>). Raised AFTER the
+    /// StatusChangedMsg has been broadcast to all clients.
+    /// </summary>
+    public event Action<PartyStatus>? StatusChanged;
+
     // ─── Lifecycle ───────────────────────────────────────────────────
 
     /// <summary>
@@ -610,12 +632,22 @@ public sealed class HostServer
             case MemberReadyMsg ready:
                 {
                     // Update the member's status.
+                    MemberInfo? updatedMember = null;
                     if (_connections.TryGetValue(member.ConnectionId, out var c) && c.Member is not null)
                     {
                         c.Member = c.Member with { Status = ready.Ready ? MemberStatus.Ready : MemberStatus.Pending };
+                        updatedMember = c.Member;
                     }
                     var clean = ready with { ConnectionId = member.ConnectionId };
                     await BroadcastAsync(clean, _shutdownToken).ConfigureAwait(false);
+                    // Raise the local event AFTER the broadcast so the host
+                    // UI sees the post-update snapshot when it re-reads
+                    // Members. Null when the member wasn't found (defensive
+                    // — shouldn't happen because the handshake already
+                    // registered them, but guards against a race with
+                    // RemoveConnectionAsync).
+                    if (updatedMember is not null)
+                        RaiseEvent(MemberReady, updatedMember);
                     break;
                 }
 
@@ -632,6 +664,9 @@ public sealed class HostServer
                         if (status.Turn > 0) _turn = status.Turn;
                     }
                     await BroadcastAsync(status, _shutdownToken).ConfigureAwait(false);
+                    // Raise the local event AFTER the broadcast so the
+                    // host UI can refresh its IsLobby flag.
+                    RaiseEvent(StatusChanged, status.Status);
                     break;
                 }
 
@@ -812,7 +847,10 @@ public sealed class HostServer
     /// Update the party lifecycle status and broadcast
     /// <see cref="StatusChangedMsg"/> to all clients. Typically called by
     /// the HostSession when transitioning Lobby → Worldbuilding →
-    /// CharacterCreation → Playing.
+    /// CharacterCreation → Playing. Also raises the local
+    /// <see cref="StatusChanged"/> event so the host UI can refresh
+    /// (e.g. hide the lobby layout when transitioning to Playing —
+    /// issue #77).
     /// </summary>
     public async Task SetStatusAsync(PartyStatus status, string? saveId = null, int turn = 0, CancellationToken ct = default)
     {
@@ -828,6 +866,11 @@ public sealed class HostServer
             Turn = turn > 0 ? turn : _turn,
             SaveId = saveId ?? _saveId,
         }, ct).ConfigureAwait(false);
+        // Raise the local event AFTER the broadcast so the host UI
+        // sees the post-update Status when it re-reads. This is what
+        // drives the IsLobby → in-game UI transition when the host
+        // clicks «Начать игру» in the lobby (issue #77).
+        RaiseEvent(StatusChanged, status);
     }
 
     /// <summary>

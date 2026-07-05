@@ -124,9 +124,21 @@
 
                 <!-- Action buttons -->
                 <StackPanel Spacing="10" HorizontalAlignment="Center">
+                    <!-- Pause/Resume pair (issue #19). The pause button
+                         shows when the build is actively running; the
+                         resume button shows when it's paused. Cancel is
+                         always available while the build is in flight
+                         (whether running or paused) so the user can
+                         abort without first resuming. -->
+                    <Button Content="Пауза" Command="{Binding PauseCommand}" Classes="MenuButton"
+                            IsVisible="{Binding IsRunning}"
+                            ToolTip.Tip="Приостановить генерацию (её можно будет продолжить)"/>
+                    <Button Content="Продолжить" Command="{Binding ResumeCommand}" Classes="MenuButton Primary"
+                            IsVisible="{Binding IsPaused}"
+                            ToolTip.Tip="Продолжить приостановленную генерацию"/>
                     <Button Content="Отмена" Command="{Binding CancelCommand}" Classes="MenuButton"
                             IsVisible="{Binding IsBusy}"
-                            ToolTip.Tip="Остановить генерацию"/>
+                            ToolTip.Tip="Остановить генерацию (с сохранением прогресса для возобновления)"/>
                     <Button Content="Продолжить →" Command="{Binding EnterGameCommand}" Classes="MenuButton Primary"
                             IsVisible="{Binding Completed}"
                             ToolTip.Tip="Перейти к созданию персонажа"/>

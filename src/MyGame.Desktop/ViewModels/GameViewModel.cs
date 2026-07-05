@@ -61,6 +61,28 @@ public partial class GameViewModel : ViewModelBase
     public bool IsMultiplayer => !StandaloneSinglePlayer;
     public bool IsClient => !StandaloneSinglePlayer && !IsHost;
 
+    /// <summary>
+    /// True when this screen is in the multiplayer lobby phase (issue #77):
+    /// the host has started a session but hasn't transitioned to Playing
+    /// yet, OR the client has connected but the host hasn't started the
+    /// game yet. Drives the lobby layout in the center column (lobby
+    /// panel with members list + ready toggle + start-game button) vs
+    /// the normal game layout (narrative log + action input).
+    /// </summary>
+    /// <remarks>
+    /// Refreshed on every relevant lifecycle event:
+    /// <list type="bullet">
+    ///   <item>Host: <see cref="InitHost"/> (initial status from
+    ///     HostSession.Status) + HostSession.StatusChanged (host
+    ///     transitioned Lobby → Playing via StartGameCommand).</item>
+    ///   <item>Client: <see cref="InitClientAsync"/> (initial status
+    ///     from ClientSession.Status) + ClientSession.StatusChanged
+    ///     (host transitioned).</item>
+    /// </list>
+    /// Always false in single-player mode (no lobby phase).
+    /// </remarks>
+    [ObservableProperty] private bool _isLobby;
+
     // ─── Sessions (one of these is non-null depending on mode) ───────
     public HostSession? HostSession { get; private set; }
     public ClientSession? ClientSession { get; private set; }
@@ -129,6 +151,14 @@ public partial class GameViewModel : ViewModelBase
         // to the panel's ExportStatus property so the user sees inline
         // feedback under the «Экспорт» button.
         CharacterPanel.ExportRequested += OnCharacterExportRequested;
+
+        // Wire quest-panel reward claiming → world mutations (issue #70).
+        // The QuestPanel raises ClaimRewardsRequested(questId) when the
+        // user clicks «Получить награду» on a completed quest whose
+        // rewards are staged in Quest.UnclaimedRewards. We grant the
+        // currency / XP / items, clear the field, log a summary entry,
+        // refresh the panels, and persist.
+        QuestPanel.ClaimRewardsRequested += OnQuestClaimRewards;
     }
 
     // ─── Observable props ────────────────────────────────────────────
@@ -457,6 +487,10 @@ public partial class GameViewModel : ViewModelBase
         session.TurnEnded += OnTurnEnded;
         session.TurnFailed += OnTurnFailed;
         session.BatchCountdownChanged += OnHostBatchCountdownChanged;
+        // Issue #77 — lobby events: member ready toggles + party status
+        // changes (host → Playing). Used to refresh the lobby UI.
+        session.MemberReady += OnMemberReady;
+        session.StatusChanged += OnHostStatusChanged;
 
         // Pre-populate the members list with the host + anyone already
         // connected (no one yet at this point, but defensive).
@@ -475,6 +509,15 @@ public partial class GameViewModel : ViewModelBase
 
         // Append a system entry to the log so the user sees something.
         AppendLog(LogEntry.System($"Хост запущен на порту {session.Port}."));
+
+        // Issue #77 — initial lobby detection. The HostServer defaults
+        // to Lobby status; the host will transition to Playing via the
+        // StartGameCommand once everyone's ready.
+        RefreshIsLobby();
+        // Notify command CanExecute so the lobby's Start button picks
+        // up the initial ready-state check.
+        StartGameCommand.NotifyCanExecuteChanged();
+        ToggleReadyCommand.NotifyCanExecuteChanged();
     }
 
     private async Task InitClientAsync()
@@ -504,8 +547,22 @@ public partial class GameViewModel : ViewModelBase
         session.Error += OnClientError;
         session.Kicked += OnClientKicked;
         session.Disconnected += OnClientDisconnected;
+        // Issue #77 — lobby events: another member toggled ready, or
+        // the host transitioned the party to Playing. Used to refresh
+        // the lobby UI + IsLobby flag.
+        session.MemberReady += OnClientMemberReady;
+        session.StatusChanged += OnClientStatusChanged;
 
         AppendLog(LogEntry.System("Подключено к хосту."));
+
+        // Issue #77 — initial lobby detection from the WelcomeMsg's
+        // party snapshot. OnClientWelcomed also calls RefreshIsLobby,
+        // but that event may have already fired (race between here and
+        // the GameClient raising Welcomed during ConnectAsync, which
+        // happened in JoinGameViewModel before we got here). Refresh
+        // defensively from the cached Status.
+        RefreshIsLobby();
+        ToggleReadyCommand.NotifyCanExecuteChanged();
         await Task.CompletedTask;
     }
 
@@ -568,7 +625,7 @@ public partial class GameViewModel : ViewModelBase
         }
     }
 
-    private bool CanSubmitAction() => CanSubmit && !IsWaiting;
+    private bool CanSubmitAction() => CanSubmit && !IsWaiting && !IsLobby;
 
     /// <summary>
     /// Send a chat message (lobby chat in multiplayer; in single-player
@@ -638,8 +695,206 @@ public partial class GameViewModel : ViewModelBase
 
     private bool CanSaveState() => CanSave && !IsBusy;
 
+    // ─── Lobby commands (issue #77) ──────────────────────────────────
+
     /// <summary>
-    /// Leave the game and return to the main menu. Host: stop the
+    /// Toggle the local player's ready state in the lobby. Client-only
+    /// — the host is always Ready (set by HostServer.StartAsync) so
+    /// the command is a no-op for the host (and the lobby UI hides the
+    /// button). For clients, sends a <see cref="MemberReadyMsg"/> to
+    /// the host with the new ready state. The host re-broadcasts to
+    /// everyone (including this client); the echoed msg arrives via
+    /// <see cref="OnClientMemberReady"/> and updates the Members list
+    /// authoritatively. The local Members list is also updated
+    /// optimistically so the UI feels responsive.
+    /// </summary>
+    /// <remarks>
+    /// The "new ready state" is the OPPOSITE of the local member's
+    /// current <see cref="MemberInfo.Status"/> (Ready → Pending →
+    /// Ready). When the local member isn't found in the Members list
+    /// (race during initial connect), defaults to toggling to Ready
+    /// (i.e. assumes the user is currently Pending).
+    /// </remarks>
+    [RelayCommand(CanExecute = nameof(CanToggleReady))]
+    private async Task ToggleReadyAsync()
+    {
+        if (ClientSession is null) return;
+        var local = LocalMemberInfo;
+        bool newReady = local?.Status != MemberStatus.Ready;
+        try
+        {
+            // Optimistic local update so the UI feels responsive.
+            if (local is not null)
+            {
+                var updated = local with
+                {
+                    Status = newReady ? MemberStatus.Ready : MemberStatus.Pending,
+                };
+                ReplaceMember(updated);
+            }
+            await ClientSession.SetReadyAsync(newReady);
+        }
+        catch (Exception ex)
+        {
+            ErrorMessage = $"Не удалось изменить статус готовности: {ex.Message}";
+        }
+    }
+
+    /// <summary>
+    /// CanExecute for <see cref="ToggleReadyCommand"/>. Enabled only
+    /// for clients in the lobby (the host is always Ready and doesn't
+    /// get a toggle button). Disabled outside the lobby.
+    /// </summary>
+    private bool CanToggleReady() => IsClient && IsLobby && ClientSession is not null;
+
+    /// <summary>
+    /// Host-only: transition the party from Lobby to Playing (issue
+    /// #77). Calls <see cref="HostSession.SetStatusAsync"/> which
+    /// broadcasts a StatusChangedMsg to all clients; the resulting
+    /// <see cref="OnHostStatusChanged"/> handler refreshes
+    /// <see cref="IsLobby"/> (the lobby layout disappears, the normal
+    /// game layout appears).
+    /// </summary>
+    /// <remarks>
+    /// Disabled until all non-spectator members are Ready (the host
+    /// is always Ready; clients must have toggled ready). Spectators
+    /// are excluded from the ready-check since they don't submit
+    /// actions.
+    /// </remarks>
+    [RelayCommand(CanExecute = nameof(CanStartGame))]
+    private async Task StartGameAsync()
+    {
+        if (HostSession is null) return;
+        try
+        {
+            await HostSession.SetStatusAsync(PartyStatus.Playing);
+            AppendLog(LogEntry.System("Игра началась!"));
+        }
+        catch (Exception ex)
+        {
+            ErrorMessage = $"Не удалось начать игру: {ex.Message}";
+        }
+    }
+
+    /// <summary>
+    /// CanExecute for <see cref="StartGameCommand"/>. Host-only +
+    /// lobby-only + all non-spectator members must be Ready. Always
+    /// false outside the lobby.
+    /// </summary>
+    private bool CanStartGame()
+    {
+        if (!IsHost || !IsLobby || HostSession is null) return false;
+        // All non-spectator members must be Ready. The host is always
+        // Ready (set at HostServer.StartAsync). An empty roster (only
+        // the host) is allowed — the host can play solo.
+        return Members
+            .Where(m => m.Role != MemberRole.Spectator)
+            .All(m => m.Status == MemberStatus.Ready || m.Status == MemberStatus.Playing);
+    }
+
+    /// <summary>
+    /// The local player's <see cref="MemberInfo"/> (looked up by
+    /// connection id). Null when the local member isn't in the roster
+    /// yet (race during initial connect). Used by the lobby UI to show
+    /// the local player's ready state + by <see cref="ToggleReadyAsync"/>
+    /// to decide the new ready state.
+    /// </summary>
+    public MemberInfo? LocalMemberInfo
+    {
+        get
+        {
+            var localId = IsHost
+                ? HostSession?.HostConnectionId
+                : ClientSession?.ConnectionId;
+            if (localId is null || localId == Guid.Empty) return null;
+            return Members.FirstOrDefault(m => m.ConnectionId == localId);
+        }
+    }
+
+    /// <summary>
+    /// Convenience for the lobby UI: the local player's ready state.
+    /// Mirrors <see cref="LocalMemberInfo"/>?.<see cref="MemberInfo.Status"/>
+    /// == <see cref="MemberStatus.Ready"/>. Returns true when no local
+    /// member is found (defensive — defaults to "ready" so the lobby
+    /// doesn't show a misleading "pending" indicator during the
+    /// initial-connect race).
+    /// </summary>
+    public bool IsLocalReady => LocalMemberInfo?.Status == MemberStatus.Ready;
+
+    /// <summary>
+    /// True when all non-spectator members in the lobby are Ready
+    /// (host is always Ready; clients must toggle). Drives the enabled
+    /// state of the host's «Начать игру» button — recomputed on every
+    /// member ready / join / leave event.
+    /// </summary>
+    public bool AllReady =>
+        Members.Count > 0
+        && Members.Where(m => m.Role != MemberRole.Spectator)
+                  .All(m => m.Status == MemberStatus.Ready || m.Status == MemberStatus.Playing);
+
+    /// <summary>
+    /// Refresh <see cref="IsLobby"/> from the live session status.
+    /// Called on init + on every status-change event. Single-player
+    /// mode is always false (no lobby phase). Host reads
+    /// <see cref="HostSession.Status"/>, client reads
+    /// <see cref="ClientSession.Status"/>.
+    /// </summary>
+    private void RefreshIsLobby()
+    {
+        bool newIsLobby;
+        if (StandaloneSinglePlayer)
+        {
+            newIsLobby = false;
+        }
+        else if (IsHost)
+        {
+            newIsLobby = HostSession?.Status == PartyStatus.Lobby;
+        }
+        else
+        {
+            newIsLobby = ClientSession?.Status == PartyStatus.Lobby;
+        }
+        if (IsLobby != newIsLobby)
+        {
+            IsLobby = newIsLobby;
+            // Re-evaluate CanExecute for lobby-only commands + the
+            // SubmitAction command (disabled in lobby) when the lobby
+            // state flips.
+            StartGameCommand.NotifyCanExecuteChanged();
+            ToggleReadyCommand.NotifyCanExecuteChanged();
+            SubmitActionCommand.NotifyCanExecuteChanged();
+        }
+        OnPropertyChanged(nameof(LocalMemberInfo));
+        OnPropertyChanged(nameof(IsLocalReady));
+        OnPropertyChanged(nameof(AllReady));
+    }
+
+    /// <summary>
+    /// Replace a member in the <see cref="Members"/> collection (matched
+    /// by <see cref="MemberInfo.ConnectionId"/>) with a new instance.
+    /// No-op when the member isn't found. Used by the lobby ready-toggle
+    /// flow to update a member's Status in place.
+    /// </summary>
+    private void ReplaceMember(MemberInfo updated)
+    {
+        for (int i = 0; i < Members.Count; i++)
+        {
+            if (Members[i].ConnectionId == updated.ConnectionId)
+            {
+                Members[i] = updated;
+                break;
+            }
+        }
+        // Fire change notifications for the derived lobby properties so
+        // the lobby UI re-evaluates the local-ready indicator + the
+        // StartGame button's enabled state.
+        OnPropertyChanged(nameof(LocalMemberInfo));
+        OnPropertyChanged(nameof(IsLocalReady));
+        OnPropertyChanged(nameof(AllReady));
+        StartGameCommand.NotifyCanExecuteChanged();
+    }
+
+    /// <summary>Leave the game and return to the main menu. Host: stop the
     /// server (saves final state). Client: disconnect. Single-player:
     /// save final state if a save id is available.
     /// </summary>
@@ -903,6 +1158,25 @@ public partial class GameViewModel : ViewModelBase
                     ["args"] = tc.ArgsJson,
                     ["isError"] = tc.IsError,
                 }));
+
+            // Issue #70 — when the GM completes a quest (update_quest
+            // with action=complete), the tool result text is
+            // "Квест «{name}» выполнен. Награда ожидает получения во
+            // вкладке Квесты." Detect this and emit a SYSTEM log entry
+            // telling the player to go claim the reward (the Tool
+            // entry above is somewhat terse + the system entry is
+            // player-facing guidance). Parse the quest name from the
+            // angle-bracketed «…» segment so we can name it in the
+            // notification.
+            if (tc.Name == "update_quest" && !tc.IsError)
+            {
+                var questName = TryExtractQuestCompletedName(tc.Result);
+                if (questName is not null)
+                {
+                    AppendLog(LogEntry.System(
+                        $"Квест «{questName}» завершён! Награда доступна во вкладке Квесты."));
+                }
+            }
         }
 
         // Accumulate token billing for this turn into the session totals
@@ -1310,6 +1584,124 @@ public partial class GameViewModel : ViewModelBase
         return 0;
     }
 
+    /// <summary>
+    /// Try to extract the quest name from an <c>update_quest complete</c>
+    /// tool result. The result text is
+    /// <c>"Квест «{name}» выполнен. Награда ожидает получения во вкладке Квесты."</c>
+    /// — we look for the angle-bracketed <c>«…»</c> segment between the
+    /// leading <c>Квест</c> and the <c>выполнен</c> marker. Returns null
+    /// when the input doesn't match (other update_quest actions, errors,
+    /// foreign-language results, etc.).
+    /// </summary>
+    private static string? TryExtractQuestCompletedName(string? result)
+    {
+        if (string.IsNullOrEmpty(result)) return null;
+        // Match "Квест «{name}» выполнен" — the «…» are guillemets
+        // (U+00AB / U+00BB), not regular quotes. Use a regex with the
+        // actual guillemet characters so the match is locale-agnostic.
+        var m = System.Text.RegularExpressions.Regex.Match(result,
+            @"Квест\s+«([^»]+)»\s+выполнен",
+            System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+        return m.Success ? m.Groups[1].Value.Trim() : null;
+    }
+
+    // ─── Quest reward claiming (issue #70) ───────────────────────────
+    //
+    // The QuestPanel raises ClaimRewardsRequested when the user clicks
+    // «Получить награду» on a completed quest whose rewards are staged
+    // in Quest.UnclaimedRewards (set by the GM's update_quest complete
+    // tool call). We grant the rewards (currency, XP, items), clear the
+    // UnclaimedRewards field, append a summary log entry, refresh the
+    // panels, and persist. Client mode is a no-op (no save authority —
+    // the panel button is effectively hidden in client mode since the
+    // GM tool flow runs on the host).
+    private void OnQuestClaimRewards(EntityId questId)
+    {
+        if (_world is null) return;
+        var quest = _world.GetQuest(questId);
+        if (quest is null) return;
+        // Defensive: only grant when there actually are unclaimed
+        // rewards. A double-click could fire the command twice before
+        // RefreshFromWorld hides the button; this guard prevents a
+        // double-grant.
+        if (quest.UnclaimedRewards is null) return;
+
+        var player = _world.ActivePlayer ?? _world.Players.FirstOrDefault();
+        if (player is null) return;
+
+        var reward = quest.UnclaimedRewards;
+        int currency = reward.Currency ?? reward.Gold ?? 0;
+        int xp = reward.Experience ?? 0;
+        var grantedItemNames = new List<string>();
+
+        if (currency > 0)
+            player.Inventory.Currency += currency;
+
+        bool leveledUp = false;
+        int newLevel = player.Level ?? 1;
+        if (xp > 0)
+        {
+            var (leveled, finalLevel) = AwardXpTool.GrantXp(player, xp);
+            leveledUp = leveled;
+            newLevel = finalLevel;
+        }
+
+        if (reward.Items is { } itemIds)
+        {
+            foreach (var tplId in itemIds)
+            {
+                var tpl = _world.Registries.Items.Get(tplId);
+                if (tpl is null) continue;
+                var inst = EntityFactory.InstantiateItem(tpl, 1);
+                player.Inventory.Items.Add(inst);
+                grantedItemNames.Add(inst.Name);
+            }
+        }
+
+        // Clear the staged rewards so the «Получить награду» button
+        // disappears on the next RefreshFromWorld.
+        quest.UnclaimedRewards = null;
+
+        // Build a readable summary line. Format:
+        // "Получена награда: 50 зол., 100 опыта, Меч + Кольцо."
+        // Items that don't fit (long lists) get a "+N ещё" suffix.
+        var sb = new System.Text.StringBuilder("Получена награда: ");
+        var parts = new List<string>();
+        if (currency > 0) parts.Add($"{currency} зол.");
+        if (xp > 0) parts.Add($"{xp} опыта");
+        if (grantedItemNames.Count > 0)
+        {
+            // Show up to 3 item names; collapse the rest into "+N ещё".
+            const int maxItemNames = 3;
+            if (grantedItemNames.Count <= maxItemNames)
+                parts.Add(string.Join(", ", grantedItemNames.Select(n => $"«{n}»")));
+            else
+                parts.Add(string.Join(", ",
+                    grantedItemNames.Take(maxItemNames).Select(n => $"«{n}»"))
+                    + $" +{grantedItemNames.Count - maxItemNames} ещё");
+        }
+        sb.Append(string.Join(", ", parts));
+        sb.Append('.');
+        if (leveledUp)
+            sb.Append($" Новый уровень: {newLevel}!");
+
+        AppendLog(LogEntry.System(sb.ToString()));
+        RefreshFromWorld();
+
+        // Persist immediately so the grant survives a reload. Skip in
+        // client mode (no save authority) — the host's save already
+        // captured the grant on its end.
+        if (CanSave && _saveId is not null && _meta is not null)
+        {
+            PersistTokensToMeta();
+            _ = Task.Run(() =>
+            {
+                try { _saveManager.SaveAll(_saveId, _world, _meta, Log.ToArray()); }
+                catch (Exception ex) { System.Diagnostics.Trace.WriteLine($"[save] {ex.Message}"); }
+            });
+        }
+    }
+
     // ─── Travel handler ──────────────────────────────────────────────
     //
     // The world panel raises TravelRequested when the user clicks an exit
@@ -1500,6 +1892,13 @@ public partial class GameViewModel : ViewModelBase
                 if (Members[i].ConnectionId == m.ConnectionId) { Members[i] = m; return; }
             Members.Add(m);
             AppendLog(LogEntry.System($"{m.Nickname} присоединился."));
+            // Issue #77 — refresh the lobby StartGame CanExecute (a
+            // newly-joined Pending member disables the button until
+            // they toggle ready).
+            OnPropertyChanged(nameof(AllReady));
+            OnPropertyChanged(nameof(LocalMemberInfo));
+            OnPropertyChanged(nameof(IsLocalReady));
+            StartGameCommand.NotifyCanExecuteChanged();
         });
 
     private void OnMemberLeft(MemberInfo m) =>
@@ -1508,6 +1907,12 @@ public partial class GameViewModel : ViewModelBase
             for (int i = 0; i < Members.Count; i++)
                 if (Members[i].ConnectionId == m.ConnectionId) { Members.RemoveAt(i); break; }
             AppendLog(LogEntry.System($"{m.Nickname} отключился."));
+            // Issue #77 — refresh the lobby StartGame CanExecute (a
+            // departing Pending member may have been blocking start).
+            OnPropertyChanged(nameof(AllReady));
+            OnPropertyChanged(nameof(LocalMemberInfo));
+            OnPropertyChanged(nameof(IsLocalReady));
+            StartGameCommand.NotifyCanExecuteChanged();
         });
 
     private void OnChatReceived(ChatMsg c) =>
@@ -1552,6 +1957,7 @@ public partial class GameViewModel : ViewModelBase
             if (!string.IsNullOrEmpty(msg.FullText))
                 AppendLog(LogEntry.Narrative(msg.FullText));
             foreach (var tc in msg.ToolEvents)
+            {
                 AppendLog(LogEntry.Tool($"{tc.Name}: {tc.Result}",
                     metadata: new System.Collections.Generic.Dictionary<string, object>
                     {
@@ -1559,6 +1965,20 @@ public partial class GameViewModel : ViewModelBase
                         ["args"] = tc.ArgsJson,
                         ["isError"] = tc.IsError,
                     }));
+
+                // Issue #70 — same quest-completion notification as in
+                // the single-player turn flow. See the corresponding
+                // block in RunSinglePlayerTurnAsync for details.
+                if (tc.Name == "update_quest" && !tc.IsError)
+                {
+                    var questName = TryExtractQuestCompletedName(tc.Result);
+                    if (questName is not null)
+                    {
+                        AppendLog(LogEntry.System(
+                            $"Квест «{questName}» завершён! Награда доступна во вкладке Квесты."));
+                    }
+                }
+            }
             // Clear the pending-actions panel (the turn is done).
             PendingActions.Clear();
             IsWaiting = false;
@@ -1607,6 +2027,76 @@ public partial class GameViewModel : ViewModelBase
     private void OnHostBatchCountdownChanged(int secondsRemaining) =>
         Dispatcher.UIThread.Post(() => BatchCountdown = secondsRemaining);
 
+    // ─── Lobby event handlers (issue #77) ────────────────────────────
+
+    /// <summary>
+    /// Host-side: a client toggled their ready state in the lobby.
+    /// Update the local Members list with the new MemberInfo (the
+    /// HostServer already replaced the entry on its side; we just mirror
+    /// it here) + refresh the lobby UI's derived properties.
+    /// </summary>
+    private void OnMemberReady(MemberInfo m) =>
+        Dispatcher.UIThread.Post(() =>
+        {
+            ReplaceMember(m);
+            // ReplaceMember already fires the change notifications +
+            // StartGameCommand.NotifyCanExecuteChanged().
+        });
+
+    /// <summary>
+    /// Host-side: party status changed (host clicked «Начать игру»,
+    /// transitioning to Playing). Refresh <see cref="IsLobby"/> so the
+    /// lobby layout disappears + the normal game layout appears.
+    /// </summary>
+    private void OnHostStatusChanged(PartyStatus status) =>
+        Dispatcher.UIThread.Post(RefreshIsLobby);
+
+    /// <summary>
+    /// Client-side: another member (or the host echoing back this
+    /// client's own toggle) toggled ready. The MemberReadyMsg carries
+    /// the connection id + new ready state; we look up the member in
+    /// our local Members list and replace it with an updated copy.
+    /// </summary>
+    private void OnClientMemberReady(MemberReadyMsg msg) =>
+        Dispatcher.UIThread.Post(() =>
+        {
+            for (int i = 0; i < Members.Count; i++)
+            {
+                if (Members[i].ConnectionId == msg.ConnectionId)
+                {
+                    Members[i] = Members[i] with
+                    {
+                        Status = msg.Ready ? MemberStatus.Ready : MemberStatus.Pending,
+                    };
+                    break;
+                }
+            }
+            // Refresh the lobby UI's derived properties so the local
+            // ready indicator + the host's StartGame button CanExecute
+            // (when this client is the host — unlikely since this is
+            // the client-side handler, but defensive) re-evaluate.
+            OnPropertyChanged(nameof(LocalMemberInfo));
+            OnPropertyChanged(nameof(IsLocalReady));
+            OnPropertyChanged(nameof(AllReady));
+        });
+
+    /// <summary>
+    /// Client-side: host transitioned the party status (Lobby →
+    /// Playing). Refresh <see cref="IsLobby"/> so the lobby layout
+    /// disappears + the normal game layout appears. Also log a system
+    /// entry so the user sees a "game started" message in the narrative
+    /// log when the transition happens.
+    /// </summary>
+    private void OnClientStatusChanged(StatusChangedMsg s) =>
+        Dispatcher.UIThread.Post(() =>
+        {
+            RefreshIsLobby();
+            if (s.Status == PartyStatus.Playing)
+            {
+                AppendLog(LogEntry.System("Хост начал игру!"));
+            }
+        });
+
     // ─── ClientSession event handlers ────────────────────────────────
 
     private void OnClientWelcomed(WelcomeMsg w) =>
@@ -1616,6 +2106,13 @@ public partial class GameViewModel : ViewModelBase
             foreach (var m in w.Party.Members) Members.Add(m);
             GameName = $"Подключено (ход {w.Party.Turn})";
             AppendLog(LogEntry.System("Рукопожатие выполнено."));
+            // Issue #77 — refresh IsLobby + lobby-derived properties
+            // from the fresh party snapshot the host sent in the
+            // WelcomeMsg. Covers the case where the host has already
+            // started the game by the time this client connects (rare
+            // but possible if the host clicks StartGame between this
+            // client's HelloMsg send + WelcomeMsg receive).
+            RefreshIsLobby();
         });
 
     private void OnClientMemberJoined(MemberJoinedMsg m) =>
@@ -1625,6 +2122,11 @@ public partial class GameViewModel : ViewModelBase
                 if (Members[i].ConnectionId == m.Member.ConnectionId) { Members[i] = m.Member; return; }
             Members.Add(m.Member);
             AppendLog(LogEntry.System($"{m.Member.Nickname} присоединился."));
+            // Issue #77 — refresh lobby derived props (AllReady may
+            // have changed).
+            OnPropertyChanged(nameof(AllReady));
+            OnPropertyChanged(nameof(LocalMemberInfo));
+            OnPropertyChanged(nameof(IsLocalReady));
         });
 
     private void OnClientMemberLeft(MemberLeftMsg m) =>
@@ -1632,6 +2134,10 @@ public partial class GameViewModel : ViewModelBase
         {
             for (int i = 0; i < Members.Count; i++)
                 if (Members[i].ConnectionId == m.ConnectionId) { Members.RemoveAt(i); break; }
+            // Issue #77 — refresh lobby derived props.
+            OnPropertyChanged(nameof(AllReady));
+            OnPropertyChanged(nameof(LocalMemberInfo));
+            OnPropertyChanged(nameof(IsLocalReady));
         });
 
     private void OnClientChatReceived(ChatMsg c) =>
@@ -1677,6 +2183,7 @@ public partial class GameViewModel : ViewModelBase
             if (!string.IsNullOrEmpty(msg.FullText))
                 AppendLog(LogEntry.Narrative(msg.FullText));
             foreach (var tc in msg.ToolEvents)
+            {
                 AppendLog(LogEntry.Tool($"{tc.Name}: {tc.Result}",
                     metadata: new System.Collections.Generic.Dictionary<string, object>
                     {
@@ -1684,6 +2191,21 @@ public partial class GameViewModel : ViewModelBase
                         ["args"] = tc.ArgsJson,
                         ["isError"] = tc.IsError,
                     }));
+
+                // Issue #70 — same quest-completion notification as in
+                // single-player / host flows. The client receives the
+                // host's tool events; if a quest was completed, surface
+                // the "go claim" notification to the local player.
+                if (tc.Name == "update_quest" && !tc.IsError)
+                {
+                    var questName = TryExtractQuestCompletedName(tc.Result);
+                    if (questName is not null)
+                    {
+                        AppendLog(LogEntry.System(
+                            $"Квест «{questName}» завершён! Награда доступна во вкладке Квесты."));
+                    }
+                }
+            }
             PendingActions.Clear();
             IsWaiting = false;
             StatusText = null;

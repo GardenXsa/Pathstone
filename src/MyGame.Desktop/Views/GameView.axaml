@@ -3,6 +3,7 @@
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              xmlns:vm="using:MyGame.Desktop.ViewModels"
+             xmlns:conv="using:MyGame.Desktop.Converters"
              xmlns:panels="using:MyGame.Desktop.Views.Panels"
              xmlns:core="using:MyGame.Core.Saves"
              xmlns:mp="using:MyGame.Core.Multiplayer"
@@ -75,17 +76,37 @@
             <!-- LEFT column: members (multiplayer) OR tabbed panels (single-player) -->
             <Border Grid.Column="0" Classes="SidePanel">
                 <DockPanel LastChildFill="True">
-                    <!-- Multiplayer: members list -->
+                    <!-- Multiplayer: members list. Issue #77 — shows a
+                         ready-status indicator (✓ ready / ○ pending) next
+                         to each member. In-game, the indicator reflects
+                         the post-start Playing status (everyone shows ✓). -->
                     <StackPanel DockPanel.Dock="Top" IsVisible="{Binding IsMultiplayer}">
                         <TextBlock Text="Участники" Classes="SectionTitle" Margin="0,0,0,6"/>
                         <ItemsControl ItemsSource="{Binding Members}">
                             <ItemsControl.ItemTemplate>
                                 <DataTemplate DataType="mp:MemberInfo">
                                     <Border Classes="MemberRow" Padding="6,4">
-                                        <StackPanel Spacing="1">
-                                            <TextBlock Text="{Binding Nickname}" FontWeight="SemiBold"/>
-                                            <TextBlock Text="{Binding Role}" Classes="Muted Small"/>
-                                        </StackPanel>
+                                        <Grid ColumnDefinitions="*,Auto">
+                                            <StackPanel Grid.Column="0" Spacing="1">
+                                                <TextBlock Text="{Binding Nickname}" FontWeight="SemiBold"/>
+                                                <TextBlock Text="{Binding Role}" Classes="Muted Small"/>
+                                            </StackPanel>
+                                            <!-- Ready-status indicator. ✓ for Ready, ○ for Pending. -->
+                                            <TextBlock Grid.Column="1" VerticalAlignment="Center"
+                                                       FontFamily="Cascadia Mono,Consolas,Menlo,monospace"
+                                                       FontSize="14"
+                                                       Foreground="{StaticResource AppSuccessBrush}"
+                                                       Text="✓"
+                                                       ToolTip.Tip="Готов"
+                                                       IsVisible="{Binding Status, Converter={x:Static conv:MemberStatusToReadyVisibilityConverter.Instance}, ConverterParameter=Ready}"/>
+                                            <TextBlock Grid.Column="1" VerticalAlignment="Center"
+                                                       FontFamily="Cascadia Mono,Consolas,Menlo,monospace"
+                                                       FontSize="14"
+                                                       Foreground="{StaticResource AppMutedBrush}"
+                                                       Text="○"
+                                                       ToolTip.Tip="Ожидание"
+                                                       IsVisible="{Binding Status, Converter={x:Static conv:MemberStatusToReadyVisibilityConverter.Instance}, ConverterParameter=Pending}"/>
+                                        </Grid>
                                     </Border>
                                 </DataTemplate>
                             </ItemsControl.ItemTemplate>
@@ -108,7 +129,8 @@
                         </TabItem>
                     </TabControl>
 
-                    <!-- Bottom: chat panel (multiplayer only) -->
+                    <!-- Bottom: chat panel (multiplayer only). Issue #77
+                         — stays visible in lobby mode (pre-game chat). -->
                     <Border DockPanel.Dock="Bottom" Classes="ChatPanel"
                             IsVisible="{Binding IsMultiplayer}" Margin="0,8,0,0">
                         <DockPanel LastChildFill="True">
@@ -145,58 +167,205 @@
                 </DockPanel>
             </Border>
 
-            <!-- CENTER column: narrative log + input -->
+            <!-- CENTER column: lobby panel (issue #77) when IsLobby, OR
+                 the normal narrative log + input when !IsLobby. Both
+                 children overlap in the Grid; visibility binding toggles
+                 which is shown. -->
             <Border Grid.Column="1" Classes="CenterPanel">
-                <DockPanel LastChildFill="True">
-                    <!-- Input box at bottom -->
-                    <Border DockPanel.Dock="Bottom" Classes="InputBar" Padding="8">
-                        <Grid ColumnDefinitions="*,Auto">
-                            <TextBox Grid.Column="0" x:Name="ActionInput" Text="{Binding CurrentAction}"
-                                     PlaceholderText="Опишите действие вашего персонажа…"
-                                     IsEnabled="{Binding CanSubmit}"
-                                     KeyDown="OnActionKeyDown"
-                                     ToolTip.Tip="Опишите действие вашего персонажа"/>
-                            <Button Grid.Column="1" Content="Отправить"
-                                    Command="{Binding SubmitActionCommand}"
-                                    Classes="SmallButton Primary"
-                                    Margin="6,0,0,0"
-                                    IsEnabled="{Binding CanSubmit}"
-                                    ToolTip.Tip="Отправить действие GM"/>
-                        </Grid>
-                    </Border>
+                <Grid>
 
-                    <!-- Narrative stream -->
-                    <ScrollViewer x:Name="NarrativeScroll"
-                                  HorizontalScrollBarVisibility="Disabled"
+                    <!-- Lobby layout (issue #77). Visible only in
+                         multiplayer + when the party status is Lobby.
+                         Shows the party name, a copy-address button,
+                         party settings summary, the local ready toggle
+                         (clients only), and the Start Game button
+                         (host only, disabled until all non-spectator
+                         members are Ready). -->
+                    <ScrollViewer HorizontalScrollBarVisibility="Disabled"
                                   VerticalScrollBarVisibility="Auto"
-                                  Padding="8">
-                        <StackPanel>
-                            <ItemsControl ItemsSource="{Binding Log}">
-                                <ItemsControl.ItemTemplate>
-                                    <DataTemplate DataType="core:LogEntry">
-                                        <Border Classes="LogEntry" Padding="6,4">
-                                            <TextBlock Text="{Binding Text}" TextWrapping="Wrap"/>
-                                        </Border>
-                                    </DataTemplate>
-                                </ItemsControl.ItemTemplate>
-                            </ItemsControl>
-                            <!-- Live-streaming narrative text (issue #5).
-                                 Bound to StreamingNarrativeText on the VM,
-                                 which is throttled to ~50ms-per-update to
-                                 avoid flooding the UI. Visible only while
-                                 the GM is actively streaming a turn; cleared
-                                 the moment the final NarrativeResult is
-                                 appended to the Log above. -->
-                            <Border Classes="LogEntry StreamingEntry" Padding="6,4"
-                                    IsVisible="{Binding StreamingNarrativeText, Converter={x:Static StringConverters.IsNotNullOrEmpty}}">
-                                <TextBlock Text="{Binding StreamingNarrativeText}" TextWrapping="Wrap"/>
+                                  Padding="24,16"
+                                  IsVisible="{Binding IsLobby}">
+                        <StackPanel Spacing="14" MaxWidth="560" HorizontalAlignment="Center">
+                            <TextBlock Text="Лобби партии" Classes="ScreenTitle"
+                                       HorizontalAlignment="Center"/>
+                            <TextBlock Text="{Binding GameName}" FontSize="20"
+                                       FontWeight="SemiBold" HorizontalAlignment="Center"/>
+
+                            <!-- Share address with copy button (host shows the
+                                 listen address; clients show the host they
+                                 connected to). -->
+                            <Border Classes="InfoBox" Padding="10"
+                                    IsVisible="{Binding ShareAddress, Converter={x:Static StringConverters.IsNotNullOrEmpty}}">
+                                <Grid ColumnDefinitions="*,Auto">
+                                    <StackPanel Grid.Column="0" Spacing="2">
+                                        <TextBlock Text="Адрес для подключения:" Classes="Muted Small"/>
+                                        <TextBlock Text="{Binding ShareAddress}"
+                                                   FontFamily="Cascadia Mono,Consolas,Menlo,monospace"/>
+                                    </StackPanel>
+                                    <Button Grid.Column="1" Content="📋 Копировать"
+                                            Classes="TinyButton" VerticalAlignment="Center"
+                                            Click="OnCopyAddressClick"
+                                            ToolTip.Tip="Скопировать адрес в буфер обмена"/>
+                                </Grid>
                             </Border>
+
+                            <!-- Party settings summary. Static labels
+                                 describing the host's configuration. The
+                                 MaxPlayers cap + turn model are set at
+                                 host-creation time on the HostGame screen;
+                                 we surface them here as a quick reminder.
+                                 Future: bind to live host settings when
+                                 they're exposed on the HostSession. -->
+                            <Border Classes="PanelSection" Padding="10">
+                                <StackPanel Spacing="4">
+                                    <TextBlock Text="Настройки партии" Classes="SectionTitle"/>
+                                    <TextBlock Text="Модель хода: батчинг действий (5 секунд)"
+                                               Classes="Muted Small"/>
+                                    <TextBlock Text="Видимость: локальная сеть (LAN)"
+                                               Classes="Muted Small"/>
+                                    <TextBlock Text="Хост управляет переходом в игру — дождитесь готовности всех участников."
+                                               Classes="Muted Small" TextWrapping="Wrap"/>
+                                </StackPanel>
+                            </Border>
+
+                            <!-- Members list with ready-status indicators.
+                                 Mirrors the left-column list but laid out
+                                 larger so the host can quickly scan who's
+                                 ready. -->
+                            <StackPanel Spacing="6">
+                                <TextBlock Text="Участники лобби" Classes="SectionTitle"/>
+                                <ItemsControl ItemsSource="{Binding Members}">
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate DataType="mp:MemberInfo">
+                                            <Border Classes="MemberRow" Padding="8,5">
+                                                <Grid ColumnDefinitions="*,Auto,Auto">
+                                                    <StackPanel Grid.Column="0" Spacing="1">
+                                                        <TextBlock Text="{Binding Nickname}" FontWeight="SemiBold"/>
+                                                        <TextBlock Text="{Binding Role}" Classes="Muted Small"/>
+                                                    </StackPanel>
+                                                    <TextBlock Grid.Column="1" VerticalAlignment="Center"
+                                                               Margin="8,0"
+                                                               Classes="Muted Small"
+                                                               Text="готов"
+                                                               Foreground="{StaticResource AppSuccessBrush}"
+                                                               IsVisible="{Binding Status, Converter={x:Static conv:MemberStatusToReadyVisibilityConverter.Instance}, ConverterParameter=Ready}"/>
+                                                    <TextBlock Grid.Column="1" VerticalAlignment="Center"
+                                                               Margin="8,0"
+                                                               Classes="Muted Small"
+                                                               Text="ожидание"
+                                                               IsVisible="{Binding Status, Converter={x:Static conv:MemberStatusToReadyVisibilityConverter.Instance}, ConverterParameter=Pending}"/>
+                                                    <TextBlock Grid.Column="2" VerticalAlignment="Center"
+                                                               FontFamily="Cascadia Mono,Consolas,Menlo,monospace"
+                                                               FontSize="18"
+                                                               Foreground="{StaticResource AppSuccessBrush}"
+                                                               Text="✓"
+                                                               IsVisible="{Binding Status, Converter={x:Static conv:MemberStatusToReadyVisibilityConverter.Instance}, ConverterParameter=Ready}"/>
+                                                    <TextBlock Grid.Column="2" VerticalAlignment="Center"
+                                                               FontFamily="Cascadia Mono,Consolas,Menlo,monospace"
+                                                               FontSize="18"
+                                                               Foreground="{StaticResource AppMutedBrush}"
+                                                               Text="○"
+                                                               IsVisible="{Binding Status, Converter={x:Static conv:MemberStatusToReadyVisibilityConverter.Instance}, ConverterParameter=Pending}"/>
+                                                </Grid>
+                                            </Border>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                            </StackPanel>
+
+                            <!-- Lobby action buttons. Clients see the
+                                 Ready toggle; hosts see the Start Game
+                                 button. -->
+                            <StackPanel Spacing="8" Margin="0,8,0,0">
+                                <!-- Client: ready toggle -->
+                                <Button Content="✓ Готов"
+                                        Command="{Binding ToggleReadyCommand}"
+                                        Classes="MenuButton Primary"
+                                        HorizontalAlignment="Stretch"
+                                        IsVisible="{Binding IsClient}"
+                                        ToolTip.Tip="Отметиться готовым (или отменить готовность)"/>
+                                <TextBlock Text="Хост всегда готов и запускает игру."
+                                           Classes="Muted Small"
+                                           HorizontalAlignment="Center"
+                                           IsVisible="{Binding IsClient}"/>
+
+                                <!-- Host: start game -->
+                                <Button Content="▶ Начать игру"
+                                        Command="{Binding StartGameCommand}"
+                                        Classes="MenuButton Primary"
+                                        HorizontalAlignment="Stretch"
+                                        IsVisible="{Binding IsHost}"
+                                        ToolTip.Tip="Перевести партию в режим игры (все участники должны быть готовы)"/>
+                                <TextBlock Text="Доступно, когда все участники готовы."
+                                           Classes="Muted Small"
+                                           HorizontalAlignment="Center"
+                                           IsVisible="{Binding IsHost}"/>
+                            </StackPanel>
+
+                            <TextBlock Text="Чат доступен слева — общайтесь до старта."
+                                       Classes="Muted Small"
+                                       HorizontalAlignment="Center"
+                                       TextWrapping="Wrap"
+                                       TextAlignment="Center"/>
                         </StackPanel>
                     </ScrollViewer>
-                </DockPanel>
+
+                    <!-- Normal game layout: narrative log + action input.
+                         Hidden in lobby mode. -->
+                    <DockPanel LastChildFill="True"
+                               IsVisible="{Binding !IsLobby}">
+                        <!-- Input box at bottom -->
+                        <Border DockPanel.Dock="Bottom" Classes="InputBar" Padding="8">
+                            <Grid ColumnDefinitions="*,Auto">
+                                <TextBox Grid.Column="0" x:Name="ActionInput" Text="{Binding CurrentAction}"
+                                         PlaceholderText="Опишите действие вашего персонажа…"
+                                         IsEnabled="{Binding CanSubmit}"
+                                         KeyDown="OnActionKeyDown"
+                                         ToolTip.Tip="Опишите действие вашего персонажа"/>
+                                <Button Grid.Column="1" Content="Отправить"
+                                        Command="{Binding SubmitActionCommand}"
+                                        Classes="SmallButton Primary"
+                                        Margin="6,0,0,0"
+                                        IsEnabled="{Binding CanSubmit}"
+                                        ToolTip.Tip="Отправить действие GM"/>
+                            </Grid>
+                        </Border>
+
+                        <!-- Narrative stream -->
+                        <ScrollViewer x:Name="NarrativeScroll"
+                                      HorizontalScrollBarVisibility="Disabled"
+                                      VerticalScrollBarVisibility="Auto"
+                                      Padding="8">
+                            <StackPanel>
+                                <ItemsControl ItemsSource="{Binding Log}">
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate DataType="core:LogEntry">
+                                            <Border Classes="LogEntry" Padding="6,4">
+                                                <TextBlock Text="{Binding Text}" TextWrapping="Wrap"/>
+                                            </Border>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                                <!-- Live-streaming narrative text (issue #5).
+                                     Bound to StreamingNarrativeText on the VM,
+                                     which is throttled to ~50ms-per-update to
+                                     avoid flooding the UI. Visible only while
+                                     the GM is actively streaming a turn; cleared
+                                     the moment the final NarrativeResult is
+                                     appended to the Log above. -->
+                                <Border Classes="LogEntry StreamingEntry" Padding="6,4"
+                                        IsVisible="{Binding StreamingNarrativeText, Converter={x:Static StringConverters.IsNotNullOrEmpty}}">
+                                    <TextBlock Text="{Binding StreamingNarrativeText}" TextWrapping="Wrap"/>
+                                </Border>
+                            </StackPanel>
+                        </ScrollViewer>
+                    </DockPanel>
+                </Grid>
             </Border>
 
-            <!-- RIGHT column: multiplayer-only pending-actions queue. Hidden in single-player. -->
+            <!-- RIGHT column: multiplayer-only pending-actions queue.
+                 Hidden in single-player AND in lobby mode (no actions
+                 queued yet — the game hasn't started). -->
             <Border Grid.Column="2" Classes="SidePanel" Width="260"
                     IsVisible="{Binding IsMultiplayer}">
                 <DockPanel LastChildFill="True">

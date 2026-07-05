@@ -1,7 +1,9 @@
 using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
+using System.IO;
 using System.Linq;
+using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
 using CommunityToolkit.Mvvm.ComponentModel;
@@ -23,6 +25,17 @@ namespace MyGame.Desktop.ViewModels;
 /// to the user. Supports cancellation. On success, creates a save with the
 /// opening narration as the first log entry and navigates to the game
 /// screen in single-player mode.
+///
+/// <para>
+/// <b>Pause / resume (issue #19):</b> the user can pause the build
+/// mid-flight via <see cref="PauseCommand"/>; the orchestrator blocks at
+/// the next checkpoint and the UI shows «Приостановлено: {stage}».
+/// <see cref="ResumeCommand"/> continues from where it stopped. On
+/// <see cref="CancelCommand"/> (cancel — distinct from pause), the
+/// orchestrator's saved state is written to
+/// <c>%APPDATA%/MyGame/worldbuilder-state.json</c> so a future session
+/// can offer to resume.
+/// </para>
 /// </summary>
 public partial class WorldBuildViewModel : ViewModelBase
 {
@@ -35,6 +48,12 @@ public partial class WorldBuildViewModel : ViewModelBase
     private readonly IReadOnlyCollection<MyGame.Core.AI.Agents.PetDelegation>? _petDelegations;
     private CancellationTokenSource? _cts;
     private WorldBuilderResult? _result;
+
+    // The orchestrator is created inside StartAsync but Pause/Resume need
+    // to reach it from the UI thread → keep a field reference. Cleared in
+    // the finally block of StartAsync so a stale orchestrator can't be
+    // paused/resumed after the build has finished.
+    private WorldBuilderOrchestrator? _orchestrator;
 
     public WorldBuildViewModel(
         ProfileStore profileStore,
@@ -78,6 +97,7 @@ public partial class WorldBuildViewModel : ViewModelBase
     private string? _finalSummary;
     private bool _completed;
     private bool _failed;
+    private bool _isPaused;
 
     /// <summary>0–100 percent complete for the whole build.</summary>
     public int Percent
@@ -123,6 +143,70 @@ public partial class WorldBuildViewModel : ViewModelBase
         get => _failed;
         private set => SetProperty(ref _failed, value);
     }
+
+    /// <summary>
+    /// True while the user has paused the build (issue #19). Drives the
+    /// «Пауза» / «Продолжить» button toggle in the View. Set by
+    /// <see cref="Pause"/> / <see cref="Resume"/>; cleared on
+    /// completion / failure / cancel. When true, <see cref="StageLabel"/>
+    /// is prefixed with «Приостановлено: » so the user sees what stage
+    /// the build is waiting on.
+    /// </summary>
+    public bool IsPaused
+    {
+        get => _isPaused;
+        private set
+        {
+            if (SetProperty(ref _isPaused, value))
+            {
+                PauseCommand.NotifyCanExecuteChanged();
+                ResumeCommand.NotifyCanExecuteChanged();
+                CancelCommand.NotifyCanExecuteChanged();
+                OnPropertyChanged(nameof(IsRunning));
+            }
+        }
+    }
+
+    /// <summary>
+    /// Hide the inherited <see cref="ViewModelBase.IsBusy"/> so we can
+    /// also notify <see cref="IsRunning"/> (which depends on IsBusy)
+    /// when the build starts / finishes. The backing field + base
+    /// setter still do the heavy lifting; we just add the extra
+    /// PropertyChanged notification.
+    /// </summary>
+    public new bool IsBusy
+    {
+        get => base.IsBusy;
+        private set
+        {
+            if (base.IsBusy != value)
+            {
+                base.IsBusy = value;
+                OnPropertyChanged(nameof(IsBusy));
+                OnPropertyChanged(nameof(IsRunning));
+                PauseCommand.NotifyCanExecuteChanged();
+                ResumeCommand.NotifyCanExecuteChanged();
+                CancelCommand.NotifyCanExecuteChanged();
+                StartCommand.NotifyCanExecuteChanged();
+            }
+        }
+    }
+
+    /// <summary>
+    /// True while the build is in flight and not paused (i.e. the
+    /// orchestrator is actively making progress). Used by the View to
+    /// decide whether to show the «Пауза» button.
+    /// </summary>
+    public bool IsRunning => IsBusy && !IsPaused && !Completed && !Failed;
+
+    /// <summary>
+    /// The pre-pause stage label — captured when the user pauses so
+    /// <see cref="Resume"/> can restore the orchestrator's last reported
+    /// stage text (the orchestrator doesn't emit new progress events
+    /// while paused, so the View would otherwise show the
+    /// «Приостановлено: …» text indefinitely after resume).
+    /// </summary>
+    private string? _prePauseStageLabel;
 
     /// <summary>
     /// Final summary (success message + commit stats, or error text).
@@ -196,6 +280,8 @@ public partial class WorldBuildViewModel : ViewModelBase
         ErrorMessage = null;
         Failed = false;
         Completed = false;
+        IsPaused = false;
+        _prePauseStageLabel = null;
         Percent = 0;
         StageLabel = "Запуск планировщика…";
         StageDetail = null;
@@ -224,12 +310,29 @@ public partial class WorldBuildViewModel : ViewModelBase
             var orchestrator = new WorldBuilderOrchestrator(
                 ai, world, prompts, tools, petDelegations: _petDelegations,
                 aiSettings: settings.Ai);
+            _orchestrator = orchestrator;
+
+            // If a saved state was loaded into this VM (via
+            // LoadStateForResume), restore it on the orchestrator so the
+            // resumed run skips already-completed stages.
+            if (_pendingLoadedState is not null)
+            {
+                orchestrator.LoadState(_pendingLoadedState);
+                _pendingLoadedState = null;
+            }
 
             // Progress marshals to UI thread via Avalonia's dispatcher.
             var progress = new Progress<WorldBuildProgress>(p =>
             {
                 Avalonia.Threading.Dispatcher.UIThread.Post(() =>
                 {
+                    // While paused, ignore orchestrator progress events
+                    // so the «Приостановлено: …» label stays put (the
+                    // orchestrator publishes a Done tick when resuming
+                    // from a paused state, which would otherwise
+                    // overwrite the user-facing pause indicator).
+                    if (IsPaused) return;
+
                     Percent = p.Percent;
                     StageLabel = p.Label;
                     StageDetail = p.Detail;
@@ -274,6 +377,12 @@ public partial class WorldBuildViewModel : ViewModelBase
                 FinalSummary = _result.Summary ?? "Мир готов.";
                 Completed = true;
                 Percent = 100;
+
+                // Build is complete — clear any saved state file so the
+                // app doesn't offer to resume a finished build on next
+                // launch.
+                try { WorldBuilderStateStore.Delete(); }
+                catch { /* non-fatal */ }
             }
             else if (_result.Kind == WorldBuilderResultKind.Cancelled)
             {
@@ -299,6 +408,8 @@ public partial class WorldBuildViewModel : ViewModelBase
         finally
         {
             IsBusy = false;
+            IsPaused = false;
+            _orchestrator = null;
             _cts?.Dispose();
             _cts = null;
         }
@@ -306,10 +417,77 @@ public partial class WorldBuildViewModel : ViewModelBase
 
     private bool CanStart() => !IsBusy && !Completed;
 
-    /// <summary>Cancel an in-flight build.</summary>
+    /// <summary>
+    /// Pause the in-flight build (issue #19). The orchestrator blocks at
+    /// the next checkpoint (between stages / sub-stages); the UI label
+    /// switches to «Приостановлено: {stage}» so the user knows what
+    /// stage is waiting. No-op when not running or already paused.
+    /// </summary>
+    [RelayCommand(CanExecute = nameof(CanPause))]
+    private void Pause()
+    {
+        if (_orchestrator is null) return;
+        _prePauseStageLabel = StageLabel;
+        _orchestrator.Pause();
+        IsPaused = true;
+        // Surface the pause state to the user immediately — the
+        // orchestrator won't emit a new progress event until it resumes.
+        StageLabel = $"Приостановлено: {_prePauseStageLabel ?? "текущая стадия"}";
+    }
+
+    private bool CanPause() => IsBusy && !IsPaused && !Completed && !Failed;
+
+    /// <summary>
+    /// Resume a paused build (issue #19). The orchestrator's polling
+    /// loop exits within ~100ms and the next stage begins. Restores the
+    /// pre-pause stage label so the user sees the live stage again as
+    /// soon as the next progress event arrives. No-op when not paused.
+    /// </summary>
+    [RelayCommand(CanExecute = nameof(CanResume))]
+    private void Resume()
+    {
+        if (_orchestrator is null) return;
+        _orchestrator.Resume();
+        IsPaused = false;
+        // Restore the pre-pause label; the next progress tick will
+        // overwrite it with the new stage's label.
+        if (_prePauseStageLabel is not null)
+            StageLabel = _prePauseStageLabel;
+        _prePauseStageLabel = null;
+    }
+
+    private bool CanResume() => IsBusy && IsPaused && !Completed && !Failed;
+
+    /// <summary>
+    /// Cancel an in-flight build (issue #19). Distinguished from
+    /// <see cref="Pause"/>: cancel terminates the run and the
+    /// orchestrator's saved state is written to
+    /// <c>%APPDATA%/MyGame/worldbuilder-state.json</c> so a future
+    /// session can offer to resume.
+    /// </summary>
     [RelayCommand(CanExecute = nameof(CanCancel))]
     private void Cancel()
     {
+        // Persist the orchestrator's current state to disk BEFORE
+        // triggering the cancellation — once the token fires, the
+        // orchestrator returns Cancelled and its in-memory state
+        // snapshots the LAST completed stage (which is exactly what we
+        // want to resume from). The state file is what
+        // WorldBuilderStateStore.Load() reads on next app launch.
+        if (_orchestrator is not null)
+        {
+            try
+            {
+                var state = _orchestrator.SaveState();
+                WorldBuilderStateStore.Save(state, _brief);
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Trace.WriteLine(
+                    $"[WorldBuildViewModel] failed to save pause state: {ex.Message}");
+            }
+        }
+
         try { _cts?.Cancel(); } catch { /* ignore */ }
     }
 
@@ -347,6 +525,51 @@ public partial class WorldBuildViewModel : ViewModelBase
     /// <summary>Back to the main menu (also used after failure).</summary>
     [RelayCommand]
     private void Back() => _shell.NavigateToMenu();
+
+    // ─── Resume from saved state (issue #19) ─────────────────────────
+    //
+    // When the app launches with a worldbuilder-state.json file on disk
+    // (written by a previous Cancel()), MainMenuViewModel prompts the
+    // user to resume; if they accept, it loads the state file and calls
+    // MainViewModel.NavigateToWorldBuildForResume(state, brief). The
+    // shell constructs this VM with the brief, then calls
+    // LoadStateForResume(state) BEFORE invoking StartCommand. The state
+    // is stashed in _pendingLoadedState and applied to the orchestrator
+    // inside StartAsync (after the orchestrator is constructed).
+
+    private WorldBuilderState? _pendingLoadedState;
+
+    /// <summary>
+    /// Stage a saved <see cref="WorldBuilderState"/> to be loaded into
+    /// the orchestrator on the next <see cref="StartAsync"/> call. Used
+    /// by the resume-from-file flow (issue #19): the main menu detects
+    /// a leftover <c>worldbuilder-state.json</c>, asks the user whether
+    /// to resume, and if yes, navigates to this VM with the state. The
+    /// VM then runs <see cref="StartAsync"/> which calls
+    /// <see cref="WorldBuilderOrchestrator.LoadState"/> before
+    /// <see cref="WorldBuilderOrchestrator.RunAsync"/> so the resumed
+    /// run skips already-completed stages.
+    /// </summary>
+    /// <param name="state">Saved state (must not be null).</param>
+    /// <param name="brief">The original world brief (so the resumed
+    /// run's planner call — if planning hasn't completed yet — uses the
+    /// same brief as the original).</param>
+    public void LoadStateForResume(WorldBuilderState state, string brief)
+    {
+        _pendingLoadedState = state ?? throw new ArgumentNullException(nameof(state));
+        // The brief is read-only (readonly field set in ctor); we can't
+        // reassign it. The caller is expected to have constructed this
+        // VM with the original brief already (MainMenu reads it from
+        // the state file and passes it to the NavigateToWorldBuildForResume
+        // helper, which forwards it to the ctor). Defensive check: if
+        // the caller passed a different brief, log + ignore — using
+        // the original ctor brief keeps things simple.
+        if (!string.IsNullOrWhiteSpace(brief) && brief != _brief)
+        {
+            System.Diagnostics.Trace.WriteLine(
+                "[WorldBuildViewModel] LoadStateForResume: brief differs from ctor brief — using ctor brief.");
+        }
+    }
 
     // ─── Pet-progress helpers (issue #76) ────────────────────────────
 

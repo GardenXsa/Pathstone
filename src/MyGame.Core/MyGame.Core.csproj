@@ -5,13 +5,22 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <LangVersion>latest</LangVersion>
-    <!-- Make internals visible to Desktop project for DI wiring -->
-    <InternalsVisibleTo>MyGame.Desktop</InternalsVisibleTo>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- Make internals visible to Desktop project for DI wiring + tool
+         helper access (e.g. AwardXpTool.GrantXp from GameViewModel's
+         quest-reward-claim flow). Using the ItemGroup syntax (with
+         Include) rather than the PropertyGroup syntax because the
+         latter only holds ONE value — the second <InternalsVisibleTo>
+         in a PropertyGroup silently overwrites the first. The ItemGroup
+         form generates one assembly attribute per entry. -->
+    <InternalsVisibleTo Include="MyGame.Desktop" />
     <!-- Make internals visible to the test project so unit tests can
          exercise helpers that aren't part of the public API (e.g.
          GameMaster.EstimateTokens). -->
-    <InternalsVisibleTo>MyGame.Tests</InternalsVisibleTo>
-  </PropertyGroup>
+    <InternalsVisibleTo Include="MyGame.Tests" />
+  </ItemGroup>
 
   <ItemGroup>
     <!-- SQLite for local persistence (profile metadata, save index). -->

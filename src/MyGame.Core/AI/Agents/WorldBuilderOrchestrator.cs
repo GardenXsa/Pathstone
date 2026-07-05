@@ -25,6 +25,72 @@ public enum WorldBuilderResultKind
 }
 
 /// <summary>
+/// Snapshot of the orchestrator's progress through the world-build
+/// pipeline, used by the pause/resume feature (issue #19).
+///
+/// <para>
+/// The orchestrator publishes a fresh <see cref="WorldBuilderState"/>
+/// after each stage / sub-stage via <see cref="WorldBuilderOrchestrator.SaveState"/>,
+/// and a caller can restore one via <see cref="WorldBuilderOrchestrator.LoadState"/>
+/// so a resumed run continues from where the previous run left off
+/// (rather than starting over from the planning stage).
+/// </para>
+///
+/// <para>
+/// The fields capture:
+/// <list type="bullet">
+///   <item><see cref="Stage"/> — a stable string identifier for the
+///     current point in the pipeline (<c>"planning"</c>,
+///     <c>"planning_done"</c>, <c>"ruleset"</c>, <c>"committer"</c>,
+///     <c>"committer_done"</c>, <c>"pets"</c>, <c>"pets_done"</c>,
+///     <c>"narration"</c>, <c>"done"</c>). On <see cref="WorldBuilderOrchestrator.LoadState"/>,
+///     the orchestrator skips any stage whose <c>*_done</c> marker
+///     precedes or matches <see cref="Stage"/>.</item>
+///   <item><see cref="Plan"/> — the committed <see cref="WorldPlan"/>
+///     from the planner stage. Null before planning has run; non-null
+///     afterwards so a resumed run can skip the planner AI call.</item>
+///   <item><see cref="Messages"/> — the orchestrator builds messages
+///     fresh each run (no per-stage conversation history accumulates
+///     between planner + narrator), so this list is kept for API
+///     symmetry with the spec but is typically empty. Pet-agent
+///     conversations live on their own <c>PetAgent</c> instances and
+///     are not serialised here.</item>
+///   <item><see cref="Iteration"/> — the pet-delegation index (0-based)
+///     of the next delegation to run. Resumed runs skip already-completed
+///     delegations 0..<see cref="Iteration"/>-1.</item>
+/// </list>
+/// </para>
+/// </summary>
+public sealed record WorldBuilderState
+{
+    /// <summary>
+    /// Stable identifier for the orchestrator's current point in the
+    /// pipeline. See the class-level doc for the enumeration of values.
+    /// </summary>
+    public required string Stage { get; init; } = "planning";
+
+    /// <summary>
+    /// The committed <see cref="WorldPlan"/> (null before planning has
+    /// run). Restored via <see cref="WorldBuilderOrchestrator.LoadState"/>
+    /// so a resumed run can skip the planner AI call.
+    /// </summary>
+    public WorldPlan? Plan { get; init; }
+
+    /// <summary>
+    /// Conversation history (kept for API symmetry with the spec; the
+    /// orchestrator builds messages fresh each run, so this is typically
+    /// empty). Pet-agent conversations are not serialised here.
+    /// </summary>
+    public List<ChatMessage> Messages { get; init; } = new();
+
+    /// <summary>
+    /// 0-based index of the next pet-delegation to run. Resumed runs
+    /// skip already-completed delegations 0..<c>Iteration-1</c>.
+    /// </summary>
+    public int Iteration { get; init; }
+}
+
+/// <summary>
 /// Result of <see cref="WorldBuilderOrchestrator.RunAsync"/>.
 /// </summary>
 public sealed record WorldBuilderResult
@@ -42,6 +108,14 @@ public sealed record WorldBuilderResult
 
     /// <summary>Stats from the deterministic committer stage (if reached).</summary>
     public CommitStats? Stats { get; init; }
+
+    /// <summary>
+    /// True when the run paused mid-flight and returned without
+    /// completing the pipeline. Set by <see cref="WorldBuilderOrchestrator.Pause"/>
+    /// + the orchestrator's pause-checkpoints; the host should treat
+    /// this as "the build is paused, not failed" and offer a resume.
+    /// </summary>
+    public bool Paused { get; init; }
 }
 
 /// <summary>
@@ -67,13 +141,13 @@ public sealed record WorldBuilderResult
 /// </list>
 ///
 /// <para>
-/// This is intentionally simpler than the TS source's TODO-driven
-/// single-agent loop (which needed <c>add_todo</c> / <c>mark_todo_done</c>
-/// / <c>end_worldbuilding</c> tools + ~200 iterations + supervisor pause /
-/// resume). The desktop MVP trades flexibility for reliability: three
-/// deterministic stages, no resume semantics, no pause, no anti-loop
-/// detection. A later task can layer the TODO-driven loop on top if the
-/// deterministic committer turns out too rigid.
+/// <b>Pause / resume (issue #19):</b> the orchestrator exposes
+/// <see cref="Pause"/> / <see cref="Resume"/> and checks
+/// <see cref="_paused"/> between every stage + sub-stage (the polling
+/// loop yields the thread every 100ms so the UI stays responsive). The
+/// host can snapshot progress via <see cref="SaveState"/> and restore it
+/// via <see cref="LoadState"/> so a resumed run skips already-completed
+/// stages (planning → committer → pets → narration).
 /// </para>
 /// </summary>
 public sealed class WorldBuilderOrchestrator
@@ -88,6 +162,25 @@ public sealed class WorldBuilderOrchestrator
     private readonly ToolRegistry _tools;
     private readonly int _plannerIterations;
     private readonly List<PetDelegation> _petDelegations;
+
+    // ─── Pause/resume state (issue #19) ──────────────────────────────
+    //
+    // _paused is volatile so writes from the UI thread (Pause() /
+    // Resume()) are visible to the background task running RunAsync.
+    // The pause-checkpoints in RunAsync poll this flag in a 100ms loop
+    // (WaitIfPausedAsync) that also checks the CancellationToken so a
+    // cancel during pause propagates immediately.
+    //
+    // _currentStage / _currentPlan / _currentIteration are mutated by
+    // RunAsync as it crosses stage boundaries; SaveState() snapshots
+    // them into a WorldBuilderState record. LoadState() restores them
+    // AND sets _loadedStage so RunAsync knows which stages to skip on
+    // the next run.
+    private volatile bool _paused;
+    private string _currentStage = "planning";
+    private WorldPlan? _currentPlan;
+    private int _currentIteration;
+    private string? _loadedStage; // when non-null, skip stages ≤ this
 
     /// <summary>Create an orchestrator bound to the given AI client, world, prompt loader, and tool registry.</summary>
     /// <param name="ai">Base AI client. When <paramref name="aiSettings"/>
@@ -116,6 +209,129 @@ public sealed class WorldBuilderOrchestrator
         _aiSettings = aiSettings;
     }
 
+    // ─── Pause / resume API (issue #19) ──────────────────────────────
+
+    /// <summary>
+    /// True while the orchestrator is paused (the background task is
+    /// blocked in <see cref="WaitIfPausedAsync"/>, polling every 100ms
+    /// for either a resume or a cancel). Volatile so the read in the
+    /// polling loop observes writes from the UI thread.
+    /// </summary>
+    public bool Paused => _paused;
+
+    /// <summary>
+    /// Pause the orchestrator at the next pause-checkpoint. The
+    /// currently-running AI call (if any) continues to completion —
+    /// pause takes effect BETWEEN stages, not mid-API-call. Safe to
+    /// call from the UI thread while <see cref="RunAsync"/> runs on a
+    /// background task.
+    /// </summary>
+    public void Pause() => _paused = true;
+
+    /// <summary>
+    /// Resume the orchestrator from a paused state. The polling loop in
+    /// <see cref="WaitIfPausedAsync"/> exits within ~100ms and the next
+    /// stage begins. No-op if not paused.
+    /// </summary>
+    public void Resume() => _paused = false;
+
+    /// <summary>
+    /// Snapshot the orchestrator's current progress into a
+    /// <see cref="WorldBuilderState"/>. Safe to call from any thread;
+    /// captures the current <c>_currentStage</c> / <c>_currentPlan</c>
+    /// / <c>_currentIteration</c>. The returned record is safe to JSON-
+    /// serialise + reload in a later process via
+    /// <see cref="LoadState"/>.
+    /// </summary>
+    public WorldBuilderState SaveState() => new()
+    {
+        Stage = _currentStage,
+        Plan = _currentPlan,
+        Messages = new List<ChatMessage>(),
+        Iteration = _currentIteration,
+    };
+
+    /// <summary>
+    /// Restore orchestrator progress from a previously-saved
+    /// <see cref="WorldBuilderState"/>. The next <see cref="RunAsync"/>
+    /// call skips any stage whose <c>*_done</c> marker precedes or
+    /// matches <see cref="WorldBuilderState.Stage"/>; the planner AI
+    /// call is skipped when <see cref="WorldBuilderState.Plan"/> is
+    /// non-null; the first <see cref="WorldBuilderState.Iteration"/>
+    /// pet-delegations are skipped.
+    /// </summary>
+    /// <param name="state">Saved state. Must not be null.</param>
+    public void LoadState(WorldBuilderState state)
+    {
+        if (state is null) throw new ArgumentNullException(nameof(state));
+        _currentStage = state.Stage;
+        _currentPlan = state.Plan;
+        _currentIteration = state.Iteration;
+        _loadedStage = state.Stage;
+    }
+
+    /// <summary>
+    /// Block the calling background task while <see cref="_paused"/> is
+    /// true. Polls every 100ms so a resume takes effect quickly. The
+    /// cancellation token is checked on every iteration so a cancel
+    /// during pause propagates immediately (rather than after the next
+    /// stage starts).
+    /// </summary>
+    private async Task WaitIfPausedAsync(CancellationToken ct)
+    {
+        while (_paused)
+        {
+            ct.ThrowIfCancellationRequested();
+            try
+            {
+                await Task.Delay(100, ct).ConfigureAwait(false);
+            }
+            catch (OperationCanceledException) when (ct.IsCancellationRequested)
+            {
+                throw;
+            }
+            // Task.Delay can throw OperationCanceledException when the
+            // token fires during the delay — propagate. Any other
+            // exception is unexpected; let it bubble.
+        }
+    }
+
+    /// <summary>
+    /// Determine whether a stage has already been completed (according
+    /// to the loaded-state marker) and should be skipped on a resumed
+    /// run. The ordering is:
+    /// <code>
+    /// planning &lt; planning_done &lt; ruleset &lt; committer &lt;
+    /// committer_done &lt; pets &lt; pets_done &lt; narration &lt; done
+    /// </code>
+    /// A null loaded-stage means "fresh run" → nothing is skipped.
+    /// </summary>
+    private bool IsStageAlreadyDone(string stageMarker, string loadedStage)
+    {
+        if (string.IsNullOrEmpty(loadedStage)) return false;
+        return StageOrder(stageMarker) <= StageOrder(loadedStage);
+    }
+
+    /// <summary>
+    /// Map a stage name to its position in the pipeline order. Unknown
+    /// stages get int.MaxValue so they're never considered "already
+    /// done" relative to a known marker (defensive — keeps a corrupt
+    /// state file from skipping the entire pipeline).
+    /// </summary>
+    private static int StageOrder(string? stage) => stage switch
+    {
+        "planning"        => 1,
+        "planning_done"   => 2,
+        "ruleset"         => 3,
+        "committer"       => 4,
+        "committer_done"  => 5,
+        "pets"            => 6,
+        "pets_done"       => 7,
+        "narration"       => 8,
+        "done"            => 9,
+        _                 => int.MaxValue,
+    };
+
     /// <summary>
     /// Run the world-build pipeline. Reports progress via
     /// <paramref name="progress"/>; respects <paramref name="ct"/> for
@@ -123,9 +339,13 @@ public sealed class WorldBuilderOrchestrator
     /// final plan (if planning succeeded) and a summary.
     ///
     /// <para>
-    /// Stages 2–7 are TODOs; only stage 1 (planning) currently makes an
-    /// AI call. Stages 2–7 publish progress with
-    /// <see cref="ProgressStatus.Skipped"/> and return immediately.
+    /// <b>Pause / resume (issue #19):</b> between every stage + sub-stage
+    /// the orchestrator calls <see cref="WaitIfPausedAsync"/> which blocks
+    /// while <see cref="Paused"/> is true. A loaded state (set via
+    /// <see cref="LoadState"/>) causes already-completed stages to be
+    /// skipped so a resumed run continues from where the previous run
+    /// left off. The pet-delegation loop also skips the first
+    /// <see cref="WorldBuilderState.Iteration"/> delegations.
     /// </para>
     /// </summary>
     public async Task<WorldBuilderResult> RunAsync(
@@ -135,65 +355,95 @@ public sealed class WorldBuilderOrchestrator
     {
         if (request is null) throw new ArgumentNullException(nameof(request));
 
-        // ── Stage 1: planning ─────────────────────────────────────────────
-        progress?.Report(new WorldBuildProgress
-        {
-            Stage = "planning",
-            Status = ProgressStatus.Active,
-            Label = "Планировщик анализирует бриф",
-            Percent = 5,
-        });
+        // The loaded stage marker (null for a fresh run). Used by
+        // IsStageAlreadyDone to skip stages that were already completed
+        // in a previous run.
+        var loadedStage = _loadedStage;
 
-        WorldPlan? plan = null;
-        try
+        // ── Stage 1: planning ─────────────────────────────────────────────
+        WorldPlan? plan = _currentPlan;
+        if (!IsStageAlreadyDone("planning_done", loadedStage ?? ""))
         {
-            plan = await RunPlannerAsync(request, progress, ct).ConfigureAwait(false);
+            _currentStage = "planning";
+            progress?.Report(new WorldBuildProgress
+            {
+                Stage = "planning",
+                Status = ProgressStatus.Active,
+                Label = "Планировщик анализирует бриф",
+                Percent = 5,
+            });
+
+            try
+            {
+                plan = await RunPlannerAsync(request, progress, ct).ConfigureAwait(false);
+                _currentPlan = plan;
+                _currentStage = "planning_done";
+                progress?.Report(new WorldBuildProgress
+                {
+                    Stage = "planning",
+                    Status = ProgressStatus.Done,
+                    Label = "План мира зафиксирован",
+                    Detail = $"«{plan.Title}» — {plan.Locations.Count} локаций, {plan.Npcs.Count} NPC",
+                    Percent = 15,
+                });
+            }
+            catch (OperationCanceledException)
+            {
+                progress?.Report(new WorldBuildProgress
+                {
+                    Stage = "planning",
+                    Status = ProgressStatus.Error,
+                    Label = "Отменено",
+                    Percent = 0,
+                });
+                return new WorldBuilderResult
+                {
+                    Kind = WorldBuilderResultKind.Cancelled,
+                    Summary = "Build cancelled during planning.",
+                };
+            }
+            catch (AiException ex)
+            {
+                progress?.Report(new WorldBuildProgress
+                {
+                    Stage = "planning",
+                    Status = ProgressStatus.Error,
+                    Label = "Ошибка планирования",
+                    Detail = ex.Message,
+                    Percent = 0,
+                });
+                return new WorldBuilderResult
+                {
+                    Kind = WorldBuilderResultKind.Failed,
+                    Summary = "Planning failed: " + ex.Message,
+                };
+            }
+        }
+        else
+        {
+            // Resumed run: planning was already done — reuse the saved
+            // plan + publish a Done tick so the UI shows the right state.
+            plan = _currentPlan ?? throw new InvalidOperationException(
+                "Loaded state marked planning_done but no plan was restored.");
             progress?.Report(new WorldBuildProgress
             {
                 Stage = "planning",
                 Status = ProgressStatus.Done,
-                Label = "План мира зафиксирован",
+                Label = "План мира восстановлен",
                 Detail = $"«{plan.Title}» — {plan.Locations.Count} локаций, {plan.Npcs.Count} NPC",
                 Percent = 15,
             });
         }
-        catch (OperationCanceledException)
-        {
-            progress?.Report(new WorldBuildProgress
-            {
-                Stage = "planning",
-                Status = ProgressStatus.Error,
-                Label = "Отменено",
-                Percent = 0,
-            });
-            return new WorldBuilderResult
-            {
-                Kind = WorldBuilderResultKind.Cancelled,
-                Summary = "Build cancelled during planning.",
-            };
-        }
-        catch (AiException ex)
-        {
-            progress?.Report(new WorldBuildProgress
-            {
-                Stage = "planning",
-                Status = ProgressStatus.Error,
-                Label = "Ошибка планирования",
-                Detail = ex.Message,
-                Percent = 0,
-            });
-            return new WorldBuilderResult
-            {
-                Kind = WorldBuilderResultKind.Failed,
-                Summary = "Planning failed: " + ex.Message,
-            };
-        }
+
+        // Pause-checkpoint after planning.
+        await WaitIfPausedAsync(ct).ConfigureAwait(false);
 
         // ── Stage 2: ruleset ──────────────────────────────────────────────
         // The desktop MVP uses the default DnD 5e-style ruleset for every
         // world. The TS source had a per-world ruleset design stage (via
         // world-ruleset prompt + commit_ruleset tool); that's deferred. We
         // still publish a progress tick so the UI shows the stage.
+        _currentStage = "ruleset";
         progress?.Report(new WorldBuildProgress
         {
             Stage = "ruleset",
@@ -211,12 +461,23 @@ public sealed class WorldBuilderOrchestrator
             Percent = 25,
         });
 
+        // Pause-checkpoint after ruleset.
+        await WaitIfPausedAsync(ct).ConfigureAwait(false);
+
         // ── Stage 3-6: deterministic commit ───────────────────────────────
         // One committer instance runs all four sub-stages (templates,
         // locations, population, buildings, content, title) in order. We
         // publish a progress tick before each sub-stage so the UI shows
         // the build progressing even though the work itself is
         // synchronous and fast (no AI calls).
+        //
+        // PAUSE/RESUME: the committer mutates the live World in place
+        // and is idempotent (re-commit matches by name, no duplicates).
+        // On a resumed run we always re-run the committer against the
+        // (possibly fresh) World passed in by the host — this is cheap
+        // (no AI calls) and ensures the live World reflects the plan
+        // even if the host spun up a new World instance for the resume.
+        _currentStage = "committer";
         var committer = new WorldBuilderCommitter(_world);
         var stats = new CommitStats();
 
@@ -307,6 +568,11 @@ public sealed class WorldBuilderOrchestrator
             Percent = 80,
         });
 
+        _currentStage = "committer_done";
+
+        // Pause-checkpoint after the committer (before pets).
+        await WaitIfPausedAsync(ct).ConfigureAwait(false);
+
         // ── Stage 6b: pet-agent delegations (optional) ──────────────────
         // If the caller provided any PetDelegations, run each as a
         // separate PetAgent with its own LLM conversation + tool loop.
@@ -314,21 +580,35 @@ public sealed class WorldBuilderOrchestrator
         // tool access. Failures are non-fatal (the world is already
         // playable from the committer stage); we log the error and move
         // on to the next delegation.
+        //
+        // PAUSE/RESUME: _currentIteration holds the index of the next
+        // delegation to run (0 for a fresh run; restored to a non-zero
+        // value by LoadState on a resume). Delegations 0..Iteration-1
+        // are skipped.
         if (_petDelegations.Count > 0)
         {
+            _currentStage = "pets";
             var petSummaries = new List<string>();
-            int petIndex = 0;
             int petTotal = _petDelegations.Count;
-            foreach (var del in _petDelegations)
+            // Skip already-completed delegations on a resumed run.
+            int petIndex = _currentIteration;
+            for (; petIndex < _petDelegations.Count; petIndex++)
             {
-                petIndex++;
-                int petPercent = 80 + (int)((8.0 * petIndex) / petTotal); // 80→88
+                var del = _petDelegations[petIndex];
+                // Pause-checkpoint BEFORE each pet delegation. The
+                // current iteration marker is updated before the call so
+                // SaveState() during pause picks the right "next to run"
+                // index.
+                _currentIteration = petIndex;
+                await WaitIfPausedAsync(ct).ConfigureAwait(false);
+
+                int petPercent = 80 + (int)((8.0 * (petIndex + 1)) / petTotal); // 80→88
                 progress?.Report(new WorldBuildProgress
                 {
                     Stage = "pet",
                     Status = ProgressStatus.Active,
                     Label = $"Pet-агент: {del.Label}",
-                    Detail = $"Делегация {petIndex}/{petTotal}",
+                    Detail = $"Делегация {petIndex + 1}/{petTotal}",
                     Percent = petPercent,
                 });
 
@@ -336,7 +616,7 @@ public sealed class WorldBuilderOrchestrator
                 {
                     var petConfig = new PetAgentConfig
                     {
-                        Id = $"pet_{petIndex}",
+                        Id = $"pet_{petIndex + 1}",
                         Name = del.Label,
                         Settings = del.Settings,
                     };
@@ -371,6 +651,12 @@ public sealed class WorldBuilderOrchestrator
                 }
             }
 
+            // All delegations completed (or skipped on resume) — advance
+            // the iteration counter past the end so a subsequent
+            // SaveState doesn't try to re-run them.
+            _currentIteration = petIndex;
+            _currentStage = "pets_done";
+
             // Stash the pet summaries on the result so the UI can show
             // what each delegation accomplished.
             if (petSummaries.Count > 0)
@@ -379,11 +665,15 @@ public sealed class WorldBuilderOrchestrator
             }
         }
 
+        // Pause-checkpoint after pets (before narration).
+        await WaitIfPausedAsync(ct).ConfigureAwait(false);
+
         // ── Stage 7: narration ─────────────────────────────────────────────
         // One AI call with the world-narrator prompt. Produces the
         // atmospheric opening narration shown to the player when they
         // enter the game. Failures here are non-fatal — the world is
         // already playable; we just fall back to a plain hook line.
+        _currentStage = "narration";
         string? narration = null;
         try
         {
@@ -426,6 +716,7 @@ public sealed class WorldBuilderOrchestrator
             });
         }
 
+        _currentStage = "done";
         progress?.Report(new WorldBuildProgress
         {
             Stage = "done",
@@ -436,6 +727,10 @@ public sealed class WorldBuilderOrchestrator
                 : ""),
             Percent = 100,
         });
+
+        // Clear the loaded-stage marker so a subsequent RunAsync (without
+        // a fresh LoadState) starts over from planning.
+        _loadedStage = null;
 
         return new WorldBuilderResult
         {

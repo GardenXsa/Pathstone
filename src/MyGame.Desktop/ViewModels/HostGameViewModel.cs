@@ -172,10 +172,15 @@ public partial class HostGameViewModel : ViewModelBase
             var port = await session.StartAsync();
             StartedSession = session;
 
-            // 4) Transition the party to Playing (the DefaultWorld is
-            //    ready immediately — no world-builder stage here).
-            await session.SetStatusAsync(PartyStatus.Playing, CancellationToken.None);
-
+            // 4) Issue #77 — leave the party in Lobby status. The host
+            //    clicks «Начать игру» in the lobby UI (StartGameCommand
+            //    on the GameViewModel) to transition to Playing once all
+            //    non-spectator members are Ready. Previously this
+            //    auto-transitioned to Playing immediately, skipping the
+            //    lobby entirely — but with the new lobby UI the host
+            //    can see who's joined, share the address, and start the
+            //    game on demand. The HostServer's default status is
+            //    Lobby, so we don't need to set it explicitly here.
             ShareAddress = $"localhost:{port}  (порт {port})";
 
             // 5) Hand off to the GameViewModel. The shell constructs

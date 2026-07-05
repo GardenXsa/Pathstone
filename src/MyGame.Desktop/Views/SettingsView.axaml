@@ -5,6 +5,8 @@
              xmlns:vm="using:MyGame.Desktop.ViewModels"
              mc:Ignorable="d" d:DesignWidth="800" d:DesignHeight="600"
              x:Class="MyGame.Desktop.Views.SettingsView"
+             x:Name="Root"
+             x:CompileBindings="False"
              x:DataType="vm:SettingsViewModel">
 
     <DockPanel LastChildFill="True">
@@ -33,6 +35,36 @@
 
                 <TextBlock Text="Подключение к ИИ (OpenAI-совместимый API)" Classes="SectionTitle"/>
                 <StackPanel Spacing="12">
+                    <!-- Provider presets (issue #27). Click to fill in
+                         BaseUrl + Model (+ clear ApiKey for local
+                         providers). Tooltips explain each provider.
+                         The button's Command is bound UP to the parent
+                         SettingsViewModel via ElementName=Root (the
+                         UserControl's own DataContext) because the
+                         button's own DataContext is the AiPreset row
+                         (used for the CommandParameter). Mirrors the
+                         InventoryPanel's pattern for parent-VM commands
+                         fired from inside an ItemsControl template. -->
+                    <StackPanel Spacing="6">
+                        <TextBlock Text="Пресеты" Classes="FieldLabel"/>
+                        <ItemsControl ItemsSource="{Binding Presets}">
+                            <ItemsControl.ItemsPanel>
+                                <ItemsPanelTemplate>
+                                    <WrapPanel Orientation="Horizontal"/>
+                                </ItemsPanelTemplate>
+                            </ItemsControl.ItemsPanel>
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate DataType="vm:AiPreset">
+                                    <Button Content="{Binding Label}"
+                                            Command="{Binding DataContext.ApplyPresetCommand, ElementName=Root}"
+                                            CommandParameter="{Binding}"
+                                            Classes="TinyButton"
+                                            Margin="0,0,4,4"
+                                            ToolTip.Tip="{Binding Tooltip}"/>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </StackPanel>
                     <StackPanel Spacing="6">
                         <TextBlock Text="Base URL" Classes="FieldLabel"/>
                         <TextBox Text="{Binding BaseUrl}" PlaceholderText="https://api.openai.com/v1"
