@@ -88,11 +88,14 @@ public partial class MainViewModel : ObservableObject
         CurrentView = vm;
     }
 
-    /// <summary>Navigate to the profile editor.</summary>
-    public void NavigateToProfile()
+    /// <summary>
+    /// Navigate to the settings screen (AI connection only). The nickname
+    /// is edited inline on the main menu — no separate profile screen.
+    /// </summary>
+    public void NavigateToSettings()
     {
-        var vm = new ProfileViewModel(_profileStore, _settingsStore, this);
-        vm.Title = "Профиль";
+        var vm = new SettingsViewModel(_settingsStore, this);
+        vm.Title = "Настройки";
         CurrentView = vm;
     }
 
@@ -169,7 +172,7 @@ public partial class MainViewModel : ObservableObject
     private void GoToMenu() => NavigateToMenu();
 
     [RelayCommand]
-    private void GoToProfile() => NavigateToProfile();
+    private void GoToSettings() => NavigateToSettings();
 
     [RelayCommand]
     private void GoToHost() => NavigateToHost();

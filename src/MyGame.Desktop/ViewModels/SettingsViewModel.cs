@@ -8,19 +8,15 @@ using MyGame.Core.Profile;
 namespace MyGame.Desktop.ViewModels;
 
 /// <summary>
-/// Profile editor screen. Lets the user set their nickname + the
-/// OpenAI-compatible AI connection (BaseUrl, ApiKey, Model,
-/// Temperature). The MaxTokens field is included for completeness
-/// (the AI client reads it from Settings).
+/// Settings screen. Edits the OpenAI-compatible AI connection (BaseUrl,
+/// ApiKey, Model, Temperature, MaxTokens). The nickname is NOT edited
+/// here — it lives inline on the main menu (no separate profile screen,
+/// since the nickname is the only profile field and there's no auth).
 /// </summary>
-public partial class ProfileViewModel : ViewModelBase
+public partial class SettingsViewModel : ViewModelBase
 {
-    private readonly ProfileStore _profileStore;
     private readonly SettingsStore _settingsStore;
     private readonly MainViewModel _shell;
-
-    // ─── Nickname ─────────────────────────────────────────────────────
-    private string _nickname = string.Empty;
 
     // ─── AI settings ──────────────────────────────────────────────────
     private string _baseUrl = string.Empty;
@@ -29,27 +25,14 @@ public partial class ProfileViewModel : ViewModelBase
     private double _temperature;
     private int _maxTokens;
 
-    public ProfileViewModel(
-        ProfileStore profileStore,
+    public SettingsViewModel(
         SettingsStore settingsStore,
         MainViewModel shell)
     {
-        _profileStore = profileStore ?? throw new ArgumentNullException(nameof(profileStore));
         _settingsStore = settingsStore ?? throw new ArgumentNullException(nameof(settingsStore));
         _shell = shell ?? throw new ArgumentNullException(nameof(shell));
 
         // Pre-fill the form from the on-disk state.
-        try
-        {
-            var profile = _profileStore.GetOrCreate();
-            _nickname = profile.Nickname;
-        }
-        catch (Exception ex)
-        {
-            _nickname = string.Empty;
-            ErrorMessage = $"Не удалось загрузить профиль: {ex.Message}";
-        }
-
         try
         {
             var settings = _settingsStore.Load();
@@ -73,12 +56,6 @@ public partial class ProfileViewModel : ViewModelBase
     }
 
     // ─── Bindable properties ─────────────────────────────────────────
-
-    public string Nickname
-    {
-        get => _nickname;
-        set => SetProperty(ref _nickname, value);
-    }
 
     public string BaseUrl
     {
@@ -113,9 +90,8 @@ public partial class ProfileViewModel : ViewModelBase
     // ─── Commands ────────────────────────────────────────────────────
 
     /// <summary>
-    /// Persist the nickname + AI settings, then return to the main menu.
-    /// Catches validation/disk errors and surfaces them inline rather
-    /// than crashing.
+    /// Persist the AI settings, then return to the main menu. Catches
+    /// disk errors and surfaces them inline rather than crashing.
     /// </summary>
     [RelayCommand]
     private async Task SaveAsync()
@@ -124,18 +100,8 @@ public partial class ProfileViewModel : ViewModelBase
         ErrorMessage = null;
         try
         {
-            // 1) Validate + rename profile. The Core type is
-            // MyGame.Core.Profile.Profile (same name as its namespace).
-            if (!MyGame.Core.Profile.Profile.ValidateNickname(_nickname, out var nickError))
-            {
-                ErrorMessage = nickError;
-                return;
-            }
-            _profileStore.Rename(_nickname.Trim());
-
-            // 2) Patch AI settings via the Update helper (preserves
-            //    other settings like MaxToolIterations, AutosaveInterval,
-            //    etc.).
+            // Patch AI settings via the Update helper (preserves other
+            // settings like MaxToolIterations, AutosaveInterval, etc.).
             var patchedAi = new AiSettings
             {
                 BaseUrl = string.IsNullOrWhiteSpace(_baseUrl) ? new AiSettings().BaseUrl : _baseUrl.Trim(),
@@ -148,10 +114,6 @@ public partial class ProfileViewModel : ViewModelBase
 
             await Task.CompletedTask;
             _shell.NavigateToMenu();
-        }
-        catch (ArgumentException ex)
-        {
-            ErrorMessage = ex.Message;
         }
         catch (Exception ex)
         {

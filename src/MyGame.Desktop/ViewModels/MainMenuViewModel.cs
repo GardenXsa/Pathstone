@@ -12,15 +12,17 @@ using MyGame.Core.World;
 namespace MyGame.Desktop.ViewModels;
 
 /// <summary>
-/// Landing screen after app startup. Shows the local player's nickname
-/// at the top and the six primary buttons:
+/// Landing screen after app startup. Shows an inline nickname editor in
+/// the top-right corner (no separate profile screen — nickname is the
+/// only profile field, no auth, no settings mixed in) and the primary
+/// buttons:
 /// <list type="bullet">
 ///   <item>«Новая игра» — single-player, creates a save with DefaultWorld.</item>
+///   <item>«Создать мир (AI)» — open the AI world-build flow.</item>
 ///   <item>«Хост игры» — start a multiplayer host.</item>
 ///   <item>«Подключиться» — join a multiplayer host.</item>
 ///   <item>«Загрузить» — pick from existing saves.</item>
-///   <item>«Профиль» — edit nickname.</item>
-///   <item>«Настройки» — edit AI settings.</item>
+///   <item>«Настройки» — edit AI settings only.</item>
 /// </list>
 /// </summary>
 public partial class MainMenuViewModel : ViewModelBase
@@ -29,7 +31,12 @@ public partial class MainMenuViewModel : ViewModelBase
     private readonly SaveManager _saveManager;
     private readonly ProfileStore _profileStore;
 
-    private string _currentNickname = string.Empty;
+    // The nickname TextBox binds two-way to this. Editing + Enter (or
+    // focus loss) calls SaveNicknameCommand, which validates + persists
+    // via ProfileStore. No separate profile screen — the nickname is the
+    // only profile field, and there's no auth to wrap it in.
+    private string _nickname = string.Empty;
+    private string? _nicknameError;
 
     public MainMenuViewModel(MainViewModel shell, SaveManager saveManager, ProfileStore profileStore)
     {
@@ -37,8 +44,8 @@ public partial class MainMenuViewModel : ViewModelBase
         _saveManager = saveManager ?? throw new ArgumentNullException(nameof(saveManager));
         _profileStore = profileStore ?? throw new ArgumentNullException(nameof(profileStore));
 
-        try { _currentNickname = _profileStore.GetOrCreate().Nickname; }
-        catch { _currentNickname = "Игрок"; }
+        try { _nickname = _profileStore.GetOrCreate().Nickname; }
+        catch { _nickname = "Игрок"; }
     }
 
     /// <summary>
@@ -54,14 +61,24 @@ public partial class MainMenuViewModel : ViewModelBase
     }
 
     /// <summary>
-    /// Snapshot of the local profile's nickname — shown in the menu
-    /// chrome. Refreshed on every navigation to the menu (via the
-    /// shell's NavigateToMenu).
+    /// Editable nickname. Bound two-way to the top-right TextBox. The
+    /// user can type freely; pressing Enter or losing focus triggers
+    /// <see cref="SaveNicknameCommand"/> which validates + persists.
     /// </summary>
-    public string CurrentNickname
+    public string Nickname
     {
-        get => _currentNickname;
-        private set => SetProperty(ref _currentNickname, value);
+        get => _nickname;
+        set => SetProperty(ref _nickname, value);
+    }
+
+    /// <summary>
+    /// Inline validation error for the nickname (shown under the TextBox).
+    /// Null when the current value is valid or unchanged.
+    /// </summary>
+    public string? NicknameError
+    {
+        get => _nicknameError;
+        private set => SetProperty(ref _nicknameError, value);
     }
 
     /// <summary>
@@ -113,7 +130,7 @@ public partial class MainMenuViewModel : ViewModelBase
     /// <summary>
     /// «Создать мир» — open the AI world-build flow. The user types a
     /// brief, then the orchestrator plans + commits + narrates a custom
-    /// world. Requires an AI API key (set in Profile → AI settings).
+    /// world. Requires an AI API key (set in Настройки → AI settings).
     /// </summary>
     [RelayCommand(CanExecute = nameof(CanNavigate))]
     private void CreateWorld() => _shell.NavigateToWorldBrief();
@@ -126,13 +143,39 @@ public partial class MainMenuViewModel : ViewModelBase
     [RelayCommand(CanExecute = nameof(CanNavigate))]
     private void JoinGame() => _shell.NavigateToJoin();
 
-    /// <summary>«Профиль» — open the profile editor.</summary>
+    /// <summary>
+    /// «Настройки» — open the settings screen (AI settings only; the
+    /// nickname is edited inline on the main menu).
+    /// </summary>
     [RelayCommand(CanExecute = nameof(CanNavigate))]
-    private void OpenProfile() => _shell.NavigateToProfile();
+    private void OpenSettings() => _shell.NavigateToSettings();
 
-    /// <summary>«Настройки» — same editor (the profile screen has both).</summary>
-    [RelayCommand(CanExecute = nameof(CanNavigate))]
-    private void OpenSettings() => _shell.NavigateToProfile();
+    /// <summary>
+    /// Validate + persist the current nickname. Called from the TextBox's
+    /// KeyDown (Enter) or LostFocus. On validation failure, sets
+    /// <see cref="NicknameError"/> and leaves the TextBox content intact
+    /// so the user can fix it. On success, clears the error.
+    /// </summary>
+    [RelayCommand]
+    private void SaveNickname()
+    {
+        var trimmed = (_nickname ?? string.Empty).Trim();
+        if (!MyGame.Core.Profile.Profile.ValidateNickname(trimmed, out var error))
+        {
+            NicknameError = error;
+            return;
+        }
+        try
+        {
+            _profileStore.Rename(trimmed);
+            Nickname = trimmed; // normalize (trim)
+            NicknameError = null;
+        }
+        catch (Exception ex)
+        {
+            NicknameError = ex.Message;
+        }
+    }
 
     /// <summary>
     /// «Загрузить» — toggle the saves-list panel. The list is refreshed

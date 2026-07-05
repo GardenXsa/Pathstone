@@ -4,8 +4,8 @@
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              xmlns:vm="using:MyGame.Desktop.ViewModels"
              mc:Ignorable="d" d:DesignWidth="800" d:DesignHeight="600"
-             x:Class="MyGame.Desktop.Views.ProfileView"
-             x:DataType="vm:ProfileViewModel">
+             x:Class="MyGame.Desktop.Views.SettingsView"
+             x:DataType="vm:SettingsViewModel">
 
     <DockPanel LastChildFill="True">
 
@@ -13,7 +13,7 @@
         <Border DockPanel.Dock="Top" Classes="TopBar">
             <Grid ColumnDefinitions="Auto,*,Auto">
                 <Button Grid.Column="0" Content="← Назад" Command="{Binding CancelCommand}" Classes="SmallButton"/>
-                <TextBlock Grid.Column="1" Text="Профиль и настройки" Classes="AppTitle"
+                <TextBlock Grid.Column="1" Text="Настройки" Classes="AppTitle"
                            HorizontalAlignment="Center"/>
                 <Button Grid.Column="2" Content="Сохранить" Command="{Binding SaveCommand}"
                         Classes="SmallButton Primary"/>
@@ -28,16 +28,6 @@
 
         <ScrollViewer HorizontalScrollBarVisibility="Disabled">
             <StackPanel Margin="32,24" Spacing="18" MaxWidth="640" HorizontalAlignment="Center">
-
-                <TextBlock Text="Профиль" Classes="SectionTitle"/>
-                <StackPanel Spacing="6">
-                    <TextBlock Text="Никнейм" Classes="FieldLabel"/>
-                    <TextBox Text="{Binding Nickname}" PlaceholderText="2-20 символов: буквы, цифры, пробелы, дефисы"/>
-                    <TextBlock Text="2-20 символов: буквы (латиница/кириллица), цифры, пробелы, дефисы, подчёркивания."
-                               Classes="Muted Small"/>
-                </StackPanel>
-
-                <Border Classes="Separator"/>
 
                 <TextBlock Text="Подключение к ИИ (OpenAI-совместимый API)" Classes="SectionTitle"/>
                 <StackPanel Spacing="12">
@@ -67,6 +57,9 @@
                         </StackPanel>
                     </Grid>
                 </StackPanel>
+
+                <TextBlock Text="Никнейм редактируется прямо на главном экране (поле в правом верхнем углу)."
+                           Classes="Muted Small" TextWrapping="Wrap"/>
 
                 <Border Classes="Separator"/>
 

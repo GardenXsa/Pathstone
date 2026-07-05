@@ -9,16 +9,25 @@
 
     <DockPanel LastChildFill="True">
 
-        <!-- Top bar: title + nickname -->
+        <!-- Top bar: title + inline nickname editor -->
         <Border DockPanel.Dock="Top" Classes="TopBar">
             <Grid ColumnDefinitions="*,Auto">
                 <TextBlock Grid.Column="0" Text="MyGame" Classes="AppTitle" />
-                <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
-                    <TextBlock Text="Профиль:" Classes="Muted" />
-                    <TextBlock Text="{Binding CurrentNickname}" FontWeight="SemiBold"
-                               ToolTip.Tip="Ваш ник (измените в «Профиль»)"/>
+                <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+                    <TextBlock Text="Ник:" Classes="Muted" VerticalAlignment="Center"/>
+                    <TextBox Text="{Binding Nickname}" Width="160"
+                             PlaceholderText="ваш ник"
+                             ToolTip.Tip="Введите ник и нажмите Enter (или кликните вне поля)"
+                             KeyDown="OnNicknameKeyDown"
+                             LostFocus="OnNicknameLostFocus"/>
                 </StackPanel>
             </Grid>
+        </Border>
+
+        <!-- Inline nickname validation error -->
+        <Border DockPanel.Dock="Top" Classes="ErrorBar"
+                IsVisible="{Binding NicknameError, Converter={x:Static StringConverters.IsNotNullOrEmpty}}">
+            <TextBlock Text="{Binding NicknameError}" />
         </Border>
 
         <!-- Error bar -->
@@ -40,7 +49,6 @@
                     <Button Content="Хост игры" Command="{Binding HostGameCommand}" Classes="MenuButton" />
                     <Button Content="Подключиться" Command="{Binding JoinGameCommand}" Classes="MenuButton" />
                     <Button Content="Загрузить" Command="{Binding ToggleLoadCommand}" Classes="MenuButton" />
-                    <Button Content="Профиль" Command="{Binding OpenProfileCommand}" Classes="MenuButton" />
                     <Button Content="Настройки" Command="{Binding OpenSettingsCommand}" Classes="MenuButton" />
 
                     <!-- Saves list (collapsible) -->
