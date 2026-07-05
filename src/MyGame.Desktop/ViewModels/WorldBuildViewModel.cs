@@ -45,6 +45,7 @@ public partial class WorldBuildViewModel : ViewModelBase
     private readonly SettingsStore _settingsStore;
     private readonly SaveManager _saveManager;
     private readonly MainViewModel _shell;
+    private readonly bool _forHost;
 
     private readonly string _brief;
     private readonly IReadOnlyCollection<MyGame.Core.AI.Agents.PetDelegation>? _petDelegations;
@@ -65,7 +66,8 @@ public partial class WorldBuildViewModel : ViewModelBase
         MainViewModel shell,
         string brief,
         IReadOnlyCollection<MyGame.Core.AI.Agents.PetDelegation>? petDelegations = null,
-        string? generationMode = null)
+        string? generationMode = null,
+        bool forHost = false)
     {
         _profileStore = profileStore ?? throw new ArgumentNullException(nameof(profileStore));
         _settingsStore = settingsStore ?? throw new ArgumentNullException(nameof(settingsStore));
@@ -74,6 +76,7 @@ public partial class WorldBuildViewModel : ViewModelBase
         _brief = brief ?? string.Empty;
         _petDelegations = petDelegations;
         _generationMode = generationMode;
+        _forHost = forHost;
 
         Title = "Создание мира";
 
@@ -552,8 +555,11 @@ public partial class WorldBuildViewModel : ViewModelBase
         }
         // Route through character creation instead of jumping straight
         // into the game. The CC screen will navigate to the game itself
-        // once the player picks a class / name / background.
-        _shell.NavigateToCharacterCreation(saves[0].Id);
+        // once the player picks a class / name / background. When this
+        // build was launched for the host flow (issue #107), CC runs with
+        // forHost=true → CompleteHostStartAsync starts the HostSession
+        // and navigates to the host lobby instead of the single-player game.
+        _shell.NavigateToCharacterCreation(saves[0].Id, _forHost);
         await Task.CompletedTask;
     }
 

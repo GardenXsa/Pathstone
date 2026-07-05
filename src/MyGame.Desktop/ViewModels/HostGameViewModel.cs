@@ -118,23 +118,24 @@ public partial class HostGameViewModel : ViewModelBase
         ErrorMessage = null;
         try
         {
-            // If the host opted into AI world-build, route to the world-build
-            // screen with the current brief (or the brief entry screen if the
-            // brief is empty). The world-build screen will create the save
-            // itself; the host flow here is abandoned in favour of the
-            // single-player-style "create world then play" path. The host can
-            // start the actual server after the build completes via the game
-            // screen's host controls (TBD). For now, this keeps the flow
-            // simple: build world → play single-player → optionally host.
+            // AI world-build → host flow (issue #107). Stash the host setup
+            // (profile + settings) so CompleteHostStartAsync can build the
+            // HostSession AFTER the world is built + the host's character is
+            // created. Route through WorldBrief/WorldBuild with forHost=true
+            // so the chain (brief → build → character creation) ends in the
+            // host lobby, not single-player.
             if (UseAiWorldBuild)
             {
+                var aiProfile = _profileStore.GetOrCreate();
+                var aiSettings = _settingsStore.Load();
+                PendingHostStartTransfer.Set(aiProfile, aiSettings);
                 if (string.IsNullOrWhiteSpace(WorldBrief))
                 {
-                    _shell.NavigateToWorldBrief();
+                    _shell.NavigateToWorldBrief(forHost: true);
                 }
                 else
                 {
-                    _shell.NavigateToWorldBuild(WorldBrief);
+                    _shell.NavigateToWorldBuild(WorldBrief, petDelegations: null, generationMode: null, forHost: true);
                 }
                 return;
             }

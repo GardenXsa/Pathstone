@@ -41,6 +41,7 @@ public partial class WorldBriefViewModel : ViewModelBase
     private readonly SettingsStore _settingsStore;
     private readonly SaveManager _saveManager;
     private readonly MainViewModel _shell;
+    private readonly bool _forHost;
 
     private string _brief = string.Empty;
     private bool _usePetDelegations;
@@ -50,12 +51,14 @@ public partial class WorldBriefViewModel : ViewModelBase
         ProfileStore profileStore,
         SettingsStore settingsStore,
         SaveManager saveManager,
-        MainViewModel shell)
+        MainViewModel shell,
+        bool forHost = false)
     {
         _profileStore = profileStore;
         _settingsStore = settingsStore;
         _saveManager = saveManager;
         _shell = shell;
+        _forHost = forHost;
         Title = "Создать мир";
 
         // Issue #22 — pre-populate the default delegations so the user
@@ -200,7 +203,7 @@ public partial class WorldBriefViewModel : ViewModelBase
             }
             delegations = filtered.Count > 0 ? filtered : null;
         }
-        _shell.NavigateToWorldBuild(Brief ?? string.Empty, delegations, GenerationMode);
+        _shell.NavigateToWorldBuild(Brief ?? string.Empty, delegations, GenerationMode, _forHost);
     }
 
     /// <summary>

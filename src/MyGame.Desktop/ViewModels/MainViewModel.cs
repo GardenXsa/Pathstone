@@ -188,10 +188,18 @@ public partial class MainViewModel : ObservableObject
     /// The user types a free-form brief, then navigates to the
     /// WorldBuildViewModel which runs the orchestrator.
     /// </summary>
-    public void NavigateToWorldBrief()
+    public void NavigateToWorldBrief() => NavigateToWorldBrief(forHost: false);
+
+    /// <summary>
+    /// Navigate to the world-brief entry screen. When <paramref name="forHost"/>
+    /// is true, the resulting world-build + character-creation flow ends in
+    /// the HOST lobby (not single-player game) — used by HostGameViewModel
+    /// when the host opts into AI world-build (issue #107).
+    /// </summary>
+    public void NavigateToWorldBrief(bool forHost)
     {
-        var vm = new WorldBriefViewModel(_profileStore, _settingsStore, _saveManager, this);
-        vm.Title = "Создать мир";
+        var vm = new WorldBriefViewModel(_profileStore, _settingsStore, _saveManager, this, forHost);
+        vm.Title = forHost ? "Создать мир (хост)" : "Создать мир";
         CurrentView = vm;
     }
 
@@ -209,10 +217,22 @@ public partial class MainViewModel : ObservableObject
     public void NavigateToWorldBuild(
         string brief,
         IReadOnlyCollection<MyGame.Core.AI.Agents.PetDelegation>? petDelegations = null,
-        string? generationMode = null)
+        string? generationMode = null) => NavigateToWorldBuild(brief, petDelegations, generationMode, forHost: false);
+
+    /// <summary>
+    /// Navigate directly to the world-build progress screen. When
+    /// <paramref name="forHost"/> is true, the flow ends in the host lobby
+    /// (issue #107) — character creation runs with forHost=true, which
+    /// triggers CompleteHostStartAsync to start the HostSession.
+    /// </summary>
+    public void NavigateToWorldBuild(
+        string brief,
+        IReadOnlyCollection<MyGame.Core.AI.Agents.PetDelegation>? petDelegations,
+        string? generationMode,
+        bool forHost)
     {
-        var vm = new WorldBuildViewModel(_profileStore, _settingsStore, _saveManager, this, brief, petDelegations, generationMode);
-        vm.Title = "Создание мира";
+        var vm = new WorldBuildViewModel(_profileStore, _settingsStore, _saveManager, this, brief, petDelegations, generationMode, forHost);
+        vm.Title = forHost ? "Создание мира (хост)" : "Создание мира";
         CurrentView = vm;
         // Auto-start the build on navigation.
         vm.StartCommand.Execute(null);
