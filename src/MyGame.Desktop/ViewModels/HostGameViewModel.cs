@@ -137,6 +137,7 @@ public partial class HostGameViewModel : ViewModelBase
                 {
                     _shell.NavigateToWorldBuild(WorldBrief, petDelegations: null, generationMode: null, forHost: true);
                 }
+                await Task.CompletedTask;
                 return;
             }
 

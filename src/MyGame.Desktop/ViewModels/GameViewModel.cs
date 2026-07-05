@@ -1652,20 +1652,38 @@ public partial class GameViewModel : ViewModelBase
 
             // Push the live world into every side panel so the UI stays
             // in sync after each GM turn / state update.
-            CharacterPanel.RefreshFromWorld(_world);
-            InventoryPanel.RefreshFromWorld(_world);
-            QuestPanel.RefreshFromWorld(_world);
-            WorldPanel.RefreshFromWorld(_world);
+            // DEFENSIVE: World's entity collections (Players/Npcs/Locations/
+            // Buildings) are plain List<T> — NOT thread-safe. In host mode
+            // the GM runs on a background task and may mutate these lists
+            // while we iterate them here (spawn_npc, move_player, etc.).
+            // Even in single-player, a background save task (Task.Run →
+            // SaveAll → world.ToJson) iterates the same lists. A
+            // concurrent mutation throws InvalidOperationException
+            // ("Collection was modified") which would crash the app. Wrap
+            // each panel refresh in try-catch so one panel failing doesn't
+            // kill the turn — the next refresh will retry.
+            try { CharacterPanel.RefreshFromWorld(_world); }
+            catch (Exception ex) { System.Diagnostics.Trace.WriteLine($"[RefreshFromWorld] CharacterPanel: {ex.Message}"); }
+            try { InventoryPanel.RefreshFromWorld(_world); }
+            catch (Exception ex) { System.Diagnostics.Trace.WriteLine($"[RefreshFromWorld] InventoryPanel: {ex.Message}"); }
+            try { QuestPanel.RefreshFromWorld(_world); }
+            catch (Exception ex) { System.Diagnostics.Trace.WriteLine($"[RefreshFromWorld] QuestPanel: {ex.Message}"); }
+            try { WorldPanel.RefreshFromWorld(_world); }
+            catch (Exception ex) { System.Diagnostics.Trace.WriteLine($"[RefreshFromWorld] WorldPanel: {ex.Message}"); }
 
             // Issue #86: check achievement milestones after each refresh.
             // Newly unlocked achievements get a system log entry (toast).
             if (StandaloneSinglePlayer || IsHost)
             {
-                var newAchievements = AchievementTracker.CheckMilestones(_world);
-                foreach (var ach in newAchievements)
+                try
                 {
-                    AppendLog(LogEntry.System($"🏆 Достижение: «{ach.Name}» — {ach.Description}"));
+                    var newAchievements = AchievementTracker.CheckMilestones(_world);
+                    foreach (var ach in newAchievements)
+                    {
+                        AppendLog(LogEntry.System($"🏆 Достижение: «{ach.Name}» — {ach.Description}"));
+                    }
                 }
+                catch (Exception ex) { System.Diagnostics.Trace.WriteLine($"[RefreshFromWorld] Achievements: {ex.Message}"); }
             }
 
             // Issue #31: refresh IsLocalSpectator so CanSubmitAction

@@ -363,6 +363,7 @@ public partial class MainMenuViewModel : ViewModelBase
             // without a player (issue #106), so the user MUST create one
             // before entering the game.
             _shell.NavigateToCharacterCreation(meta.Id);
+            await Task.CompletedTask;
         }
         catch (Exception ex)
         {
