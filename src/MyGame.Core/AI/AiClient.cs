@@ -173,7 +173,7 @@ public enum AiErrorKind
 ///
 /// NO references to the z-ai-web-dev-sdk. This is pure HTTP.
 /// </summary>
-public sealed class AiClient
+public sealed class AiClient : IAiClient
 {
     /// <summary>
     /// Shared static <see cref="HttpClient"/> used when the caller doesn't
@@ -252,6 +252,21 @@ public sealed class AiClient
             return this;
         return new AiClient(_settings with { Model = model }, _http);
     }
+
+    // ── Explicit IAiClient implementation ─────────────────────────────
+    //
+    // The interface declares WithModel as returning IAiClient. The public
+    // AiClient-typed overload above is the one callers use day-to-day
+    // (preserving the existing API for code that holds an AiClient
+    // reference — e.g. PetAgent, WorldBuilderOrchestrator). The explicit
+    // implementation below bridges to the interface by delegating to the
+    // public overload; this lets GameMaster (which now depends on IAiClient)
+    // call WithModel through the interface while other agents that hold a
+    // concrete AiClient still get the AiClient-typed return. C# does not
+    // allow covariant return types on implicit interface implementations,
+    // so the explicit bridge is required.
+
+    IAiClient IAiClient.WithModel(string? model) => WithModel(model);
 
     // ── Public API ────────────────────────────────────────────────────────
 

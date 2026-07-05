@@ -12,11 +12,12 @@ namespace MyGame.Tests.AI.Tools;
 public class ToolRegistryTests
 {
     /// <summary>
-    /// The 24 built-in tools the registry registers. Mirrors the list in
+    /// The built-in tools the registry registers. Mirrors the list in
     /// ToolRegistry.RegisterBuiltins (5 MVP + 13 expansion + 4 combat/
-    /// death from COMBAT-DEATH + 2 runtime content authoring). If this
-    /// list drifts from the source, the Constructor_RegistersAllBuiltinTools
-    /// test will fail — update both together.
+    /// death from COMBAT-DEATH + 2 runtime content authoring + 5
+    /// engine-depth tools from issues #34/#36/#43). If this list drifts
+    /// from the source, the Constructor_RegistersAllBuiltinTools test
+    /// will fail — update both together.
     /// </summary>
     private static readonly string[] ExpectedTools =
     {
@@ -46,6 +47,14 @@ public class ToolRegistryTests
         // Runtime content authoring (let GM invent new entity types mid-game)
         "create_npc_template",
         "create_building_template",
+        // ENGINE-DEPTH (issues #34 / #36 / #43): weather, faction
+        // reputation, lore query. All optional — no-op on worlds that
+        // haven't activated the corresponding subsystem.
+        "set_weather",
+        "get_weather",
+        "adjust_reputation",
+        "get_factions",
+        "get_lore",
     };
 
     private static ToolRegistry MakeRegistry()

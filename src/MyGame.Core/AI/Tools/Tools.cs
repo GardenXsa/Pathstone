@@ -245,6 +245,18 @@ public sealed class ToolRegistry
         // have anticipated every entity the GM needs.
         Register(CreateNpcTemplateTool.Definition, CreateNpcTemplateTool.Handle(_world));
         Register(CreateBuildingTemplateTool.Definition, CreateBuildingTemplateTool.Handle(_world));
+
+        // ENGINE-DEPTH (issues #34/#36/#43): weather, faction reputation,
+        // and lore query tools. All optional — they no-op on worlds that
+        // haven't activated the corresponding subsystem (null weather /
+        // empty Factions / null Lore). The GM context (GameMaster) tells
+        // the model when these subsystems are active and what their
+        // mechanical effects are.
+        Register(SetWeatherTool.Definition, SetWeatherTool.Handle(_world));
+        Register(GetWeatherTool.Definition, GetWeatherTool.Handle(_world));
+        Register(AdjustReputationTool.Definition, AdjustReputationTool.Handle(_world));
+        Register(GetFactionsTool.Definition, GetFactionsTool.Handle(_world));
+        Register(GetLoreTool.Definition, GetLoreTool.Handle(_world));
     }
 }
 
@@ -1904,5 +1916,229 @@ internal static class CreateBuildingTemplateTool
 
         world.Registries.Buildings.Register(tpl);
         return ToolResult.Ok(string.Empty, $"Создан шаблон здания «{name}» (id: {id}, тип: {type}).");
+    };
+}
+
+// ─── ENGINE-DEPTH: weather / factions / lore (issues #34 / #36 / #43) ─────
+
+/// <summary>
+/// Set the world's current weather (issue #34). Activates the weather
+/// subsystem on worlds where it was null — once activated, the GM context
+/// block surfaces the weather + its mechanical effects (travel time,
+/// encounter chance, Perception disadvantage) to the model.
+/// </summary>
+internal static class SetWeatherTool
+{
+    // Canonical weather vocabulary. Keys are the lowercase English tags
+    // the model emits; values are the RU display labels + emoji used by
+    // the UI / GM context. Anything outside this set is rejected.
+    internal static readonly IReadOnlyDictionary<string, string> WeatherLabels = new Dictionary<string, string>(StringComparer.Ordinal)
+    {
+        ["clear"] = "🌤 Ясно",
+        ["rain"] = "🌧 Дождь",
+        ["storm"] = "⛈ Гроза",
+        ["fog"] = "🌫 Туман",
+        ["snow"] = "❄ Снег",
+        ["overcast"] = "☁ Облачно",
+    };
+
+    public static ToolDefinition Definition { get; } = new()
+    {
+        Name = "set_weather",
+        Description = "Установить текущую погоду мира (clear/rain/storm/fog/snow/overcast) и опциональный прогноз. Активирует подсистему погоды — влияет на время путешествия, шанс случайных встреч, броски Внимательности.",
+        ParametersJson = """
+        {
+          "type": "object",
+          "properties": {
+            "weather": { "type": "string", "description": "Тип погоды: clear | rain | storm | fog | snow | overcast." },
+            "forecast": { "type": "string", "description": "Краткий прогноз на русском (опц., напр. «К вечеру ожидается гроза»)." }
+          },
+          "required": ["weather"]
+        }
+        """,
+    };
+
+    public static ToolHandler Handle(MyGame.Core.World.World world) => async (args, ct) =>
+    {
+        var weather = args.TryGetProperty("weather", out var wEl) ? wEl.GetString() ?? "" : "";
+        if (string.IsNullOrWhiteSpace(weather))
+            return ToolResult.Error(string.Empty, "Параметр weather обязателен.");
+
+        // Normalize to lowercase so model-emitted "Rain"/"RAIN" work too.
+        weather = weather.Trim().ToLowerInvariant();
+        if (!WeatherLabels.ContainsKey(weather))
+        {
+            var valid = string.Join(", ", WeatherLabels.Keys.OrderBy(k => k));
+            return ToolResult.Error(string.Empty,
+                $"Неизвестная погода «{weather}». Допустимо: {valid}.");
+        }
+
+        var forecast = args.TryGetProperty("forecast", out var fEl) ? fEl.GetString() : null;
+        if (string.IsNullOrWhiteSpace(forecast)) forecast = null;
+
+        world.CurrentWeather = weather;
+        world.WeatherForecast = forecast;
+
+        var label = WeatherLabels[weather];
+        var text = forecast is null
+            ? $"Погода: {label}."
+            : $"Погода: {label}. Прогноз: {forecast}.";
+        return ToolResult.Ok(string.Empty, text);
+    };
+}
+
+/// <summary>
+/// Read the current weather + forecast (issue #34). Read-only. Returns a
+/// "no weather set" message when the subsystem isn't active.
+/// </summary>
+internal static class GetWeatherTool
+{
+    public static ToolDefinition Definition { get; } = new()
+    {
+        Name = "get_weather",
+        Description = "Возвращает текущую погоду и прогноз. Только чтение.",
+        ParametersJson = """
+        { "type": "object", "properties": {} }
+        """,
+    };
+
+    public static ToolHandler Handle(MyGame.Core.World.World world) => async (args, ct) =>
+    {
+        if (string.IsNullOrWhiteSpace(world.CurrentWeather))
+            return ToolResult.Ok(string.Empty,
+                "Погода ещё не задана. Используй set_weather, чтобы активировать подсистему погоды.");
+
+        var label = SetWeatherTool.WeatherLabels.TryGetValue(world.CurrentWeather, out var l)
+            ? l
+            : world.CurrentWeather;
+        var text = $"Погода: {label}.";
+        if (!string.IsNullOrWhiteSpace(world.WeatherForecast))
+            text += $" Прогноз: {world.WeatherForecast}.";
+        return ToolResult.Ok(string.Empty, text);
+    };
+}
+
+/// <summary>
+/// Adjust a faction's reputation with the player (issue #36). Clamps to
+/// [-100, 100] and recomputes the alignment bucket (ally / neutral /
+/// hostile) so callers always see a consistent pair.
+/// </summary>
+internal static class AdjustReputationTool
+{
+    public static ToolDefinition Definition { get; } = new()
+    {
+        Name = "adjust_reputation",
+        Description = "Изменить репутацию фракции с игроком на delta (может быть отрицательной). Зажимает в [-100, 100] и пересчитывает выравнивание (>=30 ally, <=-30 hostile, иначе neutral).",
+        ParametersJson = """
+        {
+          "type": "object",
+          "properties": {
+            "factionName": { "type": "string", "description": "Имя фракции (как в плане мира)." },
+            "delta": { "type": "integer", "description": "Изменение репутации (может быть отрицательным)." }
+          },
+          "required": ["factionName", "delta"]
+        }
+        """,
+    };
+
+    public static ToolHandler Handle(MyGame.Core.World.World world) => async (args, ct) =>
+    {
+        var name = args.TryGetProperty("factionName", out var nEl) ? nEl.GetString() ?? "" : "";
+        if (string.IsNullOrWhiteSpace(name))
+            return ToolResult.Error(string.Empty, "Параметр factionName обязателен.");
+
+        if (!args.TryGetProperty("delta", out var dEl) || !dEl.TryGetInt32(out var delta))
+            return ToolResult.Error(string.Empty, "Параметр delta обязателен и должен быть целым числом.");
+
+        var faction = world.Factions.FirstOrDefault(f =>
+            string.Equals(f.Name, name, StringComparison.OrdinalIgnoreCase));
+        if (faction is null)
+        {
+            var known = world.Factions.Count > 0
+                ? string.Join(", ", world.Factions.Select(f => $"«{f.Name}»").OrderBy(s => s))
+                : "(нет фракций)";
+            return ToolResult.Error(string.Empty,
+                $"Фракция «{name}» не найдена. Доступные: {known}.");
+        }
+
+        faction.Reputation = Math.Clamp(faction.Reputation + delta, -100, 100);
+        faction.RecomputeAlignment();
+        return ToolResult.Ok(string.Empty,
+            $"Репутация фракции «{faction.Name}»: {faction.Reputation} ({faction.Alignment}).");
+    };
+}
+
+/// <summary>
+/// List all factions with their alignment + reputation (issue #36). Read-only.
+/// </summary>
+internal static class GetFactionsTool
+{
+    public static ToolDefinition Definition { get; } = new()
+    {
+        Name = "get_factions",
+        Description = "Возвращает список всех фракций мира с выравниванием и репутацией. Только чтение.",
+        ParametersJson = """
+        { "type": "object", "properties": {} }
+        """,
+    };
+
+    public static ToolHandler Handle(MyGame.Core.World.World world) => async (args, ct) =>
+    {
+        if (world.Factions.Count == 0)
+            return ToolResult.Ok(string.Empty,
+                "В этом мире нет фракций.");
+
+        var sb = new System.Text.StringBuilder();
+        sb.AppendLine("Фракции мира:");
+        foreach (var f in world.Factions)
+            sb.AppendLine($"- {f.Name} [{f.Alignment}, реп. {f.Reputation}]{(string.IsNullOrWhiteSpace(f.Type) ? "" : $" ({f.Type})")}");
+        return ToolResult.Ok(string.Empty, sb.ToString().TrimEnd());
+    };
+}
+
+/// <summary>
+/// Query a lore entry by topic (issue #43). With no topic, returns the
+/// list of available topics. Read-only — the canonical lore is set at
+/// world-build time and never mutated.
+/// </summary>
+internal static class GetLoreTool
+{
+    public static ToolDefinition Definition { get; } = new()
+    {
+        Name = "get_lore",
+        Description = "Запросить канонический лор мира по теме (deities/history/magic/cultures/economy/current events). Без темы — список доступных тем. Только чтение. Используй вместо выдумывания фактов о мире.",
+        ParametersJson = """
+        {
+          "type": "object",
+          "properties": {
+            "topic": { "type": "string", "description": "Тема лора (опц.): deities | history | magic | cultures | economy | current events." }
+          }
+        }
+        """,
+    };
+
+    public static ToolHandler Handle(MyGame.Core.World.World world) => async (args, ct) =>
+    {
+        if (world.Lore is null || world.Lore.Entries.Count == 0)
+            return ToolResult.Ok(string.Empty,
+                "В этом мире нет базы лора. Опирайся на общий сеттинг и контекст сцены.");
+
+        var topic = args.TryGetProperty("topic", out var tEl) ? tEl.GetString() ?? "" : "";
+        if (string.IsNullOrWhiteSpace(topic))
+        {
+            var topics = string.Join(", ", world.Lore.Topics);
+            return ToolResult.Ok(string.Empty,
+                $"Доступные темы лора: {topics}. Вызови get_lore с одним из них для деталей.");
+        }
+
+        var entry = world.Lore.Get(topic);
+        if (entry is null)
+        {
+            var topics = string.Join(", ", world.Lore.Topics);
+            return ToolResult.Error(string.Empty,
+                $"Тема «{topic}» не найдена в базе лора. Доступные: {topics}.");
+        }
+
+        return ToolResult.Ok(string.Empty, $"## {entry.Topic}\n{entry.Content}");
     };
 }

@@ -179,6 +179,49 @@ public sealed class World
     /// </summary>
     public Dictionary<string, object>? Flags { get; set; }
 
+    // ─── Optional engine-depth subsystems (issue #34/#35/#36/#43) ─────────
+    //
+    // Weather, day/night, factions, and lore are all OPTIONAL — null / empty
+    // means the feature isn't active for that world (backward-compatible with
+    // pre-existing saves: the JSON deserializer just leaves these at their
+    // defaults when the field is absent).
+
+    /// <summary>
+    /// Current weather state (issue #34): one of <c>"clear"</c>,
+    /// <c>"rain"</c>, <c>"storm"</c>, <c>"fog"</c>, <c>"snow"</c>,
+    /// <c>"overcast"</c>. Null when the weather subsystem isn't active
+    /// for this world (legacy saves / worlds without a set_weather call).
+    /// When set, the GM is told about it in <see cref="AI.Agents.GameMaster"/>
+    /// context and travel/encounter/perception mechanics are adjusted.
+    /// </summary>
+    public string? CurrentWeather { get; set; }
+
+    /// <summary>
+    /// Human-readable weather forecast (issue #34): a short RU string the
+    /// GM uses to narrate upcoming conditions (<c>"К вечеру ожидается гроза"</c>,
+    /// <c>"Туман рассеется к полудню"</c>). Null until <c>set_weather</c>
+    /// populates it. Optional companion to <see cref="CurrentWeather"/>.
+    /// </summary>
+    public string? WeatherForecast { get; set; }
+
+    /// <summary>
+    /// Factions active in this world (issue #36). Empty by default — the
+    /// world-builder populates it from <see cref="AI.WorldPlan.Factions"/>
+    /// during commit. The GM context surfaces reputation + alignment so
+    /// the model knows which factions are friendly/hostile toward the
+    /// player; the <c>adjust_reputation</c> tool mutates entries here.
+    /// </summary>
+    public List<Faction> Factions { get; set; } = new();
+
+    /// <summary>
+    /// Lore database (issue #43): canonical world lore entries the GM
+    /// can query via the <c>get_lore</c> tool instead of hallucinating.
+    /// Null when the world-builder didn't populate it (e.g. legacy saves
+    /// or worlds built before this task). When non-null, the GM context
+    /// lists the available topics as a hint.
+    /// </summary>
+    public LoreDatabase? Lore { get; set; }
+
     // ─── Lookup index (rebuilt on demand, never serialized) ────────────────
 
     private Dictionary<EntityId, Entity>? _index;

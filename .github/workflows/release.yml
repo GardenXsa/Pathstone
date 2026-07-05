@@ -1,0 +1,115 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  publish:
+    name: Publish (${{ matrix.rid }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - rid: win-x64
+            os: ubuntu-latest
+            artifact: Pathstone-win-x64
+          - rid: linux-x64
+            os: ubuntu-latest
+            artifact: Pathstone-linux-x64
+          - rid: osx-x64
+            os: macos-latest
+            artifact: Pathstone-osx-x64
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup .NET 8
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+      - name: Cache NuGet
+        uses: actions/cache@v4
+        with:
+          path: ~/.nuget/packages
+          key: ${{ runner.os }}-nuget-${{ hashFiles('**/*.csproj') }}
+          restore-keys: |
+            ${{ runner.os }}-nuget-
+
+      - name: Publish
+        run: |
+          dotnet publish src/MyGame.Desktop/MyGame.Desktop.csproj \
+            -c Release \
+            -r ${{ matrix.rid }} \
+            --self-contained true \
+            -p:PublishSingleFile=true \
+            -p:IncludeNativeLibrariesForSelfExtract=true \
+            -p:EnableCompressionInSingleFile=true \
+            -o publish/${{ matrix.rid }}
+        working-directory: desktop-app
+
+      - name: Archive
+        run: |
+          if [ "${{ matrix.rid }}" = "win-x64" ]; then
+            cd desktop-app/publish/win-x64 && zip -r ../../../${{ matrix.artifact }}.zip .
+          else
+            cd desktop-app/publish/${{ matrix.rid }} && tar czf ../../../${{ matrix.artifact }}.tar.gz .
+          fi
+        shell: bash
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifact }}
+          path: ${{ matrix.artifact }}.*
+
+  release:
+    name: Create Release
+    needs: publish
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: release-assets
+
+      - name: Prepare release assets
+        run: |
+          mkdir -p assets
+          find release-assets -type f \( -name "*.zip" -o -name "*.tar.gz" \) -exec cp {} assets/ \;
+          ls -la assets/
+
+      - name: Generate release notes
+        id: notes
+        run: |
+          PREV_TAG=$(git describe --tags --abbrev=0 HEAD^ 2>/dev/null || echo "")
+          if [ -z "$PREV_TAG" ]; then
+            NOTES="Initial release."
+          else
+            NOTES=$(git log ${PREV_TAG}..HEAD --pretty=format:"- %s (%h)" --no-merges)
+          fi
+          echo "notes<<EOF" >> $GITHUB_OUTPUT
+          echo "$NOTES" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          name: Pathstone ${{ github.ref_name }}
+          body: ${{ steps.notes.outputs.notes }}
+          files: assets/*
+          draft: false
+          prerelease: ${{ contains(github.ref_name, '-') }}

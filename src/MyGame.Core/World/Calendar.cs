@@ -375,4 +375,45 @@ public readonly record struct GameTime(int Day, int Hour, int Minute)
 
     /// <summary>Localized display: <c>"День N, HH:MM"</c>.</summary>
     public override string ToString() => $"День {Day}, {Hour:D2}:{Minute:D2}";
+
+    /// <summary>
+    /// Time-of-day label for the given hour (issue #35). Returns one of
+    /// <c>"рассвет"</c> (5–7), <c>"утро"</c> (8–11), <c>"день"</c>
+    /// (12–16), <c>"вечер"</c> (17–19), <c>"ночь"</c> (20–4). Used by
+    /// the GM context block to flag day/night mechanical effects
+    /// (night = disadvantage Perception without darkvision, increased
+    /// random-encounter chance) and by the desktop top-bar clock to
+    /// show «День 3, 14:00 — день».
+    /// </summary>
+    public static string GetTimeOfDayLabel(int hour) => hour switch
+    {
+        >= 5 and < 8 => "рассвет",
+        >= 8 and < 12 => "утро",
+        >= 12 and < 17 => "день",
+        >= 17 and < 20 => "вечер",
+        >= 20 or < 5 => "ночь",
+    };
+
+    /// <summary>
+    /// True when the given hour is night-time (issue #35): hour &gt;= 20
+    /// or hour &lt; 5. At night, the GM context warns the model about
+    /// Perception disadvantage and the random-encounter chance is
+    /// increased (see <c>GameViewModel.MaybeRandomEncounter</c>).
+    /// </summary>
+    public static bool IsNight(int hour) => hour >= 20 || hour < 5;
+
+    /// <summary>
+    /// Time-of-day label for this clock instant. Convenience over
+    /// <see cref="GetTimeOfDayLabel(int)"/> so callers don't have to
+    /// pull <see cref="Hour"/> out themselves.
+    /// </summary>
+    public string TimeOfDayLabel() => GetTimeOfDayLabel(Hour);
+
+    /// <summary>
+    /// Display string with time-of-day label appended:
+    /// <c>"День N, HH:MM — {label}"</c> (e.g. <c>"День 3, 14:00 — день"</c>).
+    /// Used by the desktop top-bar clock so the player sees at a glance
+    /// whether it's day or night.
+    /// </summary>
+    public string ToDisplayWithTimeOfDay() => $"{ToString()} — {TimeOfDayLabel()}";
 }

@@ -1,5 +1,7 @@
 # Pathstone
 
+![CI](https://github.com/GardenXsa/Pathstone/actions/workflows/ci.yml/badge.svg)
+
 **A desktop multiplayer narrative role-playing game with an AI Game Master.**
 
 Pathstone is a single-binary desktop application (Windows / macOS / Linux) that

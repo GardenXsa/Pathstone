@@ -54,9 +54,9 @@ public sealed class WorldBuilderCommitter
     /// <summary>
     /// Commit the full plan to the world. Stages run in order:
     /// custom templates → locations → population → buildings → content →
-    /// starter player → title. Each stage is fault-tolerant: a single
-    /// broken entry is skipped (and counted in the result), the rest
-    /// proceed.
+    /// starter player → factions → lore → title. Each stage is fault-
+    /// tolerant: a single broken entry is skipped (and counted in the
+    /// result), the rest proceed.
     /// </summary>
     public CommitStats Commit(WorldPlan plan)
     {
@@ -84,7 +84,17 @@ public sealed class WorldBuilderCommitter
         // build vs. host re-build).
         CommitContent(plan, stats);
 
-        // Stage F: set the world title + atmosphere note. The title is the
+        // Stage F: register factions from the plan (issue #36). Empty for
+        // plans without a Factions list — the world runs fine without
+        // factions (Factions stays an empty list).
+        CommitFactions(plan, stats);
+
+        // Stage G: populate the lore database from the plan's structured
+        // lore fields (issue #43). Empty for plans without lore — World.Lore
+        // stays null in that case (the get_lore tool surfaces an error).
+        CommitLore(plan, stats);
+
+        // Stage H: set the world title + atmosphere note. The title is the
         // primary display name in the UI ("Мир: «Тёмные Шпили Велариса»").
         CommitTitle(plan);
 
@@ -525,6 +535,190 @@ public sealed class WorldBuilderCommitter
         _world.Flags["startingHook"] = plan.StartingHook;
     }
 
+    // ─── Stage G: factions (issue #36) ──────────────────────────────────
+
+    /// <summary>
+    /// Register factions from <see cref="WorldPlan.Factions"/> into
+    /// <see cref="World.Factions"/>. Each <see cref="PlanFaction"/> becomes
+    /// a <see cref="Faction"/> with Reputation = 0 (neutral start) and
+    /// alignment = "neutral" (the planner's free-form Alignment string is
+    /// descriptive flavor only — good/evil/lawful/chaotic — and is NOT
+    /// propagated to the runtime alignment bucket, which is derived from
+    /// reputation). Idempotent: re-running on a world that already has a
+    /// faction with the same name skips it (no duplicate registration).
+    /// </summary>
+    internal void CommitFactions(WorldPlan plan, CommitStats stats)
+    {
+        foreach (var pf in plan.Factions ?? new())
+        {
+            if (string.IsNullOrWhiteSpace(pf.Name))
+            {
+                stats.Errors.Add("faction with empty name — skipped");
+                continue;
+            }
+
+            // Idempotency: skip if a faction with this name is already
+            // registered (re-commit / hybrid build).
+            var existing = _world.Factions.FirstOrDefault(f =>
+                string.Equals(f.Name, pf.Name, StringComparison.OrdinalIgnoreCase));
+            if (existing is not null) continue;
+
+            var faction = new Faction
+            {
+                Id = Slugify(pf.Name),
+                Name = pf.Name,
+                Description = pf.Description ?? string.Empty,
+                Alignment = "neutral", // reputation-derived; starts neutral
+                Reputation = 0,
+                Type = pf.Type,
+                Territory = pf.Territory,
+            };
+            _world.Factions.Add(faction);
+            stats.Factions++;
+        }
+    }
+
+    /// <summary>
+    /// Slugify a faction name into a stable id: lowercase, ASCII alnum +
+    /// underscores, everything else collapsed to a single underscore.
+    /// <c>"Орден Серебряной Чаши"</c> → <c>"_"</c> (Cyrillic strips to
+    /// nothing) — so for non-ASCII names we fall back to a Guid suffix
+    /// to keep ids unique. Pure-ASCII names slugify cleanly:
+    /// <c>"Silver Chalice Order"</c> → <c>"silver_chalice_order"</c>.
+    /// </summary>
+    private static string Slugify(string name)
+    {
+        if (string.IsNullOrWhiteSpace(name)) return EntityId.NewId().ToString();
+
+        var sb = new StringBuilder();
+        bool lastWasUnderscore = false;
+        foreach (var ch in name.Trim())
+        {
+            if (char.IsAsciiLetterOrDigit(ch))
+            {
+                sb.Append(char.ToLowerInvariant(ch));
+                lastWasUnderscore = false;
+            }
+            else if (!lastWasUnderscore)
+            {
+                sb.Append('_');
+                lastWasUnderscore = true;
+            }
+        }
+        var slug = sb.ToString().Trim('_');
+        if (string.IsNullOrWhiteSpace(slug))
+            return "faction_" + EntityId.NewId().ToString();
+        return slug;
+    }
+
+    // ─── Stage H: lore (issue #43) ──────────────────────────────────────
+
+    /// <summary>
+    /// Populate <see cref="World.Lore"/> from the plan's structured lore
+    /// fields (cosmology / history / magic system / cultures / economy /
+    /// current events). Each becomes a <see cref="LoreEntry"/> with a
+    /// canonical topic key. Idempotent: a fresh <see cref="LoreDatabase"/>
+    /// is created only when at least one lore field is present in the plan;
+    /// otherwise World.Lore stays null (the get_lore tool surfaces an error
+    /// in that case).
+    /// </summary>
+    internal void CommitLore(WorldPlan plan, CommitStats stats)
+    {
+        var db = new LoreDatabase();
+
+        // Cosmology → "deities" topic. The plan's cosmology object covers
+        // origin / nature / higher powers / cosmic threats — we collapse
+        // it into a single multi-line entry so the GM can query it.
+        if (plan.Cosmology is { } cos)
+        {
+            var sb = new StringBuilder();
+            sb.AppendLine($"Происхождение мира: {cos.Origin}");
+            sb.AppendLine($"Природа мира: {cos.Nature}");
+            if (!string.IsNullOrWhiteSpace(cos.HigherPowers))
+                sb.AppendLine($"Высшие силы: {cos.HigherPowers}");
+            if (!string.IsNullOrWhiteSpace(cos.CosmicThreats))
+                sb.AppendLine($"Космические угрозы: {cos.CosmicThreats}");
+            db.Entries.Add(new LoreEntry { Topic = "deities", Content = sb.ToString().TrimEnd() });
+        }
+
+        // History → "history" topic. One entry per era, concatenated.
+        if (plan.History is { Count: > 0 } history)
+        {
+            var sb = new StringBuilder();
+            foreach (var era in history)
+            {
+                var years = string.IsNullOrWhiteSpace(era.YearsAgo) ? "" : $" ({era.YearsAgo})";
+                sb.AppendLine($"## {era.Name}{years}");
+                if (era.Events is { Count: > 0 } events)
+                {
+                    foreach (var ev in events)
+                        sb.AppendLine($"- {ev}");
+                }
+                sb.AppendLine($"Наследие: {era.Legacy}");
+                sb.AppendLine();
+            }
+            db.Entries.Add(new LoreEntry { Topic = "history", Content = sb.ToString().TrimEnd() });
+        }
+
+        // Magic system → "magic" topic.
+        if (plan.MagicSystem is { } magic)
+        {
+            var sb = new StringBuilder();
+            sb.AppendLine($"Тип: {magic.Type}");
+            sb.AppendLine($"Источник: {magic.Source}");
+            sb.AppendLine($"Владельцы: {magic.Wielders}");
+            sb.AppendLine($"Ограничения: {magic.Limits}");
+            sb.AppendLine($"Отношение публики: {magic.PublicAttitude}");
+            db.Entries.Add(new LoreEntry { Topic = "magic", Content = sb.ToString().TrimEnd() });
+        }
+
+        // Cultures → "cultures" topic. One block per culture.
+        if (plan.Cultures is { Count: > 0 } cultures)
+        {
+            var sb = new StringBuilder();
+            foreach (var c in cultures)
+            {
+                sb.AppendLine($"## {c.Name} ({c.Race})");
+                if (!string.IsNullOrWhiteSpace(c.Religion))
+                    sb.AppendLine($"Религия: {c.Religion}");
+                if (!string.IsNullOrWhiteSpace(c.Language))
+                    sb.AppendLine($"Язык: {c.Language}");
+                sb.AppendLine($"Обычаи: {c.Customs}");
+                sb.AppendLine($"Отношение к чужакам: {c.AttitudeToOutsiders}");
+                if (!string.IsNullOrWhiteSpace(c.Appearance))
+                    sb.AppendLine($"Внешность: {c.Appearance}");
+                sb.AppendLine();
+            }
+            db.Entries.Add(new LoreEntry { Topic = "cultures", Content = sb.ToString().TrimEnd() });
+        }
+
+        // Economy → "economy" topic.
+        if (plan.Economy is { } econ)
+        {
+            var sb = new StringBuilder();
+            sb.AppendLine($"Валюты: {econ.Currencies}");
+            sb.AppendLine($"Торговые пути: {econ.TradeRoutes}");
+            sb.AppendLine($"Ключевые товары: {econ.KeyGoods}");
+            if (!string.IsNullOrWhiteSpace(econ.MajorGuilds))
+                sb.AppendLine($"Крупные гильдии: {econ.MajorGuilds}");
+            sb.AppendLine($"Процветание: {econ.Prosperity}");
+            db.Entries.Add(new LoreEntry { Topic = "economy", Content = sb.ToString().TrimEnd() });
+        }
+
+        // Current events → "current events" topic.
+        if (!string.IsNullOrWhiteSpace(plan.CurrentEvents))
+        {
+            db.Entries.Add(new LoreEntry { Topic = "current events", Content = plan.CurrentEvents });
+        }
+
+        if (db.Entries.Count > 0)
+        {
+            _world.Lore = db;
+            stats.LoreEntries = db.Entries.Count;
+        }
+        // else: leave World.Lore null — the get_lore tool surfaces an error.
+    }
+
     // ─── Helpers ─────────────────────────────────────────────────────────
 
     private static void SetFlag(Entity e, string key, string value)
@@ -550,6 +744,18 @@ public sealed class CommitStats
     public int StarterItems { get; set; }
     public bool StarterPlayerCreated { get; set; }
 
+    /// <summary>
+    /// Number of factions registered from the plan (issue #36). Zero when
+    /// the plan had no Factions list — the world runs fine without factions.
+    /// </summary>
+    public int Factions { get; set; }
+
+    /// <summary>
+    /// Number of lore entries written to World.Lore (issue #43). Zero when
+    /// the plan had no lore fields — World.Lore stays null in that case.
+    /// </summary>
+    public int LoreEntries { get; set; }
+
     public List<string> Errors { get; } = new();
 
     public string Summary()
@@ -562,6 +768,10 @@ public sealed class CommitStats
             sb.Append($" | Стартовых предметов: {StarterItems}");
         if (StarterPlayerCreated)
             sb.Append(" | Создан стартовый игрок");
+        if (Factions > 0)
+            sb.Append($" | Фракций: {Factions}");
+        if (LoreEntries > 0)
+            sb.Append($" | Лор: {LoreEntries} тем");
         if (Errors.Count > 0)
             sb.Append($" | Ошибок: {Errors.Count}");
         return sb.ToString();

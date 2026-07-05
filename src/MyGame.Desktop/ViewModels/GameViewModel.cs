@@ -1309,7 +1309,11 @@ public partial class GameViewModel : ViewModelBase
         if (_world is null) return;
         Dispatcher.UIThread.Post(() =>
         {
-            ClockDisplay = _world.Clock.ToString();
+            // Issue #35: top-bar clock shows the time-of-day label so the
+            // player sees at a glance whether it's day or night (drives
+            // Perception disadvantage + encounter rate). Rendered as
+            // "День 3, 14:00 — день" / "День 3, 22:00 — ночь".
+            ClockDisplay = _world.Clock.ToDisplayWithTimeOfDay();
             var p = _world.ActivePlayer ?? _world.Players.FirstOrDefault();
             CharacterSummary = BuildCharacterSummary(p);
             WorldInfo = BuildWorldInfo(_world, p);
@@ -2075,6 +2079,14 @@ public partial class GameViewModel : ViewModelBase
     /// ambush detection, terrain-aware creature tables, faction-based
     /// hostility).
     /// </para>
+    ///
+    /// <para>
+    /// ENGINE-DEPTH (issue #35): at night (hour &gt;= 20 or &lt; 5) the
+    /// encounter chance is bumped from Danger*10% to Danger*15% — the
+    /// wild is more dangerous after dark. ENGINE-DEPTH (issue #34): rain
+    /// or fog also bumps the chance to Danger*15% (low visibility makes
+    /// ambushes easier).
+    /// </para>
     /// </summary>
     private void MaybeRandomEncounter(Location destLoc)
     {
@@ -2083,6 +2095,15 @@ public partial class GameViewModel : ViewModelBase
 
         // Danger is on a 0-10 scale; *10 gives a 0-100 percent chance.
         int chance = destLoc.Danger * 10;
+
+        // Issue #35: night bumps the chance to Danger*15%. Issue #34:
+        // rain/fog weather also bumps to Danger*15% (low visibility).
+        bool isNight = GameTime.IsNight(_world.Clock.Hour);
+        bool badWeather = string.Equals(_world.CurrentWeather, "rain", StringComparison.OrdinalIgnoreCase)
+                       || string.Equals(_world.CurrentWeather, "fog", StringComparison.OrdinalIgnoreCase);
+        if (isNight || badWeather)
+            chance = destLoc.Danger * 15;
+
         if (_world.Rng.NextInt(100) >= chance) return;
 
         // Pick the creature template based on terrain.

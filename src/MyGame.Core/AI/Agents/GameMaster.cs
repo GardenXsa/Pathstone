@@ -137,7 +137,7 @@ public sealed class GameMaster
     /// </summary>
     public const int DefaultMaxContextTokens = 12000;
 
-    private readonly AiClient _ai;
+    private readonly IAiClient _ai;
     private readonly AiSettings? _aiSettings;
     private readonly MyGame.Core.World.World _world;
     private readonly PromptLoader _prompts;
@@ -171,7 +171,7 @@ public sealed class GameMaster
     /// </summary>
     /// <param name="ai">Base AI client used for all GM calls. When
     /// <paramref name="aiSettings"/> is provided, a role-specific client
-    /// is derived via <see cref="AiClient.WithModel"/> for the
+    /// is derived via <see cref="IAiClient.WithModel"/> for the
     /// <see cref="AiRole.GM"/> model override (issue #26).</param>
     /// <param name="aiSettings">Optional AI settings — used to derive a
     /// role-specific model (issue #26) and read per-role overrides. When
@@ -180,7 +180,7 @@ public sealed class GameMaster
     /// context-window threshold used by the early-summarization trigger
     /// (issue #25). Defaults to <see cref="DefaultMaxContextTokens"/>.</param>
     public GameMaster(
-        AiClient ai,
+        IAiClient ai,
         MyGame.Core.World.World world,
         PromptLoader prompts,
         ToolRegistry tools,
@@ -543,7 +543,7 @@ public sealed class GameMaster
     /// </para>
     /// </summary>
     private async Task MaybeSummarizeAsync(
-        AiClient gmAi,
+        IAiClient gmAi,
         string systemPrompt,
         string worldStateBlock,
         CancellationToken ct)
@@ -615,7 +615,7 @@ public sealed class GameMaster
     /// </para>
     /// </summary>
     private async Task<string> SummarizeHistoryAsync(
-        AiClient gmAi,
+        IAiClient gmAi,
         IReadOnlyList<ChatMessage> oldMessages,
         CancellationToken ct)
     {
@@ -921,7 +921,78 @@ public sealed class GameMaster
 
         sb.AppendLine();
         sb.AppendLine("## Время в мире");
-        sb.AppendLine($"- {_world.Clock}");
+        // Issue #35: include the time-of-day label so the model knows
+        // whether it's day or night (drives Perception disadvantage +
+        // random-encounter rate). Rendered as
+        // "День 3, 14:00 (день)" / "День 3, 22:00 (ночь)".
+        var todLabel = GameTime.GetTimeOfDayLabel(_world.Clock.Hour);
+        sb.AppendLine($"- {_world.Clock} ({todLabel})");
+
+        // ENGINE-DEPTH (issue #35): at night, surface Perception
+        // disadvantage + increased danger so the model applies them
+        // consistently without the player having to remind it.
+        if (GameTime.IsNight(_world.Clock.Hour))
+        {
+            sb.AppendLine("- Сейчас ночь: disadvantage на Perception (без тёмного зрения), некоторые NPC только ночью, повышенная опасность.");
+        }
+
+        // ENGINE-DEPTH (issue #34): weather context. Only emitted when
+        // the weather subsystem is active (CurrentWeather is set). Tells
+        // the model the current weather + its mechanical effects so the
+        // model can apply them consistently. Effects per weather type:
+        //  - rain/storm/snow: travel takes +30 min (call advance_time
+        //    with the larger amount when narrating travel).
+        //  - rain/fog: random-encounter chance is higher (the system
+        //    already bumps Danger*10% → Danger*15% in that case).
+        //  - fog: disadvantage on Perception.
+        if (!string.IsNullOrWhiteSpace(_world.CurrentWeather))
+        {
+            sb.AppendLine();
+            sb.AppendLine("## Погода");
+            var weatherLabel = TryGetWeatherLabel(_world.CurrentWeather);
+            var effects = DescribeWeatherEffects(_world.CurrentWeather);
+            var forecast = string.IsNullOrWhiteSpace(_world.WeatherForecast)
+                ? ""
+                : $" {_world.WeatherForecast}.";
+            sb.AppendLine($"- Погода: {weatherLabel}.{forecast} Влияние: {effects}.");
+        }
+
+        // ENGINE-DEPTH (issue #36): faction reputation summary. Tells the
+        // model which factions are friendly/hostile toward the player so
+        // NPC dialogue and encounter outcomes are consistent. Only
+        // emitted when the world actually has factions.
+        if (_world.Factions.Count > 0)
+        {
+            sb.AppendLine();
+            sb.AppendLine("## Фракции");
+            foreach (var f in _world.Factions)
+            {
+                sb.AppendLine($"- {f.Name} [{f.Alignment}, реп. {f.Reputation}]");
+            }
+        }
+
+        // ENGINE-DEPTH (issue #43): lore availability hint. Tells the
+        // model which canonical lore topics exist so it can call get_lore
+        // instead of hallucinating facts. Only emitted when the world has
+        // a populated lore DB. The actual lore content is fetched on
+        // demand via the tool (kept out of the per-turn context to keep
+        // the prompt small).
+        if (_world.Lore is { Entries.Count: > 0 } lore)
+        {
+            sb.AppendLine();
+            sb.AppendLine("## Доступный лор");
+            var topicsRu = lore.Topics.Select(t => t switch
+            {
+                "deities" => "божества",
+                "history" => "история",
+                "magic" => "магия",
+                "cultures" => "культуры",
+                "economy" => "экономика",
+                "current events" => "текущие события",
+                var other => other,
+            });
+            sb.AppendLine($"- Доступный лор: {string.Join(", ", topicsRu)}. Используй get_lore для деталей.");
+        }
 
         // COMBAT-DEATH: surface the structured combat state to the GM so
         // it knows whose turn it is and doesn't act out of order. When
@@ -1072,4 +1143,45 @@ public sealed class GameMaster
         if (!int.TryParse(parts[1], out var fail)) fail = 0;
         return (Math.Clamp(suc, 0, 3), Math.Clamp(fail, 0, 3));
     }
+
+    /// <summary>
+    /// Map a weather tag to its RU display label (issue #34). Mirrors
+    /// <c>SetWeatherTool.WeatherLabels</c> so the GM context renders the
+    /// same string the UI does. Returns the raw tag if unknown (defensive
+    /// — shouldn't happen since set_weather validates the input).
+    /// </summary>
+    private static string TryGetWeatherLabel(string? weather) => weather switch
+    {
+        "clear" => "🌤 Ясно",
+        "rain" => "🌧 Дождь",
+        "storm" => "⛈ Гроза",
+        "fog" => "🌫 Туман",
+        "snow" => "❄ Снег",
+        "overcast" => "☁ Облачно",
+        _ => weather ?? "—",
+    };
+
+    /// <summary>
+    /// Describe the mechanical effects of a weather tag (issue #34).
+    /// Returns a short RU phrase the GM uses to apply the rules
+    /// consistently. Effects per weather type:
+    ///  <list type="bullet">
+    ///  <item><c>rain</c> / <c>storm</c> / <c>snow</c>: travel +30 min,
+    ///    increased encounter chance (rain only).</item>
+    ///  <item><c>fog</c>: disadvantage Perception, increased encounter
+    ///    chance.</item>
+    ///  <item><c>overcast</c>: no mechanical effect (flavor only).</item>
+    ///  <item><c>clear</c>: no mechanical effect.</item>
+    ///  </list>
+    /// </summary>
+    private static string DescribeWeatherEffects(string? weather) => weather switch
+    {
+        "rain" => "путешествие +30 мин, повышенный шанс встреч",
+        "storm" => "путешествие +30 мин, опасные условия",
+        "snow" => "путешествие +30 мин, сложная местность",
+        "fog" => "disadvantage на Perception, повышенный шанс встреч",
+        "overcast" => "без механического эффекта",
+        "clear" => "без механического эффекта",
+        _ => "без механического эффекта",
+    };
 }

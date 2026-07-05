@@ -24,6 +24,11 @@
                             <Run Text="{Binding Turn}"/>
                         </TextBlock>
                     </Grid>
+                    <!-- Weather row (issue #34): hidden when the subsystem
+                         isn't active for this world. -->
+                    <TextBlock Text="{Binding WeatherDisplay}" Classes="Small"
+                               IsVisible="{Binding HasWeather}"
+                               Margin="0,2,0,0"/>
                 </StackPanel>
             </Border>
 
@@ -155,6 +160,38 @@
                                     <TextBlock Grid.Column="1" Text="{Binding Name}" Classes="Small" Margin="6,0,0,0"/>
                                     <TextBlock Grid.Column="2" Text="{Binding Terrain}" Classes="Small Muted"/>
                                 </Grid>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </StackPanel>
+            </Border>
+
+            <!-- Factions (issue #36): hidden when the world has no factions.
+                 Color-coded by alignment: ally=green, neutral=gray, hostile=red. -->
+            <Border Classes="PanelSection" IsVisible="{Binding HasFactions}">
+                <StackPanel Spacing="3">
+                    <TextBlock Text="Фракции" Classes="SectionTitle"
+                               ToolTip.Tip="Фракции мира и их отношение к игроку"/>
+                    <ItemsControl ItemsSource="{Binding Factions}">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate DataType="vm:FactionRow">
+                                <StackPanel Margin="0,1">
+                                    <Grid ColumnDefinitions="*,Auto">
+                                        <TextBlock Grid.Column="0" Text="{Binding Name}" Classes="Small"/>
+                                        <TextBlock Grid.Column="1" Classes="Small">
+                                            <Run Text="реп. "/>
+                                            <Run Text="{Binding Reputation}"/>
+                                        </TextBlock>
+                                    </Grid>
+                                    <TextBlock Text="союзник" Classes="Small"
+                                               Foreground="#10b981" Margin="0,0,0,0"
+                                               IsVisible="{Binding IsAlly}"/>
+                                    <TextBlock Text="нейтрально" Classes="Small Muted"
+                                               IsVisible="{Binding IsNeutral}"/>
+                                    <TextBlock Text="враждебно" Classes="Small"
+                                               Foreground="#ef4444"
+                                               IsVisible="{Binding IsHostile}"/>
+                                </StackPanel>
                             </DataTemplate>
                         </ItemsControl.ItemTemplate>
                     </ItemsControl>
