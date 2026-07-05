@@ -238,6 +238,13 @@ public sealed class ToolRegistry
         Register(EndCombatTool.Definition, EndCombatTool.Handle(_world));
         Register(NextTurnTool.Definition, NextTurnTool.Handle(_world));
         Register(DeathSaveTool.Definition, DeathSaveTool.Handle(_world));
+
+        // Runtime content authoring — lets the GM invent new entity types
+        // mid-game (create_item_template already registered above). These
+        // are essential for AI-generated worlds where the planner may not
+        // have anticipated every entity the GM needs.
+        Register(CreateNpcTemplateTool.Definition, CreateNpcTemplateTool.Handle(_world));
+        Register(CreateBuildingTemplateTool.Definition, CreateBuildingTemplateTool.Handle(_world));
     }
 }
 
@@ -1757,4 +1764,145 @@ internal static class DiceExpressionEvaluator
         }
         return (sum + mod, rolls, mod);
     }
+}
+
+// ─── Runtime content authoring: NPC + building templates ───────────────
+// (create_item_template already exists above; these two mirror it for NPCs
+//  and buildings, letting the GM invent new entity types mid-game without
+//  a world rebuild. Useful for AI-generated worlds where the planner may
+//  not have anticipated every entity the GM needs.)
+
+/// <summary>
+/// Register a custom NPC template at runtime. The GM can then spawn_npc by
+/// this new templateId. Lets the GM invent new NPCs mid-game (e.g. a unique
+/// boss the planner didn't anticipate, a custom merchant with special stock).
+/// </summary>
+internal static class CreateNpcTemplateTool
+{
+    public static ToolDefinition Definition { get; } = new()
+    {
+        Name = "create_npc_template",
+        Description = "Создать кастомный шаблон NPC в рантайме. После создания можно спавнить через spawn_npc с этим templateId. Используй для уникальных NPC (боссы, ключевые персонажи), которых не было в изначальном плане мира.",
+        ParametersJson = """
+        {
+          "type": "object",
+          "properties": {
+            "id": { "type": "string", "description": "Уникальный ID, напр. npc_custom_bandit_chief" },
+            "name": { "type": "string", "description": "Имя NPC." },
+            "race": { "type": "string", "description": "Раса: human, elf, dwarf, orc, goblin, или кастомная." },
+            "class": { "type": "string", "description": "Класс/роль: fighter, wizard, rogue, или кастомный." },
+            "level": { "type": "integer", "description": "Уровень (1-20)." },
+            "attributes": { "type": "object", "description": "Характеристики: {str, dex, con, int, wis, cha}." },
+            "resources": { "type": "object", "description": "Ресурсы: {hp, ac}." },
+            "disposition": { "type": "string", "description": "Расположение: friendly, neutral, hostile, allied." },
+            "behavior": { "type": "string", "description": "Подсказка GM: как NPC себя ведёт в бою/диалоге." },
+            "description": { "type": "string", "description": "Атмосферное описание NPC." }
+          },
+          "required": ["id", "name", "race", "class", "level", "attributes", "disposition", "behavior", "description"]
+        }
+        """,
+    };
+
+    public static ToolHandler Handle(MyGame.Core.World.World world) => async (args, ct) =>
+    {
+        var id = args.TryGetProperty("id", out var idEl) ? idEl.GetString() ?? "" : "";
+        if (string.IsNullOrWhiteSpace(id))
+            return ToolResult.Error(string.Empty, "Параметр id обязателен.");
+
+        var name = args.TryGetProperty("name", out var nEl) ? nEl.GetString() ?? "" : "";
+        var race = args.TryGetProperty("race", out var rEl) ? rEl.GetString() ?? "human" : "human";
+        var cls = args.TryGetProperty("class", out var cEl) ? cEl.GetString() ?? "fighter" : "fighter";
+        var level = args.TryGetProperty("level", out var lEl) && lEl.TryGetInt32(out var lv) ? lv : 1;
+        var disposition = args.TryGetProperty("disposition", out var dEl) ? dEl.GetString() ?? "neutral" : "neutral";
+        var behavior = args.TryGetProperty("behavior", out var bEl) ? bEl.GetString() ?? "" : "";
+        var description = args.TryGetProperty("description", out var descEl) ? descEl.GetString() ?? "" : "";
+
+        var attributes = new Dictionary<string, int>();
+        if (args.TryGetProperty("attributes", out var aEl) && aEl.ValueKind == JsonValueKind.Object)
+        {
+            foreach (var prop in aEl.EnumerateObject())
+            {
+                if (prop.Value.TryGetInt32(out var val))
+                    attributes[prop.Name] = val;
+            }
+        }
+
+        var resources = new Dictionary<string, int>();
+        if (args.TryGetProperty("resources", out var resEl) && resEl.ValueKind == JsonValueKind.Object)
+        {
+            foreach (var prop in resEl.EnumerateObject())
+            {
+                if (prop.Value.TryGetInt32(out var val))
+                    resources[prop.Name] = val;
+            }
+        }
+
+        var tpl = new MyGame.Core.World.Content.NpcTemplate
+        {
+            Id = id,
+            Name = name,
+            Race = race,
+            Class = cls,
+            Level = level,
+            Attributes = attributes,
+            Resources = resources.Count > 0 ? resources : null,
+            Disposition = disposition,
+            Behavior = behavior,
+            Description = description,
+        };
+
+        world.Registries.Npcs.Register(tpl);
+        return ToolResult.Ok(string.Empty, $"Создан шаблон NPC «{name}» (id: {id}, раса: {race}, класс: {cls}, ур. {level}).");
+    };
+}
+
+/// <summary>
+/// Register a custom building template at runtime. Lets the GM add new
+/// buildings to locations mid-game (e.g. a camp the player builds, a
+/// structure that appears after a quest event).
+/// </summary>
+internal static class CreateBuildingTemplateTool
+{
+    public static ToolDefinition Definition { get; } = new()
+    {
+        Name = "create_building_template",
+        Description = "Создать кастомный шаблон здания в рантайме. После создания можно спавнить через spawn_building с этим templateId.",
+        ParametersJson = """
+        {
+          "type": "object",
+          "properties": {
+            "id": { "type": "string", "description": "Уникальный ID, напр. bld_custom_camp" },
+            "name": { "type": "string", "description": "Название здания." },
+            "type": { "type": "string", "description": "Тип: tavern, shop, temple, tower, house, ruins, landmark, или кастомный." },
+            "description": { "type": "string", "description": "Атмосферное описание." },
+            "enterable": { "type": "boolean", "description": "Можно ли войти внутрь." }
+          },
+          "required": ["id", "name", "type", "description", "enterable"]
+        }
+        """,
+    };
+
+    public static ToolHandler Handle(MyGame.Core.World.World world) => async (args, ct) =>
+    {
+        var id = args.TryGetProperty("id", out var idEl) ? idEl.GetString() ?? "" : "";
+        if (string.IsNullOrWhiteSpace(id))
+            return ToolResult.Error(string.Empty, "Параметр id обязателен.");
+
+        var name = args.TryGetProperty("name", out var nEl) ? nEl.GetString() ?? "" : "";
+        var type = args.TryGetProperty("type", out var tEl) ? tEl.GetString() ?? "landmark" : "landmark";
+        var description = args.TryGetProperty("description", out var dEl) ? dEl.GetString() ?? "" : "";
+        var enterable = args.TryGetProperty("enterable", out var eEl) && eEl.ValueKind == JsonValueKind.True;
+
+        var tpl = new MyGame.Core.World.Content.BuildingTemplate
+        {
+            Id = id,
+            Name = name,
+            Type = type,
+            Description = description,
+            Enterable = enterable,
+        };
+
+        world.Registries.Buildings.Register(tpl);
+        return ToolResult.Ok(string.Empty, $"Создан шаблон здания «{name}» (id: {id}, тип: {type}).");
+    };
 }

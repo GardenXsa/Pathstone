@@ -12,11 +12,11 @@ namespace MyGame.Tests.AI.Tools;
 public class ToolRegistryTests
 {
     /// <summary>
-    /// The 22 built-in tools the registry registers. Mirrors the list in
+    /// The 24 built-in tools the registry registers. Mirrors the list in
     /// ToolRegistry.RegisterBuiltins (5 MVP + 13 expansion + 4 combat/
-    /// death from COMBAT-DEATH). If this list drifts from the source, the
-    /// Constructor_RegistersAllBuiltinTools test will fail — update both
-    /// together.
+    /// death from COMBAT-DEATH + 2 runtime content authoring). If this
+    /// list drifts from the source, the Constructor_RegistersAllBuiltinTools
+    /// test will fail — update both together.
     /// </summary>
     private static readonly string[] ExpectedTools =
     {
@@ -43,6 +43,9 @@ public class ToolRegistryTests
         "end_combat",
         "next_turn",
         "death_save",
+        // Runtime content authoring (let GM invent new entity types mid-game)
+        "create_npc_template",
+        "create_building_template",
     };
 
     private static ToolRegistry MakeRegistry()

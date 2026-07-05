@@ -810,9 +810,13 @@ public sealed class WorldBuilderOrchestrator
                 ? "(бриф пуст — создай мир по своему усмотрению, тёмное фэнтези)"
                 : brief.Trim(),
             ["WORLD_STATE"] = stateBlock,
-            ["ITEM_TEMPLATES"] = string.Join(", ", _world.Registries.Items.All().Select(t => t.Id).OrderBy(s => s)),
-            ["NPC_TEMPLATES"] = string.Join(", ", _world.Registries.Npcs.All().Select(t => t.Id).OrderBy(s => s)),
-            ["BUILDING_TEMPLATES"] = string.Join(", ", _world.Registries.Buildings.All().Select(t => t.Id).OrderBy(s => s)),
+            // NOTE: Standard template lists (ITEM_TEMPLATES, NPC_TEMPLATES,
+            // BUILDING_TEMPLATES) are intentionally NOT provided. AI-generated
+            // worlds must be created from scratch — all entities come from the
+            // plan's customNpcTemplates / customItemTemplates / customBuildingTemplates.
+            // The planner prompt explicitly tells the AI to create everything
+            // custom; providing standard template ids would let it reference
+            // them, defeating the "unique world" design goal.
         };
         var prompt = PromptLoader.Substitute(template, vars);
         // Append the tools guide so the planner knows the available tool
@@ -924,9 +928,10 @@ public sealed class WorldBuilderOrchestrator
         {
             ["WORLD_PLAN"] = planBlock,
             ["WORLD_STATE"] = stateBlock,
-            ["ITEM_TEMPLATES"] = string.Join(", ", _world.Registries.Items.All().Select(t => t.Id).OrderBy(s => s).Take(40)),
-            ["NPC_TEMPLATES"] = string.Join(", ", _world.Registries.Npcs.All().Select(t => t.Id).OrderBy(s => s).Take(40)),
-            ["BUILDING_TEMPLATES"] = string.Join(", ", _world.Registries.Buildings.All().Select(t => t.Id).OrderBy(s => s).Take(40)),
+            // NOTE: Template lists intentionally NOT provided to the narrator.
+            // AI-generated worlds are built from scratch; the narrator doesn't
+            // create entities, it only narrates. The narrator prompt says
+            // "standard templates don't exist — this world is custom."
         };
         return PromptLoader.Substitute(template, vars);
     }
