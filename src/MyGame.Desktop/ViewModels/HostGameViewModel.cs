@@ -142,71 +142,26 @@ public partial class HostGameViewModel : ViewModelBase
             var profile = _profileStore.GetOrCreate();
             var settings = _settingsStore.Load();
 
-            // 1) Create the starting world + persist it as a save so
-            //    the HostSession has something to mutate + save.
+            // 1) Create the starting world + persist it as a save. The
+            //    world ships WITHOUT a player (issue #106) — the host
+            //    creates their character on the CharacterCreation screen
+            //    before the HostSession starts, so the GM's opening turn
+            //    has a player to place (issue #105).
             var world = DefaultWorld.Create();
             var meta = _saveManager.CreateSave(
                 string.IsNullOrWhiteSpace(_gameName) ? "Мультиплеер" : _gameName.Trim(),
                 world, profile.Id);
 
-            // 2) Wire the AI client + GM + tool registry onto the
-            //    world. The GM mutates the world in-place via tool
-            //    calls during ProcessNextTurnAsync.
-            var ai = new AiClient(settings.Ai);
-            var prompts = ServiceHost.Resolve<PromptLoader>();
-            var tools = new ToolRegistry(world);
-            var gm = new GameMaster(
-                ai, world, prompts, tools, settings.MaxToolIterations,
-                aiSettings: settings.Ai,
-                maxContextTokens: settings.MaxContextTokens);
-
-            // 3) Build the session + start the WebSocket server.
-            var cts = new CancellationTokenSource();
-            var session = new HostSession(
-                profile, world, gm,
-                saveManager: _saveManager,
-                saveId: meta.Id,
-                requestedPort: 0,
-                shutdownToken: cts.Token,
-                bindHost: "+");
-            var port = await session.StartAsync();
-            StartedSession = session;
-
-            // 4) Issue #77 — leave the party in Lobby status. The host
-            //    clicks «Начать игру» in the lobby UI (StartGameCommand
-            //    on the GameViewModel) to transition to Playing once all
-            //    non-spectator members are Ready. Previously this
-            //    auto-transitioned to Playing immediately, skipping the
-            //    lobby entirely — but with the new lobby UI the host
-            //    can see who's joined, share the address, and start the
-            //    game on demand. The HostServer's default status is
-            //    Lobby, so we don't need to set it explicitly here.
-            //
-            // Show the LOCAL address immediately — UPnP discovery runs
-            // in the background (HostSession.StartAsync fires it off as
-            // a fire-and-forget task so it doesn't block lobby entry on
-            // the 3-second SSDP timeout or the Windows firewall dialog).
-            // When UPnP resolves, the handler below refreshes ShareAddress
-            // with the public IP (so internet play is possible without a
-            // manual port forward). If UPnP fails, the local address stays.
-            ShareAddress = $"localhost:{port}  (порт {port})";
-            session.UpnpAddressResolved += publicAddr =>
-            {
-                // Fires on a background thread — marshal to UI thread.
-                Avalonia.Threading.Dispatcher.UIThread.Post(() =>
-                {
-                    if (string.IsNullOrEmpty(publicAddr)) return;
-                    ShareAddress = $"Публичный адрес: {publicAddr}  (локальный: localhost:{port})";
-                });
-            };
-
-            // 5) Hand off to the GameViewModel. The shell constructs
-            //    the VM with the save id; the VM pulls the session via
-            //    a transient channel — we use a static slot here for
-            //    simplicity (only one host session can exist per
-            //    process at a time).
-            PendingHostSessionTransfer.Set(session, cts);
-            _shell.NavigateToGameAsHost(meta.Id).FireAndForget();
+            // 2) Stash the host setup (profile + settings) for the
+            //    deferred host-start. CharacterCreation will trigger
+            //    CompleteHostStartAsync after the player is created,
+            //    which builds the GM + HostSession and navigates to the
+            //    lobby. This defers the HostSession.StartAsync (and its
+            //    UPnP / firewall dialog) until AFTER character creation,
+            //    so the user isn't holding a server open while typing a
+            //    character name.
+            PendingHostStartTransfer.Set(profile, settings);
+            _shell.NavigateToCharacterCreation(meta.Id, forHost: true);
         }
         catch (Exception ex)
         {
@@ -224,6 +179,81 @@ public partial class HostGameViewModel : ViewModelBase
 
     private bool CanStart() => !IsBusy && !string.IsNullOrWhiteSpace(_gameName);
 }
+
+/// <summary>
+/// Builds and starts a <see cref="HostSession"/> from a save + stashed
+/// host setup. Shared between the HostGame screen's DefaultWorld path
+/// and the AI world-build path (issue #107) — both go through character
+/// creation first, then call <see cref="Start"/> to bring up the server.
+/// </summary>
+internal static class HostSessionStarter
+{
+    /// <summary>
+    /// Load the world for <paramref name="saveId"/>, build the AI client
+    /// + GM + tool registry, construct a HostSession bound to all
+    /// interfaces (LAN play) on an OS-assigned port, start it, and
+    /// return the session + its shutdown token source + the bound port.
+    /// </summary>
+    public static async Task<(HostSession session, CancellationTokenSource cts, int port)> StartAsync(
+        SaveManager saveManager,
+        string saveId,
+        MyGame.Core.Profile.Profile profile,
+        MyGame.Core.Profile.Settings settings)
+    {
+        var loaded = saveManager.LoadAll(saveId)
+            ?? throw new InvalidOperationException($"Сохранение {saveId} не найдено.");
+        var world = loaded.world;
+
+        var ai = new AiClient(settings.Ai);
+        var prompts = ServiceHost.Resolve<PromptLoader>();
+        var tools = new ToolRegistry(world);
+        var gm = new GameMaster(
+            ai, world, prompts, tools, settings.MaxToolIterations,
+            aiSettings: settings.Ai,
+            maxContextTokens: settings.MaxContextTokens);
+
+        var cts = new CancellationTokenSource();
+        var session = new HostSession(
+            profile, world, gm,
+            saveManager: saveManager,
+            saveId: saveId,
+            requestedPort: 0,
+            shutdownToken: cts.Token,
+            bindHost: "+");
+        var port = await session.StartAsync().ConfigureAwait(false);
+        return (session, cts, port);
+    }
+}
+
+/// <summary>
+/// Stashed host setup (profile + settings) passed from HostGameViewModel
+/// to MainViewModel.CompleteHostStartAsync after character creation.
+/// Mirrors <see cref="PendingHostSessionTransfer"/> but for the pre-start
+/// config (the HostSession is built AFTER character creation, so the
+/// server isn't held open while the user picks a name).
+/// </summary>
+internal static class PendingHostStartTransfer
+{
+    private static MyGame.Core.Profile.Profile? _profile;
+    private static MyGame.Core.Profile.Settings? _settings;
+    private static readonly object _lock = new();
+
+    public static void Set(MyGame.Core.Profile.Profile profile, MyGame.Core.Profile.Settings settings)
+    {
+        lock (_lock) { _profile = profile; _settings = settings; }
+    }
+
+    public static (MyGame.Core.Profile.Profile? profile, MyGame.Core.Profile.Settings? settings) Take()
+    {
+        lock (_lock)
+        {
+            var p = _profile; var s = _settings;
+            _profile = null; _settings = null;
+            return (p, s);
+        }
+    }
+}
+
 
 /// <summary>
 /// Tiny channel for transferring a freshly-started HostSession from

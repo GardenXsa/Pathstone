@@ -343,7 +343,11 @@ public partial class MainMenuViewModel : ViewModelBase
 
     /// <summary>
     /// «Новая игра» — create a DefaultWorld save and navigate to the
-    /// game screen in single-player mode.
+    /// CHARACTER CREATION screen. The user picks name / race / class /
+    /// background there; the class profile grants starter gear, then the
+    /// user is forwarded into the game. Previously this skipped character
+    /// creation entirely and dropped the user into the game with the
+    /// auto-player «Странник» (issue #105).
     /// </summary>
     [RelayCommand(CanExecute = nameof(CanNavigate))]
     private async Task NewGameAsync()
@@ -355,7 +359,10 @@ public partial class MainMenuViewModel : ViewModelBase
             var world = DefaultWorld.Create();
             var profile = _profileStore.GetOrCreate();
             var meta = _saveManager.CreateSave("Новая игра", world, profile.Id);
-            await _shell.NavigateToGame(meta.Id);
+            // Route through character creation — the world now ships
+            // without a player (issue #106), so the user MUST create one
+            // before entering the game.
+            _shell.NavigateToCharacterCreation(meta.Id);
         }
         catch (Exception ex)
         {

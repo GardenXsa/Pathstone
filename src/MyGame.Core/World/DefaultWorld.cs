@@ -302,32 +302,19 @@ public static class DefaultWorld
             world.Quests.Add(caravanQuest);
         }
 
-        // ─── Starting player ───────────────────────────────────────────────
-        var player = EntityFactory.CreatePlayer(new()
-        {
-            Name = "Странник",
-            Race = "human",
-            Class = "adventurer",
-            Level = 1,
-            LocationId = village.Id,
-            StartingCurrency = 25,
-            Background = "Бродяга, пришедший в Долину Туманов с караваном. Цели — туманны, меч — острый.",
-        }, ruleset);
-
-        // Equip the player with a basic shortsword and leather armor.
-        if (registries.Items.Get("wpn_shortsword") is { } sword)
-            player.Equipped["weapon"] = EntityFactory.InstantiateItem(sword);
-        if (registries.Items.Get("arm_leather") is { } armor)
-            player.Equipped["armor"] = EntityFactory.InstantiateItem(armor);
-
-        // Starting inventory: a health potion + a torch + a ration.
-        foreach (var (tplId, qty) in new[] { ("cns_health_potion", 2), ("tool_torch", 3), ("cns_ration", 5) })
-        {
-            if (registries.Items.Get(tplId) is { } t)
-                player.Inventory.Items.Add(EntityFactory.InstantiateItem(t, qty));
-        }
-
-        world.SpawnPlayer(player);
+        // ─── No starting player ───────────────────────────────────────────
+        // The world is created WITHOUT a player. The player is created on
+        // the CharacterCreation screen (single-player + host) or the
+        // multiplayer character-create step, where the user picks name /
+        // race / class / background — and the class profile grants the
+        // appropriate starter gear (see CharacterCreationViewModel.
+        // GetClassProfile). Pre-equipping an auto-player «Странник» here
+        // would bypass the user's class choice and ignore the
+        // StartSceneAgent's role-appropriate setup (issue #106).
+        //
+        // The village is still marked Visited/Discovered so the
+        // CharacterCreation screen can default the starting location to
+        // the village (the most sensible spawn point for this world).
 
         return world;
     }

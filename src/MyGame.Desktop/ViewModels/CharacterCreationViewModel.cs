@@ -31,14 +31,18 @@ public partial class CharacterCreationViewModel : ViewModelBase
     private readonly MainViewModel _shell;
     private readonly string _saveId;
 
+    private readonly bool _forHost;
+
     public CharacterCreationViewModel(
         SaveManager saveManager,
         MainViewModel shell,
-        string saveId)
+        string saveId,
+        bool forHost = false)
     {
         _saveManager = saveManager ?? throw new ArgumentNullException(nameof(saveManager));
         _shell = shell ?? throw new ArgumentNullException(nameof(shell));
         _saveId = saveId ?? throw new ArgumentNullException(nameof(saveId));
+        _forHost = forHost;
         Title = "Создание персонажа";
     }
 
@@ -187,8 +191,14 @@ public partial class CharacterCreationViewModel : ViewModelBase
             // chosen character (not «Странник»).
             _saveManager.SaveAll(_saveId, world, meta, log);
 
-            // Hand off to the game screen.
-            await _shell.NavigateToGame(_saveId);
+            // Hand off: single-player game by default; host lobby if this
+            // character-creation was launched from the HostGame screen.
+            // The host path starts the deferred HostSession (built from
+            // the stashed profile + settings) and navigates to the lobby.
+            if (_forHost)
+                await _shell.CompleteHostStartAsync(_saveId);
+            else
+                await _shell.NavigateToGame(_saveId);
         }
         catch (Exception ex)
         {

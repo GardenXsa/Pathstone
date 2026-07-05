@@ -258,10 +258,59 @@ public partial class MainViewModel : ObservableObject
     /// navigate into the game via <see cref="NavigateToGame"/>.
     /// </summary>
     public void NavigateToCharacterCreation(string saveId)
+        => NavigateToCharacterCreation(saveId, forHost: false);
+
+    /// <summary>
+    /// Navigate to the character-creation screen. When <paramref name="forHost"/>
+    /// is true, after the character is created the shell starts the deferred
+    /// HostSession (via <see cref="CompleteHostStartAsync"/>) and navigates
+    /// to the host lobby instead of the single-player game. Used by the
+    /// HostGame screen (issue #105/#107) so the host creates their character
+    /// BEFORE the server starts — the GM's opening turn then has a player
+    /// to place, and the server isn't held open while the user types a name.
+    /// </summary>
+    public void NavigateToCharacterCreation(string saveId, bool forHost)
     {
-        var vm = new CharacterCreationViewModel(_saveManager, this, saveId);
-        vm.Title = "Создание персонажа";
+        var vm = new CharacterCreationViewModel(_saveManager, this, saveId, forHost);
+        vm.Title = forHost ? "Создание персонажа (хост)" : "Создание персонажа";
         CurrentView = vm;
+    }
+
+    /// <summary>
+    /// Complete the deferred host-start: pull the stashed profile + settings
+    /// (set by HostGameViewModel before character creation), build + start
+    /// the HostSession via <see cref="HostSessionStarter"/>, then navigate
+    /// to the host lobby. Called by CharacterCreationViewModel after the
+    /// host's character is created + saved. The HostSession's StartAsync
+    /// (TcpListener bind + background UPnP) runs here — after character
+    /// creation — so the server isn't held open while the user picks a name.
+    /// </summary>
+    public async Task CompleteHostStartAsync(string saveId)
+    {
+        var (profile, settings) = PendingHostStartTransfer.Take();
+        if (profile is null || settings is null)
+        {
+            // No stashed setup — fall back to single-player game so the
+            // user isn't stranded on the character-creation screen.
+            await NavigateToGame(saveId).ConfigureAwait(false);
+            return;
+        }
+        try
+        {
+            var (session, cts, port) = await HostSessionStarter.StartAsync(
+                _saveManager, saveId, profile, settings).ConfigureAwait(false);
+            PendingHostSessionTransfer.Set(session, cts);
+            await NavigateToGameAsHost(saveId).ConfigureAwait(false);
+        }
+        catch (Exception ex)
+        {
+            // Surface the error on the menu — there's no VM behind us now.
+            NavigateToMenu();
+            // Best-effort: show the error via the menu VM's SetError
+            // (ViewModelBase.ErrorMessage setter is protected).
+            if (CurrentView is ViewModelBase vm)
+                vm.SetError($"Не удалось запустить хост: {ex.Message}");
+        }
     }
 
     /// <summary>
