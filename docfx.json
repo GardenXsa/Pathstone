@@ -1,0 +1,36 @@
+{
+  "$schema": "https://raw.githubusercontent.com/dotnet/docfx/main/schemas/docfx.schema.json",
+  "metadata": [
+    {
+      "src": [
+        { "files": ["**/*.csproj"], "src": "src/MyGame.Core" },
+        { "files": ["**/*.csproj"], "src": "src/MyGame.Desktop" }
+      ],
+      "dest": "api",
+      "memberLayout": "samePage",
+      "namespaceLayout": "nested"
+    }
+  ],
+  "build": {
+    "content": [
+      { "files": ["**/*.md"], "src": "." },
+      { "files": ["api/**/*.{md,yml}"] }
+    ],
+    "resource": [
+      { "files": ["images/**", "public/**"] }
+    ],
+    "output": "_site",
+    "template": ["default", "modern"],
+    "globalMetadata": {
+      "_appName": "Pathstone",
+      "_appTitle": "Pathstone Documentation",
+      "_appLogoPath": "public/logo.svg",
+      "_disableContribution": false,
+      "_appFaviconPath": "public/favicon.ico",
+      "_gitContribute": {
+        "repo": "https://github.com/GardenXsa/Pathstone",
+        "branch": "main"
+      }
+    }
+  }
+}

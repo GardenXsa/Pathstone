@@ -65,6 +65,20 @@ public static class ServiceHost
             // instance caches them all.
             services.AddSingleton<PromptLoader>();
 
+            // ─── Issue #59: Mod loading ──────────────────────────────────
+            // Load .pathstone-pack files from {profileDir}/mods/ into a
+            // shared ContentRegistry. The registry is used by DefaultWorld
+            // + WorldBuilder + all GM tools.
+            var profileDir = MyGame.Core.Profile.ProfileStore.DefaultProfileDirectory;
+            var modsDir = System.IO.Path.Combine(profileDir, "mods");
+            var modRegistry = MyGame.Core.World.Content.ContentRegistry.LoadDefault();
+            var loadedMods = MyGame.Core.Tooling.ModLoader.LoadAll(modsDir, modRegistry);
+            if (loadedMods.Count > 0)
+            {
+                System.Diagnostics.Trace.WriteLine($"[ServiceHost] Loaded {loadedMods.Count} mod(s): {string.Join(", ", loadedMods)}");
+            }
+            services.AddSingleton(modRegistry);
+
             _provider = services.BuildServiceProvider();
         }
     }

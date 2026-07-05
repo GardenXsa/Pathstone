@@ -373,8 +373,30 @@ public sealed class HostSession
 
         var port = await _server.StartAsync().ConfigureAwait(false);
         IsRunning = true;
+
+        // Issue #29: attempt UPnP port forwarding (best-effort). If
+        // successful, UpnpPublicAddress is set and the host UI can show
+        // the public IP:port for internet play. If it fails (no router,
+        // router doesn't support UPnP), UpnpPublicAddress stays null and
+        // the host shows the local address (manual forwarding required).
+        try
+        {
+            var upnp = await UpnpForwarder.TryForwardAsync(port, port, "Pathstone", default).ConfigureAwait(false);
+            if (upnp is not null)
+            {
+                UpnpPublicAddress = upnp.PublicAddress;
+            }
+        }
+        catch { /* best-effort — silent */ }
+
         return port;
     }
+
+    /// <summary>
+    /// Public IP:port from UPnP forwarding (issue #29). Null if UPnP
+    /// failed (host shows local address; user must forward manually).
+    /// </summary>
+    public string? UpnpPublicAddress { get; private set; }
 
     /// <summary>
     /// Graceful shutdown: stop the host server, cancel any in-flight GM
