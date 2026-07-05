@@ -263,6 +263,9 @@ public sealed class ToolRegistry
         Register(SearchLocationTool.Definition, SearchLocationTool.Handle(_world));
         Register(SetMarketPriceTool.Definition, SetMarketPriceTool.Handle(_world));
         Register(GetMarketPriceTool.Definition, GetMarketPriceTool.Handle(_world));
+
+        // Procedural dungeon generation (issue #38)
+        Register(GenerateDungeonTool.Definition, GenerateDungeonTool.Handle(_world));
     }
 }
 
@@ -2404,5 +2407,158 @@ internal static class GetMarketPriceTool
             sb.AppendLine($"  • {kv.Key}: ×{kv.Value:F1} ({label})");
         }
         return ToolResult.Ok(string.Empty, sb.ToString().TrimEnd());
+    };
+}
+
+// ─── Procedural dungeon generation (issue #38) ────────────────────────
+
+/// <summary>
+/// Generate a procedural dungeon (5-15 rooms) as sub-locations connected
+/// to the current "dungeon" location. Each room gets a description, exits,
+/// possible inhabitants, and possible loot. Uses the world's Rng for
+/// determinism. The dungeon layout is persisted (sub-locations become real
+/// World.Locations), so re-entry is consistent.
+/// </summary>
+internal static class GenerateDungeonTool
+{
+    private static readonly string[] RoomDescriptions = new[]
+    {
+        "Сырой каменный коридор, покрытый мхом. На стенах — следы когтей.",
+        "Круглая комната с обрушенным сводом. Сквозь трещины сочится вода.",
+        "Узкий проход, заваленный костями. В воздухе стоит запах гнили.",
+        "Просторный зал с колоннами. На полу — высохшие пятна крови.",
+        "Тупик. В стене — замурованная дверь с ржавым замком.",
+        "Перекрёсток трёх коридоров. На стенах — стрелы-указатели, стёршиеся от времени.",
+        "Кладовая с гнилыми бочками. В углу — крысиные гнёзда.",
+        "Алтарная комната. На каменном алтаре — засохшая кровь и потухшие свечи.",
+        "Естественная пещера, расширенная руками. Сталактиты свисают с потолка.",
+        "Тюремная камера. Ржавые решётки, цепи, кости в углу.",
+    };
+
+    private static readonly string[] DungeonNpcTemplates = new[]
+    {
+        "npc_goblin", "npc_skeleton", "npc_zombie", "npc_giant_spider",
+    };
+
+    public static ToolDefinition Definition { get; } = new()
+    {
+        Name = "generate_dungeon",
+        Description = "Сгенерировать подземелье (5-15 комнат) как под-локации, связанные с текущей локацией. Используй когда игрок входит в подземелье/пещеру/руины впервые. Каждая комната получает описание, выходы, возможных обитателей и добычу.",
+        ParametersJson = """
+        {
+          "type": "object",
+          "properties": {
+            "locationId": { "type": "string", "description": "Локация-вход в подземелье (ID или имя); пусто = текущая." },
+            "roomCount": { "type": "integer", "description": "Количество комнат (5-15). По умолчанию случайно." },
+            "theme": { "type": "string", "description": "Тема подземелья: catacombs, cave, ruins, mine, temple. По умолчанию по terrain." }
+          }
+        }
+        """,
+    };
+
+    public static ToolHandler Handle(MyGame.Core.World.World world) => async (args, ct) =>
+    {
+        var idOrName = args.TryGetProperty("locationId", out var lEl) ? lEl.GetString() ?? "" : "";
+        var entrance = GetLocationTool.ResolveLocation(world, idOrName);
+        if (entrance is null)
+            return ToolResult.Error(string.Empty, "Локация не найдена.");
+
+        // Don't re-generate if the dungeon already has sub-locations.
+        if (entrance.Flags?.TryGetValue("dungeonGenerated", out var v) == true && v is true)
+            return ToolResult.Ok(string.Empty, $"Подземелье «{entrance.Name}» уже сгенерировано.");
+
+        var roomCount = args.TryGetProperty("roomCount", out var rEl) && rEl.TryGetInt32(out var rc)
+            ? Math.Clamp(rc, 5, 15)
+            : world.Rng.NextInt(5, 16);
+
+        var theme = args.TryGetProperty("theme", out var tEl) ? tEl.GetString() ?? "catacombs" : "catacombs";
+
+        // Generate rooms as a linear graph with some branches.
+        var rooms = new List<MyGame.Core.World.Entities.Location>();
+        var prevRoom = entrance;
+
+        for (int i = 0; i < roomCount; i++)
+        {
+            var roomName = $"{entrance.Name}: Комната {i + 1}";
+            var desc = RoomDescriptions[world.Rng.NextInt(RoomDescriptions.Length)];
+            var room = new MyGame.Core.World.Entities.Location
+            {
+                Id = EntityId.NewId(),
+                Name = roomName,
+                Description = desc,
+                Terrain = "underground",
+                Danger = Math.Min(10, entrance.Danger + world.Rng.NextInt(0, 3)),
+                Visited = i == 0, // first room is immediately visible
+                Discovered = i == 0,
+            };
+            room.Flags ??= new();
+            room.Flags["dungeonRoom"] = true;
+            room.Flags["dungeonTheme"] = theme;
+
+            // Connect to previous room (bidirectional).
+            var dirTo = i == 0 ? "вглубь" : $"дальше";
+            var dirBack = i == 0 ? $"наружу (к «{entrance.Name}»)" : "назад";
+            var targetId = i == 0 ? entrance.Id : rooms[i - 1].Id;
+
+            room.Exits.Add(new MyGame.Core.World.Entities.LocationExit
+            {
+                To = targetId,
+                Direction = dirBack,
+            });
+
+            if (i == 0)
+            {
+                // Connect entrance → first room.
+                entrance.Exits.Add(new MyGame.Core.World.Entities.LocationExit
+                {
+                    To = room.Id,
+                    Direction = dirTo,
+                });
+            }
+            else
+            {
+                // Connect previous room → this room.
+                rooms[i - 1].Exits.Add(new MyGame.Core.World.Entities.LocationExit
+                {
+                    To = room.Id,
+                    Direction = dirTo,
+                });
+            }
+
+            // 40% chance to spawn an NPC in this room.
+            if (world.Rng.NextInt(100) < 40)
+            {
+                var tplId = DungeonNpcTemplates[world.Rng.NextInt(DungeonNpcTemplates.Length)];
+                var npc = world.SpawnNpcFromTemplate(tplId, room.Id);
+                if (npc is not null && !string.IsNullOrWhiteSpace(npc.Disposition))
+                    npc.Disposition = "hostile";
+            }
+
+            // 30% chance to place loot on the ground.
+            if (world.Rng.NextInt(100) < 30)
+            {
+                var itemTpl = world.Registries.Items.All()
+                    .Where(t => t.Rarity is "common" or "uncommon")
+                    .OrderBy(_ => world.Rng.NextInt(1000))
+                    .FirstOrDefault();
+                if (itemTpl is not null)
+                {
+                    var item = MyGame.Core.World.EntityFactory.InstantiateItem(itemTpl, world.Rng.NextInt(1, 3));
+                    world.SpawnItemOnGround(item, room.Id);
+                }
+            }
+
+            rooms.Add(room);
+            world.AddLocation(room);
+        }
+
+        // Mark entrance as generated.
+        entrance.Flags ??= new();
+        entrance.Flags["dungeonGenerated"] = true;
+
+        return ToolResult.Ok(string.Empty,
+            $"Сгенерировано подземелье «{entrance.Name}»: {roomCount} комнат, тема: {theme}. " +
+            $"{rooms.Count(r => r.Npcs.Count > 0)} комнат с обитателями, " +
+            $"{rooms.Count(r => r.Items.Count > 0)} комнат с добычей.");
     };
 }

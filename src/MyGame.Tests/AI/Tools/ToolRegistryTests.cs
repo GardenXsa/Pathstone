@@ -60,6 +60,8 @@ public class ToolRegistryTests
         "search_location",
         "set_market_price",
         "get_market_price",
+        // Procedural dungeon generation (issue #38)
+        "generate_dungeon",
     };
 
     private static ToolRegistry MakeRegistry()

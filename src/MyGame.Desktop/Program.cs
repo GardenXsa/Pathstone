@@ -10,6 +10,8 @@ using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Input.Platform;
 using Avalonia.Layout;
 using Avalonia.Threading;
+using MyGame.Core.Logging;
+using MyGame.Core.Profile;
 using MyGame.Desktop.Services;
 
 namespace MyGame.Desktop;
@@ -22,11 +24,13 @@ class Program
     [STAThread]
     public static void Main(string[] args)
     {
-        // Register global exception handlers FIRST, before any Avalonia
-        // code runs. These catch exceptions from background threads,
-        // unobserved tasks, and the AppDomain as a whole. Each handler
-        // writes a crash dump via CrashLogger and tries to surface a
-        // user-visible dialog (if Avalonia is up by then).
+        // Initialize the structured logger FIRST, before anything else.
+        // Issue #71: writes to %APPDATA%/MyGame/logs/game-{date}.log.
+        var logDir = Path.Combine(ProfileStore.DefaultProfileDirectory, "logs");
+        GameLogger.Initialize(logDir, GameLogger.Level.Info);
+        GameLogger.Instance.Info("=== Pathstone starting ===");
+
+        // Register global exception handlers.
         RegisterGlobalExceptionHandlers();
 
         try
