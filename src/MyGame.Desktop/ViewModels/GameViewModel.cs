@@ -208,6 +208,7 @@ public partial class GameViewModel : ViewModelBase
     [ObservableProperty] private bool _isDisconnected;
     [ObservableProperty] private bool _reconnectFailed;
     [ObservableProperty] private string _disconnectReason = string.Empty;
+    [ObservableProperty] private bool _hasSavedWorldLocally;
 
     // ─── Token billing (issue #6) ─────────────────────────────────────
     //
@@ -1053,6 +1054,44 @@ public partial class GameViewModel : ViewModelBase
             try { ClientSession.DisconnectAsync().FireAndForget(); } catch { /* best-effort */ }
         }
         _shell.NavigateToMenu();
+    }
+
+    /// <summary>
+    /// Issue #28: Save the last known world state locally as a new
+    /// single-player save. Called from the disconnect overlay when the
+    /// host has dropped and reconnection failed. The client's cached
+    /// World (from StateUpdate messages) is saved — the player can
+    /// continue solo from the last known state.
+    /// </summary>
+    [RelayCommand]
+    private void SaveWorldLocally()
+    {
+        if (_world is null)
+        {
+            ErrorMessage = "Нет данных мира для сохранения.";
+            return;
+        }
+        try
+        {
+            var profile = _profileStore.GetOrCreate();
+            var meta = _saveManager.CreateSave(
+                $"{_meta?.Name ?? "Спасённый мир"} (соло)",
+                _world, profile.Id);
+            // Copy the log if we have one.
+            if (_log.Count > 0)
+            {
+                LogEntry[] snapshot;
+                lock (_logLock) snapshot = _log.ToArray();
+                _saveManager.SaveAll(meta.Id, _world, meta, snapshot);
+            }
+            HasSavedWorldLocally = true;
+            AppendLog(LogEntry.System(
+                $"Мир сохранён локально как «{meta.Name}». Вы можете продолжить из главного меню."));
+        }
+        catch (Exception ex)
+        {
+            ErrorMessage = $"Не удалось сохранить мир: {ex.Message}";
+        }
     }
 
     /// <summary>

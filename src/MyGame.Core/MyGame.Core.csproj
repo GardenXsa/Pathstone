@@ -44,6 +44,7 @@
          MyGame.Core.AI.Prompts.<name>.md (project default namespace + the
          file's folder path with dots). -->
     <EmbeddedResource Include="AI\Prompts\*.md" />
+    <EmbeddedResource Include="I18n\locales\*.json" />
   </ItemGroup>
 
 </Project>

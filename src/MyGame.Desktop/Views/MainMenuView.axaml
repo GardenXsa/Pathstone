@@ -83,35 +83,35 @@
                          are shown only for the first three sessions
                          (ShowHints=true) and disappear afterwards. -->
                     <StackPanel Spacing="2">
-                        <Button Content="Новая игра" Command="{Binding NewGameCommand}" Classes="MenuButton"
+                        <Button Content="Новая игра" Command="{Binding NewGameCommand}" Classes="MenuButton" AutomationProperties.Name="Новая игра — создать стандартный мир"
                                 ToolTip.Tip="Создать новую игру со стандартным миром"/>
                         <TextBlock Text="Новая игра — стандартный мир"
                                    Classes="Muted Small" Margin="14,0,0,2"
                                    IsVisible="{Binding ShowHints}"/>
                     </StackPanel>
                     <StackPanel Spacing="2">
-                        <Button Content="✨ Создать мир (AI)" Command="{Binding CreateWorldCommand}" Classes="MenuButton Primary"
+                        <Button Content="✨ Создать мир (AI)" Command="{Binding CreateWorldCommand}" Classes="MenuButton Primary" AutomationProperties.Name="Создать мир через AI"
                                 ToolTip.Tip="Сгенерировать мир через AI по вашему брифу"/>
                         <TextBlock Text="Создать мир (AI) — опишите мир, AI построит"
                                    Classes="Muted Small" Margin="14,0,0,2"
                                    IsVisible="{Binding ShowHints}"/>
                     </StackPanel>
                     <StackPanel Spacing="2">
-                        <Button Content="Хост игры" Command="{Binding HostGameCommand}" Classes="MenuButton"
+                        <Button Content="Хост игры" Command="{Binding HostGameCommand}" Classes="MenuButton" AutomationProperties.Name="Запустить сетевую игру"
                                 ToolTip.Tip="Запустить сетевую игру на этом компьютере"/>
                         <TextBlock Text="Хост игры — пригласите друзей по IP"
                                    Classes="Muted Small" Margin="14,0,0,2"
                                    IsVisible="{Binding ShowHints}"/>
                     </StackPanel>
-                    <Button Content="Подключиться" Command="{Binding JoinGameCommand}" Classes="MenuButton"
+                    <Button Content="Подключиться" Command="{Binding JoinGameCommand}" Classes="MenuButton" AutomationProperties.Name="Подключиться к сетевой игре"
                             ToolTip.Tip="Подключиться к сетевой игре по IP:порт"/>
-                    <Button Content="Загрузить" Command="{Binding ToggleLoadCommand}" Classes="MenuButton"
+                    <Button Content="Загрузить" Command="{Binding ToggleLoadCommand}" Classes="MenuButton" AutomationProperties.Name="Открыть список сохранений"
                             ToolTip.Tip="Открыть список сохранений"/>
                     <Button Content="📥 Импорт персонажа" Click="OnImportCharacterClick" Classes="MenuButton"
                             ToolTip.Tip="Импортировать персонажа из .pathstone-char файла"/>
                     <Button Content="🌍 Импорт мира" Click="OnImportWorldClick" Classes="MenuButton"
                             ToolTip.Tip="Импортировать мир из .pathstone-world файла"/>
-                    <Button Content="Настройки" Command="{Binding OpenSettingsCommand}" Classes="MenuButton"
+                    <Button Content="Настройки" Command="{Binding OpenSettingsCommand}" Classes="MenuButton" AutomationProperties.Name="Открыть настройки"
                             ToolTip.Tip="Настроить подключение к AI"/>
 
                     <!-- Saves list (collapsible). Issue #74 layout:

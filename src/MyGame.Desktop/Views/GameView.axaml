@@ -135,7 +135,7 @@
                             IsVisible="{Binding IsMultiplayer}" Margin="0,8,0,0">
                         <DockPanel LastChildFill="True">
                             <TextBlock DockPanel.Dock="Top" Text="Чат" Classes="SectionTitle" Margin="0,0,0,4"/>
-                            <Button DockPanel.Dock="Bottom" Content="Отправить"
+                            <Button DockPanel.Dock="Bottom" Content="Отправить" AutomationProperties.Name="Отправить сообщение в чат"
                                     Command="{Binding SendChatCommand}" Classes="SmallButton"
                                     Margin="0,4,0,0"
                                     ToolTip.Tip="Отправить сообщение в чат"/>
@@ -317,12 +317,12 @@
                         <!-- Input box at bottom -->
                         <Border DockPanel.Dock="Bottom" Classes="InputBar" Padding="8">
                             <Grid ColumnDefinitions="*,Auto">
-                                <TextBox Grid.Column="0" x:Name="ActionInput" Text="{Binding CurrentAction}"
+                                <TextBox Grid.Column="0" x:Name="ActionInput" Text="{Binding CurrentAction}" AutomationProperties.Name="Поле ввода действия игрока"
                                          PlaceholderText="Опишите действие вашего персонажа…"
                                          IsEnabled="{Binding CanSubmit}"
                                          KeyDown="OnActionKeyDown"
                                          ToolTip.Tip="Опишите действие вашего персонажа"/>
-                                <Button Grid.Column="1" Content="Отправить"
+                                <Button Grid.Column="1" Content="Отправить" AutomationProperties.Name="Отправить действие игровому мастеру"
                                         Command="{Binding SubmitActionCommand}"
                                         Classes="SmallButton Primary"
                                         Margin="6,0,0,0"
@@ -499,6 +499,17 @@
                             Classes="MenuButton"
                             HorizontalAlignment="Stretch"
                             ToolTip.Tip="Выйти в главное меню"/>
+                    <!-- Issue #28: save the last known world state locally
+                         so the player can continue solo. Only shown when
+                         reconnection has failed AND the world hasn't been
+                         saved yet. -->
+                    <Button Content="💾 Сохранить мир локально"
+                            Command="{Binding SaveWorldLocallyCommand}"
+                            Classes="MenuButton Primary"
+                            HorizontalAlignment="Stretch"
+                            IsVisible="{Binding ReconnectFailed}"
+                            IsEnabled="{Binding !HasSavedWorldLocally}"
+                            ToolTip.Tip="Сохранить последнее известное состояние мира как одиночное сохранение"/>
                 </StackPanel>
             </Border>
         </Border>

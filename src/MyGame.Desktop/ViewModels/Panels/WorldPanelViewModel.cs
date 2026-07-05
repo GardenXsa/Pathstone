@@ -101,7 +101,7 @@ public partial class WorldPanelViewModel : ObservableObject
 
         AllLocations.Clear();
         foreach (var l in world.Locations)
-            AllLocations.Add(new LocationRow(l.Name, l.Terrain, l.Danger, l.Visited, l.Discovered));
+            AllLocations.Add(new LocationRow(l.Name, l.Terrain, l.Danger, l.Visited, l.Discovered, l.X, l.Y));
 
         // ENGINE-DEPTH (issue #36): factions list. Empty when the world
         // has no factions — the UI section collapses via HasFactions.
@@ -229,7 +229,7 @@ public sealed record BuildingRow(string Name, string Description);
 public sealed record GroundItemRow(string Name, int Quantity);
 
 /// <summary>One location in the world map list.</summary>
-public sealed record LocationRow(string Name, string Terrain, int Danger, bool Visited, bool Discovered);
+public sealed record LocationRow(string Name, string Terrain, int Danger, bool Visited, bool Discovered, int? X = null, int? Y = null);
 
 /// <summary>
 /// One faction row in the world panel (issue #36). Reputation is on the

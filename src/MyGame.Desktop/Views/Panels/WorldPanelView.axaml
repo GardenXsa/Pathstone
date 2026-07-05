@@ -144,12 +144,20 @@
                 </StackPanel>
             </Border>
 
-            <!-- All locations (discovered map) -->
+            <!-- All locations (discovered map) — issue #68: toggle between list and visual map -->
             <Border Classes="PanelSection" IsVisible="{Binding HasLocations}">
                 <StackPanel Spacing="3">
-                    <TextBlock Text="Карта мира" Classes="SectionTitle"
-                               ToolTip.Tip="Открытые локации мира"/>
-                    <ItemsControl ItemsSource="{Binding AllLocations}">
+                    <Grid ColumnDefinitions="*,Auto">
+                        <TextBlock Grid.Column="0" Text="Карта мира" Classes="SectionTitle"
+                                   ToolTip.Tip="Открытые локации мира"/>
+                        <ToggleButton Grid.Column="1" Content="🗺" Classes="TinyButton" Padding="4,2"
+                                      x:Name="MapToggle" ToolTip.Tip="Переключить вид: список / карта"
+                                      AutomationProperties.Name="Переключение вида карты"/>
+                    </Grid>
+
+                    <!-- List view (default) -->
+                    <ItemsControl ItemsSource="{Binding AllLocations}"
+                                  IsVisible="{Binding !MapToggle.IsChecked}">
                         <ItemsControl.ItemTemplate>
                             <DataTemplate DataType="vm:LocationRow">
                                 <Grid ColumnDefinitions="Auto,*,Auto" Margin="0,1">
@@ -163,6 +171,14 @@
                             </DataTemplate>
                         </ItemsControl.ItemTemplate>
                     </ItemsControl>
+
+                    <!-- Visual map view (Canvas-based, issue #68) -->
+                    <ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto"
+                                  MaxHeight="300" IsVisible="{Binding MapToggle.IsChecked}">
+                        <Canvas x:Name="WorldMapCanvas" Width="600" Height="400"
+                                Background="{DynamicResource AppSurfaceBrush}"
+                                Margin="0,4,0,0"/>
+                    </ScrollViewer>
                 </StackPanel>
             </Border>
 
