@@ -683,8 +683,7 @@ public partial class GameViewModel : ViewModelBase
             }
             else if (IsHost && HostSession is not null)
             {
-                await HostSession.StopAsync(); // stops + saves final state
-                // Restart the session? No — the user can navigate back.
+                await HostSession.SaveAsync(); // non-destructive save
                 StatusText = "Сохранено.";
             }
         }
@@ -1600,9 +1599,12 @@ public partial class GameViewModel : ViewModelBase
         {
             // Persist session-tokens before the save.
             PersistTokensToMeta();
+            LogEntry[] snapshot;
+            lock (_logLock) snapshot = _log.ToArray();
+            var world = _world; var meta = _meta; var saveId = _saveId;
             _ = Task.Run(() =>
             {
-                try { _saveManager.SaveAll(_saveId, _world, _meta, Log.ToArray()); }
+                try { _saveManager.SaveAll(saveId, world, meta, snapshot); }
                 catch (Exception ex) { System.Diagnostics.Trace.WriteLine($"[save] {ex.Message}"); }
             });
         }
@@ -1704,9 +1706,11 @@ public partial class GameViewModel : ViewModelBase
         // VM has already validated this, but defensive bounds prevent a
         // bad client call from emptying the original stack or creating
         // a negative-quantity item.
+        if (item.Quantity < 2) return "Недостаточно предметов для разделения.";
+        var max = item.Quantity - 1;
         var qty = splitQty;
+        if (qty > max) qty = max;
         if (qty < 1) qty = 1;
-        if (qty > item.Quantity - 1) qty = item.Quantity - 1;
 
         // Instantiate the new stack from the same template. This carries
         // over Name, Weight, TemplateId, etc. via EntityFactory.
@@ -1862,9 +1866,12 @@ public partial class GameViewModel : ViewModelBase
         if (CanSave && _saveId is not null && _meta is not null)
         {
             PersistTokensToMeta();
+            LogEntry[] snapshot;
+            lock (_logLock) snapshot = _log.ToArray();
+            var world = _world; var meta = _meta; var saveId = _saveId;
             _ = Task.Run(() =>
             {
-                try { _saveManager.SaveAll(_saveId, _world, _meta, Log.ToArray()); }
+                try { _saveManager.SaveAll(saveId, world, meta, snapshot); }
                 catch (Exception ex) { System.Diagnostics.Trace.WriteLine($"[save] {ex.Message}"); }
             });
         }
@@ -2086,7 +2093,9 @@ public partial class GameViewModel : ViewModelBase
                 // readyRegions flag).
                 _meta = freshMeta; // keep the OriginalPlanJson
                 PersistTokensToMeta();
-                try { _saveManager.SaveAll(_saveId, _world, _meta, Log.ToArray()); }
+                LogEntry[] snapshot;
+                lock (_logLock) snapshot = _log.ToArray();
+                try { _saveManager.SaveAll(_saveId, _world, _meta, snapshot); }
                 catch (Exception ex) { System.Diagnostics.Trace.WriteLine($"[save] {ex.Message}"); }
             }
             else
@@ -2616,16 +2625,18 @@ public partial class GameViewModel : ViewModelBase
             AppendLog(LogEntry.System($"Кикнут: {k.Reason}"));
         });
 
-    /// <summary>
+        /// <summary>
     /// Issue #32: late joiner log sync. Populate the local log with the
-    /// history sent by the host.
+    /// history sent by the host. Correctly appends to both UI and backing lists.
     /// </summary>
     private void OnClientLogSynced(LogSyncMsg msg) =>
         Dispatcher.UIThread.Post(() =>
         {
             foreach (var entry in msg.Entries)
-            {
-                Log.Add(LogEntry.Narrative(entry));
+            { 
+                var logEntry = LogEntry.Narrative(entry);
+                lock (_logLock) _log.Add(logEntry);
+                Log.Add(logEntry);
             }
         });
 

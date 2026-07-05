@@ -256,7 +256,9 @@ public sealed class HostServer
 
         try
         {
-            _listener.Start();
+                    {
+                    {
+                        _listener.Start();
         }
         catch (HttpListenerException ex)
         {
@@ -336,9 +338,14 @@ public sealed class HostServer
         }
         _acceptLoopTask = null;
 
-        _connections.Clear();
-        _nicknamesByLower.Clear();
-    }
+                        foreach (var kvp in _connections) 
+                {
+                    try { kvp.Value.DisposeSemaphore(); } catch { /* ignore */ }
+                }
+                _connections.Clear();
+                _nicknamesByLower.Clear();
+                try { listener.Close(); } catch { /* ignore */ }
+            }
 
     // ─── Accept loop ─────────────────────────────────────────────────
 
@@ -475,7 +482,8 @@ public sealed class HostServer
             await SendAndCloseAsync(ws, new RejectMsg { Reason = "Ник не может быть пустым" }).ConfigureAwait(false);
             return pendingConnectionId;
         }
-        if (_nicknamesByLower.ContainsKey(hello.Nickname.ToLowerInvariant()))
+        var nickLower = hello.Nickname.ToLowerInvariant();
+        if (!_nicknamesByLower.TryAdd(nickLower, pendingConnectionId))
         {
             await SendAndCloseAsync(ws, new RejectMsg { Reason = "Ник уже занят в этой партии" }).ConfigureAwait(false);
             return pendingConnectionId;
@@ -498,7 +506,7 @@ public sealed class HostServer
         _connections.TryRemove(pendingConnectionId, out _);
         _connections[connectionId] = conn;
         conn.Member = member;
-        _nicknamesByLower[hello.Nickname.ToLowerInvariant()] = connectionId;
+        _nicknamesByLower[nickLower] = connectionId;
 
         // Send WelcomeMsg to the new client with the current party snapshot.
         var snapshot = BuildPartySnapshot();

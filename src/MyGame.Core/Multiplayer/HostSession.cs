@@ -432,6 +432,37 @@ public sealed class HostSession
         await _server.StopAsync().ConfigureAwait(false);
     }
 
+
+    /// <summary>
+    /// Explicitly save the current world state, metadata, and log to disk without stopping the server.
+    /// </summary>
+    public Task SaveAsync()
+    {
+        if (_saveManager is not null && _saveId is not null)
+        {
+            try
+            {
+                EnsureMeta();
+                LogEntry[] logSnapshot;
+                lock (_log) logSnapshot = _log.ToArray();
+                if (_meta is not null)
+                {
+                    _meta = _meta with
+                    {
+                        SessionPromptTokens = _sessionPromptTokens,
+                        SessionCompletionTokens = _sessionCompletionTokens,
+                    };
+                    _saveManager.SaveAll(_saveId, _world, _meta, logSnapshot);
+                }
+            }
+            catch (Exception ex)
+            {
+                Trace.WriteLine($"[HostSession] Explicit save failed: {ex}");
+            }
+        }
+        return Task.CompletedTask;
+    }
+
     // ─── Player actions ──────────────────────────────────────────────
 
     /// <summary>

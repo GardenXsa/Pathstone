@@ -92,6 +92,8 @@ public delegate Task<ToolResult> ToolHandler(JsonElement args, CancellationToken
 /// </summary>
 public sealed class ToolRegistry
 {
+    private static readonly JsonElement EmptyObjectElement = JsonDocument.Parse("{}").RootElement.Clone();
+
     private readonly MyGame.Core.World.World _world;
     private readonly Dictionary<string, ToolDefinition> _definitions = new(StringComparer.Ordinal);
     private readonly Dictionary<string, ToolHandler> _handlers = new(StringComparer.Ordinal);
@@ -176,7 +178,7 @@ public sealed class ToolRegistry
     private static JsonElement ParseArgsLenient(string? argsJson)
     {
         if (string.IsNullOrWhiteSpace(argsJson))
-            return JsonDocument.Parse("{}").RootElement;
+            return EmptyObjectElement;
         try
         {
             using var doc = JsonDocument.Parse(argsJson);
@@ -194,7 +196,7 @@ public sealed class ToolRegistry
             }
             catch (JsonException)
             {
-                return JsonDocument.Parse("{}").RootElement;
+                return EmptyObjectElement;
             }
         }
     }

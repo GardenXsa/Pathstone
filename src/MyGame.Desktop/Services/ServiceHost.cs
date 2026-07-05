@@ -79,9 +79,23 @@ public static class ServiceHost
             }
             services.AddSingleton(modRegistry);
 
-            _provider = services.BuildServiceProvider();
-        }
-    }
+                                _provider = services.BuildServiceProvider();
+                    
+                    // Sync CompressSaves setting with SaveManager on startup and settings update
+                    try
+                    { 
+                        var saveManager = _provider.GetRequiredService<SaveManager>();
+                        var settingsStore = _provider.GetRequiredService<SettingsStore>();
+                        var s = settingsStore.Load();
+                        saveManager.CompressSaves = s.CompressSaves;
+                        settingsStore.Changed += (_, settings) => saveManager.CompressSaves = settings.CompressSaves;
+                    }
+                    catch (Exception ex)
+                    { 
+                        System.Diagnostics.Trace.WriteLine($"[ServiceHost] Failed to sync CompressSaves: {ex.Message}");
+                    }
+                }
+            }
 
     /// <summary>
     /// Resolve a registered service. Throws if

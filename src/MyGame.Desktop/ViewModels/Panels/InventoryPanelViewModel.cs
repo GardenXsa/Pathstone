@@ -196,10 +196,16 @@ public partial class InventoryPanelViewModel : ObservableObject
     private void ConfirmSplit()
     {
         if (SplitTarget is null) return;
-        var qty = SplitQuantity;
+        if (SplitTarget.Quantity < 2)
+        { 
+            IsSplitDialogOpen = false;
+            SplitTarget = null;
+            return;
+        }
         var max = SplitTarget.Quantity - 1;
-        if (qty < 1) qty = 1;
+        var qty = SplitQuantity;
         if (qty > max) qty = max;
+        if (qty < 1) qty = 1;
         ItemActionRequested?.Invoke(new ItemAction(
             SplitTarget.Id,
             ItemActionKind.Split,

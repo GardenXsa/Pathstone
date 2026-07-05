@@ -528,6 +528,10 @@ public sealed class GameClient
                 await ws.SendAsync(new ArraySegment<byte>(bytes), WebSocketMessageType.Text, endOfMessage: true, ct).ConfigureAwait(false);
             }
         }
+        catch (ObjectDisposedException)
+        {
+            // WebSocket was disposed while waiting on the semaphore or during send.
+        }
         finally
         {
             _sendSemaphore.Release();

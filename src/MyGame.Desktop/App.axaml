@@ -503,4 +503,16 @@
             <Setter Property="BorderThickness" Value="2" />
         </Style>
     </Application.Styles>
+    <Style Selector="Window:not(.Anim) TransitioningContentControl">
+        <Setter Property="PageTransition" Value="{x:Null}" />
+    </Style>
+    <Style Selector="Window:not(.Anim) TransitioningContentControl">
+        <Setter Property="PageTransition" Value="{x:Null}" />
+    </Style>
+    <Style Selector="Window:not(.Anim) TransitioningContentControl">
+        <Setter Property="PageTransition" Value="{x:Null}" />
+    </Style>
+    <Style Selector="Window:not(.Anim) TransitioningContentControl">
+        <Setter Property="PageTransition" Value="{x:Null}" />
+    </Style>
 </Application>

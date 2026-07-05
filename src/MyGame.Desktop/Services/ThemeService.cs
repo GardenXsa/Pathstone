@@ -6,6 +6,7 @@ using Avalonia.Controls;
 using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Media;
 using Avalonia.Styling;
+using Avalonia.Threading;
 using MyGame.Core.Profile;
 
 namespace MyGame.Desktop.Services;
@@ -60,17 +61,25 @@ public static class ThemeService
 
     /// <summary>
     /// Apply theme + accent + animation flag. Never throws — all errors
-    /// are caught and logged via Trace.
+    /// are caught and logged via Trace. Thread-safe: marshals to the UI thread
+    /// if called from a background thread.
     /// </summary>
     public static void ApplyTheme(string themeMode, string accentName, bool enableAnimations)
     {
-        try
+        if (Dispatcher.UIThread.CheckAccess())
         {
-            ApplyThemeInternal(themeMode, accentName, enableAnimations);
+            try
+            {
+                ApplyThemeInternal(themeMode, accentName, enableAnimations);
+            }
+            catch (Exception ex)
+            {
+                Trace.WriteLine($"[ThemeService] ApplyTheme FAILED: {ex}");
+            }
         }
-        catch (Exception ex)
+        else
         {
-            Trace.WriteLine($"[ThemeService] ApplyTheme FAILED: {ex}");
+            Dispatcher.UIThread.Post(() => ApplyTheme(themeMode, accentName, enableAnimations));
         }
     }
 

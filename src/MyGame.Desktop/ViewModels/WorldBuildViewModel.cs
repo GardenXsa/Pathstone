@@ -304,8 +304,17 @@ public partial class WorldBuildViewModel : ViewModelBase
                 return;
             }
 
-            // Build a fresh world + AI client + orchestrator.
-            var world = DefaultWorld.Create(seed: (int)DateTimeOffset.UtcNow.ToUnixTimeSeconds());
+            // Build a fresh, clean world without pre-populated default valley entities.
+            var world = new World
+            {
+                Seed = (int)DateTimeOffset.UtcNow.ToUnixTimeSeconds(),
+                Rng = new Rng((int)DateTimeOffset.UtcNow.ToUnixTimeSeconds()),
+                Clock = GameTime.Start,
+                CalendarSpec = Calendar.DefaultFantasyCalendar,
+                Ruleset = Rulesets.DefaultDnd,
+                Turn = 0,
+                Registries = ServiceHost.Resolve<ContentRegistry>()
+            };
             var ai = new AiClient(settings.Ai);
             var prompts = ServiceHost.Resolve<PromptLoader>();
             var tools = new ToolRegistry(world);

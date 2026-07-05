@@ -1,0 +1,68 @@
+{
+  "version": 1,
+  "patches": [
+    {
+      "fingerprint": "8c663a8045836704ca3df0153a7938c2e7c94677e3e0cecd7d1e3185c10af299",
+      "patch_name": "Ultimate Cohesive Bug Fix for Pathstone",
+      "applied_at": "2026-07-05T21:06:50",
+      "files": [
+        "src/MyGame.Core/AI/Tools/Tools.cs",
+        "src/MyGame.Core/Multiplayer/GameClient.cs",
+        "src/MyGame.Core/Multiplayer/HostServer.cs",
+        "src/MyGame.Core/Multiplayer/HostSession.cs",
+        "src/MyGame.Core/Tooling/ReplayRecorder.cs",
+        "src/MyGame.Desktop/Program.cs",
+        "src/MyGame.Desktop/Services/ServiceHost.cs",
+        "src/MyGame.Desktop/Services/ThemeService.cs",
+        "src/MyGame.Desktop/ViewModels/GameViewModel.cs",
+        "src/MyGame.Desktop/ViewModels/Panels/InventoryPanelViewModel.cs",
+        "src/MyGame.Desktop/ViewModels/WorldBuildViewModel.cs"
+      ],
+      "summary": "written_count=11"
+    },
+    {
+      "fingerprint": "61077944d459930e902fc3edfcf321e2349fe1ea3301e67c25199950bc9c89fb",
+      "patch_name": "Fix fuzzy search misplacements and ApplySplit path",
+      "applied_at": "2026-07-05T21:07:14",
+      "files": [
+        "src/MyGame.Core/Multiplayer/HostServer.cs",
+        "src/MyGame.Desktop/App.axaml",
+        "src/MyGame.Desktop/ViewModels/GameViewModel.cs"
+      ],
+      "summary": "written_count=3"
+    },
+    {
+      "fingerprint": "1228b234a88a3c8fd459efd19676fcc4d4d3d83cb4385ba5ddbb36783b606d0f",
+      "patch_name": "Fix HostServer.cs syntax error",
+      "applied_at": "2026-07-05T21:16:41",
+      "files": [
+        "src/MyGame.Core/Multiplayer/HostServer.cs",
+        "src/MyGame.Desktop/App.axaml",
+        "src/MyGame.Desktop/ViewModels/GameViewModel.cs"
+      ],
+      "summary": "written_count=3"
+    },
+    {
+      "fingerprint": "83e9e0fd8e4f19bb2901a56fc5a7808182917f67fd2928522dce2a9e0e54a380",
+      "patch_name": "Fix HostServer syntax and apply remaining fixes",
+      "applied_at": "2026-07-05T21:21:09",
+      "files": [
+        "src/MyGame.Core/Multiplayer/HostServer.cs",
+        "src/MyGame.Desktop/App.axaml",
+        "src/MyGame.Desktop/ViewModels/GameViewModel.cs"
+      ],
+      "summary": "written_count=3"
+    },
+    {
+      "fingerprint": "a08047fcf2440dc555a3b82c58a885af05de8a70cafa7ab003293bc4f1f3a369",
+      "patch_name": "Fix HostServer syntax and apply remaining fixes",
+      "applied_at": "2026-07-05T21:23:53",
+      "files": [
+        "src/MyGame.Core/Multiplayer/HostServer.cs",
+        "src/MyGame.Desktop/App.axaml",
+        "src/MyGame.Desktop/ViewModels/GameViewModel.cs"
+      ],
+      "summary": "written_count=3"
+    }
+  ]
+}

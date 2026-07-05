@@ -41,8 +41,17 @@ public sealed class ReplayRecorder
     {
         if (_turns.Count == 0) return;
         var path = Path.Combine(_replayDir, $"{_saveId}.pathstone-replay");
-        var json = JsonSerializer.Serialize(_turns, new JsonSerializerOptions { WriteIndented = false });
-        File.WriteAllText(path, json);
+        var tmpPath = path + ".tmp";
+        try
+        {
+            var json = JsonSerializer.Serialize(_turns, new JsonSerializerOptions { WriteIndented = false });
+            File.WriteAllText(tmpPath, json);
+            File.Move(tmpPath, path, overwrite: true);
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Trace.WriteLine($"[ReplayRecorder] Save failed: {ex.Message}");
+        }
     }
 
     public static List<ReplayTurn>? Load(string filePath)

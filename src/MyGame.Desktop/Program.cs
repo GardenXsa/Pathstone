@@ -91,6 +91,14 @@ class Program
             HandleFatalException(e.Exception, context: "TaskScheduler.UnobservedTaskException");
             e.SetObserved(); // prevent process termination
         };
+
+
+        // Issue #1: Intercept deferred UI styling exceptions from Avalonia's Dispatcher
+        Avalonia.Threading.Dispatcher.UIThread.UnhandledException += (sender, e) =>
+        {
+            HandleFatalException(e.Exception, context: "Dispatcher.UIThread.UnhandledException");
+            e.Handled = true; // suppress re-throw, prevent process exit
+        };
     }
 
     /// <summary>
