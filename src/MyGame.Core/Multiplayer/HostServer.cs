@@ -1,7 +1,9 @@
 using System.Collections.Concurrent;
 using System.Diagnostics;
 using System.Net;
+using System.Net.Sockets;
 using System.Net.WebSockets;
+using System.Security.Cryptography;
 using System.Text;
 using MyGame.Core.Multiplayer.Protocol;
 using MyGame.Core.Profile;
@@ -11,8 +13,20 @@ namespace MyGame.Core.Multiplayer;
 /// <summary>
 /// In-process WebSocket host server. Replaces the TS source's
 /// <c>mini-services/ws-server/index.ts</c> (socket.io + Next.js) with a
-/// raw <see cref="HttpListener"/>-based WebSocket server running inside
+/// raw <see cref="TcpListener"/>-based WebSocket server running inside
 /// the desktop app itself.
+///
+/// <para>
+/// <b>Why TcpListener, not HttpListener:</b> on Windows, <c>HttpListener</c>
+/// requires either administrator privileges or a pre-registered URL ACL
+/// (<c>netsh http add urlacl</c>) for any non-localhost prefix. End users
+/// running the game as a standard user hit <c>HttpListenerException: Access
+/// is denied</c> when the host binds to <c>+</c> (all interfaces for LAN
+/// play). <c>TcpListener</c> binds to a raw TCP socket with no such
+/// restriction — it works for standard users out of the box. The WebSocket
+/// upgrade handshake is performed manually (read the HTTP request, compute
+/// <c>Sec-WebSocket-Accept</c>, write the 101 response) and the resulting
+/// <see cref="NetworkStream"/> is handed to <see cref="WebSocket.CreateFromStream"/>.
 ///
 /// <para>
 /// When the user clicks "Host Game", the UI constructs a
@@ -44,13 +58,9 @@ namespace MyGame.Core.Multiplayer;
 /// </para>
 ///
 /// <para><b>Port assignment:</b> the ctor takes a port (0 = OS-assigned).
-/// Because <see cref="HttpListener"/> doesn't expose the bound port back
-/// when port=0 (unlike <see cref="System.Net.Sockets.TcpListener"/>), we
-/// pre-resolve a free port via a temporary <see cref="System.Net.Sockets.TcpListener"/>
-/// before starting the <see cref="HttpListener"/>. There's a small
-/// TOCTOU race (the port could be taken between the TcpListener.Close
-/// and the HttpListener.Start), but for a desktop app it's acceptable
-/// — if StartAsync fails, the caller can retry.</para>
+/// <see cref="TcpListener"/> with port=0 binds to an ephemeral port and
+/// exposes the actual port via <see cref="TcpListener.LocalEndpoint"/> —
+/// no TOCTOU race, no pre-resolution step needed.</para>
 ///
 /// <para><b>Thread safety:</b> the connections dictionary is a
 /// <see cref="ConcurrentDictionary{TKey,TValue}"/>. Each connection's
@@ -71,7 +81,12 @@ public sealed class HostServer
 
     // ─── Runtime state ───────────────────────────────────────────────
 
-    private HttpListener? _listener;
+    // Backing field for IsRunning. TcpListener has no IsListening property,
+    // so we track the state ourselves. Set true after Start() succeeds and
+    // false when StopAsync begins shutdown.
+    private volatile bool _isRunning;
+
+    private TcpListener? _listener;
     private Task? _acceptLoopTask;
     private readonly ConcurrentDictionary<Guid, Connection> _connections = new();
     private readonly ConcurrentDictionary<string, Guid> _nicknamesByLower = new();
@@ -114,9 +129,12 @@ public sealed class HostServer
     /// Typically the application shutdown token.
     /// </param>
     /// <param name="bindHost">
-    /// Hostname to bind the <see cref="HttpListener"/> to. Default
+    /// Hostname to bind the <see cref="TcpListener"/> to. Default
     /// <c>"+"</c> (all interfaces — lets remote players on the LAN
     /// connect). Use <c>"localhost"</c> for single-machine testing.
+    /// Unlike <c>HttpListener</c>, <c>TcpListener</c> does NOT require a
+    /// URL ACL or admin privileges for the <c>+</c> wildcard on Windows —
+    /// it binds to a raw socket.
     /// </param>
     public HostServer(
         Profile.Profile hostProfile,
@@ -178,7 +196,7 @@ public sealed class HostServer
 
     /// <summary>True if <see cref="StartAsync"/> has been called and the
     /// accept loop is running.</summary>
-    public bool IsRunning => _listener is not null && _listener.IsListening;
+    public bool IsRunning => _isRunning;
 
     // ─── Events ──────────────────────────────────────────────────────
 
@@ -234,7 +252,7 @@ public sealed class HostServer
     // ─── Lifecycle ───────────────────────────────────────────────────
 
     /// <summary>
-    /// Bind the <see cref="HttpListener"/>, register the host as the
+    /// Bind the <see cref="TcpListener"/>, register the host as the
     /// first member, and start the accept loop. Returns the actual port
     /// the server is listening on (also available via <see cref="Port"/>).
     /// </summary>
@@ -243,30 +261,35 @@ public sealed class HostServer
         if (_listener is not null)
             throw new InvalidOperationException("HostServer is already running.");
 
-        // Pre-resolve a free port if the caller asked for OS-assigned.
-        Port = _requestedPort == 0 ? GetFreePort() : _requestedPort;
-
         // The host's own connection id is a fresh Guid.
         HostConnectionId = Guid.NewGuid();
 
-        _listener = new HttpListener();
-        // HttpListener prefixes MUST end with '/'. The "+" binds to all
-        // interfaces (use "localhost" for single-machine testing).
-        _listener.Prefixes.Add($"http://{_bindHost}:{Port}/");
+        // Resolve the bind address. "+" / "*" / "0.0.0.0" → all interfaces
+        // (LAN multiplayer); "localhost" / "127.0.0.1" → loopback only
+        // (single-machine testing). Unlike HttpListener, TcpListener binds
+        // to a raw socket and does NOT need a URL ACL or admin on Windows.
+        var bindAddress = ResolveBindAddress(_bindHost);
+
+        _listener = new TcpListener(bindAddress, _requestedPort);
 
         try
         {
             _listener.Start();
         }
-        catch (HttpListenerException ex)
+        catch (SocketException ex)
         {
             _listener = null;
             throw new InvalidOperationException(
-                $"Failed to start HttpListener on {_bindHost}:{Port}. " +
-                $"On Windows, run `netsh http add urlacl url=http://{_bindHost}:{Port}/ user=Everyone` " +
-                $"or run as administrator. On Linux, ensure no other process is using the port. " +
+                $"Failed to start listener on {bindAddress}:{(_requestedPort == 0 ? "ephemeral" : _requestedPort)}. " +
+                $"The port may be in use, or the address is not available on this host. " +
                 $"Error: {ex.Message}", ex);
         }
+
+        // Read back the actual bound port (matches _requestedPort when
+        // non-zero; ephemeral when 0). TcpListener exposes this directly
+        // via LocalEndpoint — no TOCTOU-prone pre-resolution needed.
+        Port = ((IPEndPoint)_listener.LocalEndpoint).Port;
+        _isRunning = true;
 
         // Register the host as the first member. The host has no
         // WebSocket (it talks to itself directly via the HostSession),
@@ -291,6 +314,33 @@ public sealed class HostServer
     }
 
     /// <summary>
+    /// Map the <c>bindHost</c> string to an <see cref="IPAddress"/>.
+    /// <c>"+"</c>, <c>"*"</c>, <c>"0.0.0.0"</c>, or empty →
+    /// <see cref="IPAddress.Any"/> (all IPv4 interfaces — LAN play).
+    /// <c>"localhost"</c>, <c>"127.0.0.1"</c> →
+    /// <see cref="IPAddress.Loopback"/> (single-machine only).
+    /// Any other string is parsed as an IP address.
+    /// </summary>
+    private static IPAddress ResolveBindAddress(string bindHost)
+    {
+        if (string.IsNullOrWhiteSpace(bindHost)
+            || bindHost == "+" || bindHost == "*"
+            || bindHost == "0.0.0.0")
+        {
+            return IPAddress.Any;
+        }
+        if (bindHost.Equals("localhost", StringComparison.OrdinalIgnoreCase)
+            || bindHost == "127.0.0.1"
+            || bindHost == "::1")
+        {
+            return IPAddress.Loopback;
+        }
+        return IPAddress.TryParse(bindHost, out var addr)
+            ? addr
+            : IPAddress.Any;
+    }
+
+    /// <summary>
     /// Graceful shutdown: stop the accept loop, close all client
     /// connections with a "server shutting down" close code, dispose
     /// the listener. Safe to call multiple times.
@@ -299,8 +349,11 @@ public sealed class HostServer
     {
         var listener = Interlocked.Exchange(ref _listener, null);
         if (listener is null) return;
+        _isRunning = false;
 
-        // Stop accepting new connections first.
+        // Stop accepting new connections first. TcpListener.Stop() closes
+        // the listening socket; any pending AcceptTcpClientAsync will throw
+        // a SocketException, which the accept loop catches + breaks on.
         try { listener.Stop(); } catch { /* ignore */ }
 
         // Close all client WebSockets. The host's own Connection has a
@@ -336,14 +389,14 @@ public sealed class HostServer
         }
         _acceptLoopTask = null;
 
-                        foreach (var kvp in _connections) 
-                {
-                    try { kvp.Value.DisposeSemaphore(); } catch { /* ignore */ }
-                }
-                _connections.Clear();
-                _nicknamesByLower.Clear();
-                try { listener.Close(); } catch { /* ignore */ }
-            }
+        // Dispose per-connection send semaphores + clear the rosters.
+        foreach (var kvp in _connections)
+        {
+            try { kvp.Value.DisposeSemaphore(); } catch { /* ignore */ }
+        }
+        _connections.Clear();
+        _nicknamesByLower.Clear();
+    }
 
     // ─── Accept loop ─────────────────────────────────────────────────
 
@@ -352,83 +405,230 @@ public sealed class HostServer
         var listener = _listener;
         if (listener is null) return;
 
-        while (!_shutdownToken.IsCancellationRequested && listener.IsListening)
+        while (!_shutdownToken.IsCancellationRequested && _isRunning)
         {
-            HttpListenerContext ctx;
+            TcpClient client;
             try
             {
-                ctx = await listener.GetContextAsync().ConfigureAwait(false);
+                client = await listener.AcceptTcpClientAsync().ConfigureAwait(false);
             }
-            catch (HttpListenerException) when (_shutdownToken.IsCancellationRequested)
+            catch (SocketException) when (_shutdownToken.IsCancellationRequested)
             {
                 break;
             }
-            catch (ObjectDisposedException) when (_shutdownToken.IsCancellationRequested)
+            catch (SocketException) when (!_isRunning)
+            {
+                // Listener.Stop() aborts a pending accept — expected on shutdown.
+                break;
+            }
+            catch (ObjectDisposedException) when (_shutdownToken.IsCancellationRequested || !_isRunning)
             {
                 break;
             }
             catch (Exception ex)
             {
-                Trace.WriteLine($"[HostServer] GetContextAsync threw: {ex}");
-                if (!listener.IsListening) break;
+                Trace.WriteLine($"[HostServer] AcceptTcpClientAsync threw: {ex}");
+                if (!_isRunning) break;
                 continue;
             }
 
             // Hand off to a background task so the accept loop keeps moving.
-            _ = Task.Run(() => HandleConnectionAsync(ctx));
+            _ = Task.Run(() => HandleConnectionAsync(client));
         }
     }
 
-    private async Task HandleConnectionAsync(HttpListenerContext ctx)
+    /// <summary>
+    /// Handle a single TCP connection: perform the WebSocket upgrade
+    /// handshake manually, then run the per-connection read loop.
+    /// </summary>
+    private async Task HandleConnectionAsync(TcpClient client)
     {
-        // Reject non-WebSocket requests with a 400.
-        if (!ctx.Request.IsWebSocketRequest)
+        // Ensure the client is cleaned up no matter how we exit.
+        using (client)
         {
-            try { ctx.Response.StatusCode = 400; ctx.Response.Close(); } catch { /* ignore */ }
-            return;
+            WebSocket? ws = null;
+            NetworkStream? stream = null;
+            try
+            {
+                stream = client.GetStream();
+                ws = await AcceptWebSocketUpgradeAsync(stream).ConfigureAwait(false);
+            }
+            catch (Exception ex)
+            {
+                Trace.WriteLine($"[HostServer] WebSocket upgrade failed: {ex.Message}");
+                try { ws?.Dispose(); } catch { /* ignore */ }
+                try { stream?.Dispose(); } catch { /* ignore */ }
+                return;
+            }
+
+            // Pre-handshake state: the connection exists but no MemberInfo yet.
+            // We use a temporary Guid so we can track the WebSocket before the
+            // HelloMsg arrives. The ConnectionReadLoopAsync will swap this id
+            // for a real one if/when the handshake completes.
+            var pendingConnectionId = Guid.NewGuid();
+            var conn = new Connection(ws, null);
+            _connections[pendingConnectionId] = conn;
+
+            // The read loop tracks the CURRENT connection id (which may change
+            // after the handshake). We remove by that id in the finally block.
+            var currentConnectionId = pendingConnectionId;
+            try
+            {
+                currentConnectionId = await ConnectionReadLoopAsync(conn, pendingConnectionId).ConfigureAwait(false);
+            }
+            catch (Exception ex)
+            {
+                Trace.WriteLine($"[HostServer] Read loop threw: {ex}");
+            }
+            finally
+            {
+                // Remove by the current id. If the handshake completed, this
+                // is the real connection id; if it didn't (or the loop threw
+                // before the swap), it's the pending id. Both are no-ops if
+                // the id is no longer in the dict.
+                await RemoveConnectionAsync(currentConnectionId).ConfigureAwait(false);
+            }
+        }
+    }
+
+    // ─── WebSocket upgrade handshake ─────────────────────────────────
+
+    /// <summary>
+    /// Magic GUID appended to the client's Sec-WebSocket-Key when
+    /// computing the Sec-WebSocket-Accept value (RFC 6455 §1.3).
+    /// </summary>
+    private const string WsMagicGuid = "258EAFA5-E914-47DA-95CA-C5AB0DC85B11";
+
+    /// <summary>
+    /// Read the client's HTTP upgrade request, validate it's a WebSocket
+    /// handshake, compute the <c>Sec-WebSocket-Accept</c> value, and write
+    /// the <c>101 Switching Protocols</c> response. On success the stream
+    /// is positioned at the start of the first WebSocket frame and is
+    /// handed to <see cref="WebSocket.CreateFromStream"/>; the returned
+    /// <see cref="WebSocket"/> is ready for Send/Receive.
+    /// </summary>
+    /// <remarks>
+    /// This replaces <c>HttpListenerContext.AcceptWebSocketAsync</c>, which
+    /// was available when the server used <see cref="HttpListener"/>. With
+    /// <see cref="TcpListener"/> we own the raw <see cref="NetworkStream"/>
+    /// and must perform the HTTP upgrade ourselves. The handshake is small
+    /// (a handful of headers) and reads byte-by-byte to avoid over-reading
+    /// past the <c>\r\n\r\n</c> terminator (which would steal the first
+    /// WebSocket frame from <see cref="WebSocket.CreateFromStream"/>).
+    /// </remarks>
+    private static async Task<WebSocket> AcceptWebSocketUpgradeAsync(NetworkStream stream)
+    {
+        // Read the HTTP request headers (up to the blank line / \r\n\r\n).
+        var headers = await ReadHttpRequestHeadersAsync(stream).ConfigureAwait(false);
+
+        // Parse the request line + headers into a case-insensitive lookup.
+        var lines = headers.Split(new[] { "\r\n" }, StringSplitOptions.None);
+        if (lines.Length < 1)
+            throw new InvalidOperationException("Empty HTTP request.");
+
+        var requestLine = lines[0];
+        var headerMap = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        for (int i = 1; i < lines.Length; i++)
+        {
+            var line = lines[i];
+            if (string.IsNullOrEmpty(line)) continue;
+            var colon = line.IndexOf(':');
+            if (colon <= 0) continue;
+            var name = line.Substring(0, colon).Trim();
+            var value = line.Substring(colon + 1).Trim();
+            headerMap[name] = value;
         }
 
-        HttpListenerWebSocketContext wsCtx;
-        try
+        // Validate this is a WebSocket upgrade request (RFC 6455 §4.1).
+        if (!requestLine.StartsWith("GET", StringComparison.OrdinalIgnoreCase))
+            throw new InvalidOperationException($"Expected GET request, got: {requestLine}");
+
+        if (!headerMap.TryGetValue("Upgrade", out var upgrade)
+            || !upgrade.Equals("websocket", StringComparison.OrdinalIgnoreCase))
         {
-            wsCtx = await ctx.AcceptWebSocketAsync(subProtocol: null).ConfigureAwait(false);
-        }
-        catch (Exception ex)
-        {
-            Trace.WriteLine($"[HostServer] AcceptWebSocketAsync threw: {ex}");
-            try { ctx.Response.StatusCode = 500; ctx.Response.Close(); } catch { /* ignore */ }
-            return;
+            throw new InvalidOperationException("Missing or invalid 'Upgrade: websocket' header.");
         }
 
-        var ws = wsCtx.WebSocket;
+        if (!headerMap.TryGetValue("Sec-WebSocket-Key", out var key)
+            || string.IsNullOrWhiteSpace(key))
+        {
+            throw new InvalidOperationException("Missing 'Sec-WebSocket-Key' header.");
+        }
 
-        // Pre-handshake state: the connection exists but no MemberInfo yet.
-        // We use a temporary Guid so we can track the WebSocket before the
-        // HelloMsg arrives. The ConnectionReadLoopAsync will swap this id
-        // for a real one if/when the handshake completes.
-        var pendingConnectionId = Guid.NewGuid();
-        var conn = new Connection(ws, null);
-        _connections[pendingConnectionId] = conn;
+        // Compute Sec-WebSocket-Accept = Base64(SHA1(key + magic GUID)).
+        var acceptValue = ComputeWebSocketAccept(key);
 
-        // The read loop tracks the CURRENT connection id (which may change
-        // after the handshake). We remove by that id in the finally block.
-        var currentConnectionId = pendingConnectionId;
-        try
+        // Write the 101 Switching Protocols response.
+        var response =
+            "HTTP/1.1 101 Switching Protocols\r\n" +
+            "Upgrade: websocket\r\n" +
+            "Connection: Upgrade\r\n" +
+            $"Sec-WebSocket-Accept: {acceptValue}\r\n" +
+            "\r\n";
+        var responseBytes = Encoding.ASCII.GetBytes(response);
+        await stream.WriteAsync(responseBytes).ConfigureAwait(false);
+        await stream.FlushAsync().ConfigureAwait(false);
+
+        // Wrap the stream in a WebSocket. isServer=true so it expects the
+        // client-to-server masking on incoming frames. The stream now sits
+        // right after the HTTP headers — CreateFromStream takes over framing.
+        return WebSocket.CreateFromStream(
+            stream,
+            isServer: true,
+            subProtocol: null,
+            keepAliveInterval: TimeSpan.FromSeconds(30));
+    }
+
+    /// <summary>
+    /// Read bytes from <paramref name="stream"/> until the HTTP header
+    /// terminator (<c>\r\n\r\n</c>) is seen. Returns the full header block
+    /// as a string (request line + headers, excluding the trailing blank
+    /// line). Reads one byte at a time so no bytes past the terminator are
+    /// consumed — the caller's <see cref="WebSocket.CreateFromStream"/>
+    /// needs the stream positioned exactly at the first WebSocket frame.
+    /// </summary>
+    private static async Task<string> ReadHttpRequestHeadersAsync(NetworkStream stream)
+    {
+        var sb = new StringBuilder(512);
+        var tail = new byte[4];   // sliding window for \r\n\r\n detection
+        var oneByte = new byte[1];
+        const int maxHeaders = 16 * 1024;  // 16 KB cap — guards against malicious clients
+
+        while (true)
         {
-            currentConnectionId = await ConnectionReadLoopAsync(conn, pendingConnectionId).ConfigureAwait(false);
+            var read = await stream.ReadAsync(oneByte).ConfigureAwait(false);
+            if (read == 0)
+                throw new IOException("Connection closed before end of HTTP headers.");
+
+            sb.Append((char)oneByte[0]);
+            tail[0] = tail[1]; tail[1] = tail[2]; tail[2] = tail[3]; tail[3] = oneByte[0];
+
+            // Check for \r\n\r\n.
+            if (tail[0] == (byte)'\r' && tail[1] == (byte)'\n'
+                && tail[2] == (byte)'\r' && tail[3] == (byte)'\n')
+            {
+                break;
+            }
+
+            if (sb.Length > maxHeaders)
+                throw new IOException("HTTP headers exceed 16 KB — request too large.");
         }
-        catch (Exception ex)
-        {
-            Trace.WriteLine($"[HostServer] Read loop threw: {ex}");
-        }
-        finally
-        {
-            // Remove by the current id. If the handshake completed, this
-            // is the real connection id; if it didn't (or the loop threw
-            // before the swap), it's the pending id. Both are no-ops if
-            // the id is no longer in the dict.
-            await RemoveConnectionAsync(currentConnectionId).ConfigureAwait(false);
-        }
+
+        // Strip the trailing \r\n\r\n (we appended all 4 bytes).
+        var result = sb.ToString();
+        return result.Substring(0, result.Length - 4);
+    }
+
+    /// <summary>
+    /// Compute the <c>Sec-WebSocket-Accept</c> value per RFC 6455 §1.3:
+    /// concatenate the client's key with the magic GUID, SHA-1 the result,
+    /// and Base64-encode the hash.
+    /// </summary>
+    private static string ComputeWebSocketAccept(string clientKey)
+    {
+        var combined = clientKey + WsMagicGuid;
+        var hash = SHA1.HashData(Encoding.ASCII.GetBytes(combined));
+        return Convert.ToBase64String(hash);
     }
 
     // ─── Per-connection read loop ────────────────────────────────────
@@ -1040,21 +1240,6 @@ public sealed class HostServer
         var trimmed = text.Trim();
         if (trimmed.Length == 0) return null;
         return trimmed.Length > 4000 ? trimmed[..4000] : trimmed;
-    }
-
-    /// <summary>Find a free TCP port via a temporary TcpListener.</summary>
-    private static int GetFreePort()
-    {
-        using var l = new System.Net.Sockets.TcpListener(IPAddress.Loopback, 0);
-        l.Start();
-        try
-        {
-            return ((IPEndPoint)l.LocalEndpoint).Port;
-        }
-        finally
-        {
-            l.Stop();
-        }
     }
 
     /// <summary>
