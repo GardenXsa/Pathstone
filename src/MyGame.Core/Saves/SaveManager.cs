@@ -50,10 +50,13 @@ public sealed class SaveManager
 {
     /// <summary>
     /// On-disk save layout version. Bumped when the file layout changes
-    /// in a way that requires a migration on load. Currently 1 (first
-    /// version of the desktop-port format).
+    /// in a way that requires a migration on load. Mirrors
+    /// <see cref="SaveMigrator.CurrentStorageVersion"/> — keep the two
+    /// in sync (the SaveMigrator is the single source of truth for
+    /// what migrations exist; this const is the SaveManager's snapshot
+    /// of "what version do NEW saves get?").
     /// </summary>
-    public const int CurrentStorageVersion = 1;
+    public const int CurrentStorageVersion = SaveMigrator.CurrentStorageVersion;
 
     private readonly string _savesDirectory;
     private ContentRegistry? _registries;
@@ -157,6 +160,17 @@ public sealed class SaveManager
     /// loaded World is wired up with the content registry (default
     /// <see cref="ContentRegistry.LoadDefault"/> unless one was injected
     /// in the ctor) so template lookups work immediately.
+    ///
+    /// <para>
+    /// <b>Migration:</b> the save's <c>meta.json</c> is read in
+    /// parallel to determine the save's
+    /// <see cref="SaveMeta.StorageVersion"/>. If it predates
+    /// <see cref="SaveMigrator.CurrentStorageVersion"/>,
+    /// <see cref="SaveMigrator.MigrateWorld"/> is run on the
+    /// deserialized world before returning it. The on-disk world.json
+    /// is NOT re-written by this call (a future task can add
+    /// lazy re-save so the next load skips the migrator).
+    /// </para>
     /// </summary>
     public GameWorld? LoadWorld(string saveId)
     {
@@ -165,7 +179,20 @@ public sealed class SaveManager
         if (json is null) return null;
         try
         {
-            return GameWorld.FromJson(json, Registries);
+            var world = GameWorld.FromJson(json, Registries);
+
+            // Run migration if the save predates the current schema.
+            // The storage version lives in meta.json (not world.json),
+            // so we read meta here just to get the version. If meta is
+            // missing/corrupt, default to v1 (the migrator runs the
+            // v1→v2 backfill defensively — it's idempotent).
+            var meta = TryReadJson<SaveMeta>(MetaPath(saveId));
+            var fromVersion = meta?.StorageVersion ?? 1;
+            if (fromVersion < SaveMigrator.CurrentStorageVersion)
+            {
+                SaveMigrator.MigrateWorld(world, fromVersion);
+            }
+            return world;
         }
         catch (Exception ex)
         {
@@ -194,6 +221,16 @@ public sealed class SaveManager
     /// of the three is missing (a half-written save is treated as not
     /// loadable — the saves-list UI should hide such saves or mark them
     /// "corrupt").
+    ///
+    /// <para>
+    /// <b>Migration:</b> if the meta's
+    /// <see cref="SaveMeta.StorageVersion"/> predates
+    /// <see cref="SaveMigrator.CurrentStorageVersion"/>, the world is
+    /// migrated (via <see cref="LoadWorld"/>) and the meta is updated
+    /// via <see cref="SaveMigrator.MigrateMeta"/>. The returned meta
+    /// has the bumped version — callers that re-save will persist the
+    /// new version so the next load skips the migrator.
+    /// </para>
     /// </summary>
     public (GameWorld world, SaveMeta meta, LogEntry[] log)? LoadAll(string saveId)
     {
@@ -202,6 +239,17 @@ public sealed class SaveManager
         var world = LoadWorld(saveId);
         if (world is null) return null;
         var log = LoadLog(saveId) ?? Array.Empty<LogEntry>();
+
+        // Bump the meta's StorageVersion + EngineVersion to current.
+        // LoadWorld already ran the world migration (above); this just
+        // refreshes the meta so a subsequent SaveAll persists the new
+        // version. No-op when the meta was already at current.
+        var fromVersion = meta.StorageVersion;
+        if (fromVersion < SaveMigrator.CurrentStorageVersion
+            || meta.EngineVersion != Common.Version.Current)
+        {
+            meta = SaveMigrator.MigrateMeta(meta, fromVersion);
+        }
         return (world, meta, log);
     }
 

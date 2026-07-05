@@ -124,6 +124,17 @@ public sealed class World
     public int Turn { get; set; }
 
     /// <summary>
+    /// Structured combat state. Null when no combat is in progress
+    /// (freeform mode — the default). When non-null and
+    /// <see cref="CombatState.Active"/> = true, the GM must respect the
+    /// turn order in <see cref="CombatState.TurnOrder"/> (the system-prompt
+    /// world-state surfaces a "## БОЙ" block to enforce this). Set by the
+    /// <c>start_combat</c> tool, cleared by <c>end_combat</c> (and
+    /// auto-cleared when only the player remains in the turn order).
+    /// </summary>
+    public CombatState? Combat { get; set; }
+
+    /// <summary>
     /// Active player id. In single-player, always the only player. In multi,
     /// rotates as the action queue resolves. Null until a player is spawned.
     /// </summary>

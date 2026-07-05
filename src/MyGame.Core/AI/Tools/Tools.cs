@@ -227,6 +227,17 @@ public sealed class ToolRegistry
         Register(DealDamageTool.Definition, DealDamageTool.Handle(_world));
         Register(ApplyStatusTool.Definition, ApplyStatusTool.Handle(_world));
         Register(CreateItemTemplateTool.Definition, CreateItemTemplateTool.Handle(_world));
+
+        // COMBAT-DEATH expansion — 4 tools covering the structured combat
+        // state machine (start/end/next-turn) and the player death-save
+        // roll. The GM drives combat via these + the existing
+        // roll_attack / deal_damage / apply_status trio; the state machine
+        // just tracks whose turn it is so the GM can be told (via the
+        // "## БОЙ" block in the system prompt) not to act out of order.
+        Register(StartCombatTool.Definition, StartCombatTool.Handle(_world));
+        Register(EndCombatTool.Definition, EndCombatTool.Handle(_world));
+        Register(NextTurnTool.Definition, NextTurnTool.Handle(_world));
+        Register(DeathSaveTool.Definition, DeathSaveTool.Handle(_world));
     }
 }
 
@@ -359,7 +370,10 @@ internal static class GetLocationTool
             : "нет выходов";
 
         var npcs = loc.Npcs.Count > 0
-            ? string.Join(", ", loc.Npcs.Select(id => world.GetNpc(id)).Where(n => n is not null).Select(n => $"{n!.Name} ({n!.Id})"))
+            ? string.Join(", ", loc.Npcs
+                .Select(id => world.GetNpc(id))
+                .Where(n => n is not null)
+                .Select(n => n!.IsAlive ? $"{n!.Name} ({n!.Id})" : $"{n!.Name} (мёртв)"))
             : "нет";
         var buildings = loc.Buildings.Count > 0
             ? string.Join(", ", loc.Buildings.Select(id => world.GetBuilding(id)).Where(b => b is not null).Select(b => $"{b!.Name}"))
@@ -1192,10 +1206,59 @@ internal static class DealDamageTool
         target.Resources["hp"] = hpAfter;
 
         var text = $"«{target.Name}» получает {amount} урона. HP: {hpAfter}.";
+
         if (hpAfter <= 0)
         {
-            target.IsAlive = false;
-            text += $" {target.Name} повержен!";
+            // COMBAT-DEATH: branch on player vs NPC.
+            //
+            // NPC: mark dead (existing behaviour). The GM can narrate
+            // looting — the corpse stays in the world.
+            //
+            // Player: do NOT auto-kill. Death saves apply first: the
+            // player is unconscious at 0 HP, and the GM must call
+            // death_save on each subsequent turn until the player
+            // stabilises (3 successes) or dies (3 failures). We seed
+            // the world.Flags["deathSaves"] = "0,0" so the death_save
+            // tool has a starting point.
+            if (target is Player)
+            {
+                world.Flags ??= new Dictionary<string, object>();
+                if (!world.Flags.ContainsKey("deathSaves"))
+                    world.Flags["deathSaves"] = "0,0";
+                text += $" {target.Name} падает без сознания! Требуются спасброски от смерти.";
+            }
+            else
+            {
+                target.IsAlive = false;
+                text += $" {target.Name} повержен!";
+                // If this NPC is in the combat turn order, drop them so
+                // the index math stays simple. If the turn order ends up
+                // empty OR only the player remains, auto-end combat.
+                if (world.Combat is { Active: true } combat)
+                {
+                    var removed = combat.TurnOrder
+                        .RemoveAll(c => c.EntityId == target.Id);
+                    if (removed > 0)
+                    {
+                        // Clamp the current-actor index in case we just
+                        // removed the actor whose turn it was (or one
+                        // before them).
+                        if (combat.CurrentActorIndex >= combat.TurnOrder.Count)
+                            combat.CurrentActorIndex = Math.Max(0, combat.TurnOrder.Count - 1);
+
+                        // Auto-end combat when only the player (or no
+                        // one) is left in the turn order.
+                        var remainingNonPlayer = combat.TurnOrder
+                            .Count(c => !world.Players.Any(p => p.Id == c.EntityId));
+                        if (combat.TurnOrder.Count == 0 || remainingNonPlayer == 0)
+                        {
+                            combat.Active = false;
+                            world.Combat = null;
+                            text += " Бой окончен.";
+                        }
+                    }
+                }
+            }
         }
         return ToolResult.Ok(string.Empty, text);
     };
@@ -1340,6 +1403,309 @@ internal static class CreateItemTemplateTool
         world.Registries.Items.Register(tpl);
         return ToolResult.Ok(string.Empty, $"Создан шаблон предмета «{name}» (id: {id}).");
     };
+}
+
+// ─── Combat state machine + death-save tools (issue #88, #63) ────────────
+
+/// <summary>
+/// Start structured combat: collect the player + every alive hostile NPC at
+/// the player's current location, roll initiative for each (d20 + DEX
+/// modifier), sort descending, and install the result on
+/// <see cref="World.Combat"/>. The GM is then expected to call
+/// <c>next_turn</c> after each combatant's action.
+/// </summary>
+internal static class StartCombatTool
+{
+    public static ToolDefinition Definition { get; } = new()
+    {
+        Name = "start_combat",
+        Description = "Начать структурный бой: игрок + все живые враждебные NPC в текущей локации. Бросает инициативу (d20 + модификатор ЛОВ), сортирует по убыванию. Вызывай в начале боя и затем next_turn после каждого действия.",
+        ParametersJson = """
+        { "type": "object", "properties": {} }
+        """,
+    };
+
+    public static ToolHandler Handle(MyGame.Core.World.World world) => async (args, ct) =>
+    {
+        var p = world.ActivePlayer ?? world.Players.FirstOrDefault();
+        if (p is null)
+            return ToolResult.Error(string.Empty, "В мире ещё нет игрока.");
+
+        // Combatants: the player + every alive NPC at the player's
+        // location whose Disposition is "hostile" (case-insensitive). If
+        // no hostiles are present, we still start combat (the GM may
+        // want initiative pre-rolled for an about-to-ambush), but warn
+        // in the result text.
+        var loc = world.GetLocation(p.LocationId);
+        var hostiles = loc?.Npcs
+            .Select(id => world.GetNpc(id))
+            .Where(n => n is not null && n.IsAlive &&
+                string.Equals(n.Disposition, "hostile", StringComparison.OrdinalIgnoreCase))
+            .ToList() ?? new();
+
+        var combatants = new List<Combatant>();
+
+        // Player's initiative: d20 + DEX modifier (from Attributes["dex"];
+        // default 10 → modifier 0 when missing). The modifier is computed
+        // via the ruleset's AttributeModifier formula (so non-D&D
+        // rulesets can plug in their own DEX-equivalent).
+        int playerInit = D20.Roll(world.Rng, 20) + GetDexModifier(world, p);
+        combatants.Add(new Combatant(p.Id, p.Name, playerInit, HasActedThisRound: false));
+
+        foreach (var n in hostiles!)
+        {
+            int init = D20.Roll(world.Rng, 20) + GetDexModifier(world, n!);
+            combatants.Add(new Combatant(n!.Id, n.Name, init, HasActedThisRound: false));
+        }
+
+        // Sort descending by initiative. Stable order preserves player-
+        // first tie-break (the player was added first), so on a tie the
+        // player goes before NPCs — the friendly default for a single-
+        // player CRPG.
+        combatants = combatants
+            .Select((c, idx) => (c, idx))
+            .OrderByDescending(x => x.c.Initiative)
+            .ThenBy(x => x.idx)
+            .Select(x => x.c)
+            .ToList();
+
+        world.Combat = new CombatState
+        {
+            Active = true,
+            Round = 1,
+            TurnOrder = combatants,
+            CurrentActorIndex = 0,
+            StartedAtTurn = world.Turn,
+        };
+
+        // Mark the first actor as having acted this round so the GM knows
+        // the current actor is "live" — the next_turn call will advance
+        // to the next combatant. (The flag is informational; the GM is
+        // expected to call next_turn after each action regardless.)
+        if (combatants.Count > 0)
+            combatants[0] = combatants[0] with { HasActedThisRound = true };
+
+        var order = string.Join(", ", combatants.Select(c => $"{c.Name} ({c.Initiative})"));
+        var text = $"Бой начался! Инициатива: {order}.";
+        if (hostiles.Count == 0)
+            text += " (Враждебных NPC в локации не найдено — бой объявлен, но возможно ожидается засада.)";
+        return ToolResult.Ok(string.Empty, text);
+    };
+
+    /// <summary>
+    /// Get the DEX modifier for a character: looks up Attributes["dex"]
+    /// (default 10), then applies the ruleset's modifier formula
+    /// (<c>floor((v-10)/2)</c> for the default D&amp;D ruleset). Returns
+    /// 0 when the attribute is missing or the ruleset doesn't define a
+    /// modifier formula. Internal so the other combat tools can reuse it.
+    /// </summary>
+    internal static int GetDexModifier(MyGame.Core.World.World world, Character c)
+    {
+        int dexVal = c.Attributes.TryGetValue("dex", out var dv) ? dv : 10;
+        return (int)Rulesets.AttributeModifier(world.Ruleset, "dex", dexVal);
+    }
+}
+
+/// <summary>
+/// End combat immediately: clear <see cref="World.Combat"/>. The GM calls
+/// this when the fight is over (everyone surrendered, fled, or died). The
+/// deal_damage tool also auto-calls this when only the player remains in
+/// the turn order.
+/// </summary>
+internal static class EndCombatTool
+{
+    public static ToolDefinition Definition { get; } = new()
+    {
+        Name = "end_combat",
+        Description = "Завершить структурный бой (сбрасывает состояние боя). Вызывай, когда бой окончен: все противники побеждены, разбежались или сдались.",
+        ParametersJson = """
+        { "type": "object", "properties": {} }
+        """,
+    };
+
+    public static ToolHandler Handle(MyGame.Core.World.World world) => async (args, ct) =>
+    {
+        bool wasActive = world.Combat is { Active: true };
+        world.Combat = null;
+        return ToolResult.Ok(string.Empty, wasActive ? "Бой окончен." : "Бой не был активен.");
+    };
+}
+
+/// <summary>
+/// Advance to the next combatant's turn. Wraps around at the end of the
+/// turn order (incrementing <see cref="CombatState.Round"/> and resetting
+/// all <see cref="Combatant.HasActedThisRound"/> flags). The new current
+/// actor is marked as having acted this round.
+/// </summary>
+internal static class NextTurnTool
+{
+    public static ToolDefinition Definition { get; } = new()
+    {
+        Name = "next_turn",
+        Description = "Передать ход следующему бойцу в инициативе. В конце раунда начинает новый раунд. Вызывай после каждого действия в бою.",
+        ParametersJson = """
+        { "type": "object", "properties": {} }
+        """,
+    };
+
+    public static ToolHandler Handle(MyGame.Core.World.World world) => async (args, ct) =>
+    {
+        if (world.Combat is not { Active: true } combat)
+            return ToolResult.Error(string.Empty, "Бой не активен. Сначала вызови start_combat.");
+        if (combat.TurnOrder.Count == 0)
+            return ToolResult.Error(string.Empty, "Очередь боя пуста.");
+
+        combat.CurrentActorIndex++;
+        if (combat.CurrentActorIndex >= combat.TurnOrder.Count)
+        {
+            combat.CurrentActorIndex = 0;
+            combat.Round++;
+            // Reset the HasActedThisRound flag for every combatant at
+            // the start of a new round. Combatant is a record, so we
+            // rebuild the list with new values.
+            combat.TurnOrder = combat.TurnOrder
+                .Select(c => c with { HasActedThisRound = false })
+                .ToList();
+        }
+
+        var current = combat.TurnOrder[combat.CurrentActorIndex];
+        combat.TurnOrder[combat.CurrentActorIndex] = current with { HasActedThisRound = true };
+
+        return ToolResult.Ok(string.Empty,
+            $"Раунд {combat.Round}. Ход: {current.Name}.");
+    };
+}
+
+/// <summary>
+/// Roll a death save for the active player. Tracks successes / failures
+/// in <c>World.Flags["deathSaves"]</c> as <c>"S,F"</c> (0-3 each).
+///
+/// <list type="bullet">
+///   <item>Natural 20: regain 1 HP, conscious, saves reset.</item>
+///   <item>Natural 1: 2 failures.</item>
+///   <item>10-19: 1 success.</item>
+///   <item>2-9: 1 failure.</item>
+///   <item>3 successes: stable (HP stays 0, no more saves needed).</item>
+///   <item>3 failures: <see cref="Character.IsAlive"/> = false — the player
+///     is dead.</item>
+/// </list>
+/// </summary>
+internal static class DeathSaveTool
+{
+    public static ToolDefinition Definition { get; } = new()
+    {
+        Name = "death_save",
+        Description = "Спасбросок от смерти для игрока (d20). 10+ = успех, &lt;10 = провал, natural 20 = +1 HP и сознание, natural 1 = 2 провала. 3 успеха = стабилен, 3 провала = смерть. Вызывай каждый ход, пока игрок на 0 HP.",
+        ParametersJson = """
+        { "type": "object", "properties": {} }
+        """,
+    };
+
+    public static ToolHandler Handle(MyGame.Core.World.World world) => async (args, ct) =>
+    {
+        var p = world.ActivePlayer ?? world.Players.FirstOrDefault();
+        if (p is null)
+            return ToolResult.Error(string.Empty, "В мире ещё нет игрока.");
+
+        // The player must be at 0 HP for a death save to make sense.
+        // (We tolerate missing 'hp' — treat as 0 — so a freshly-reduced
+        // player can be saved without a deal_damage call first.)
+        int hp = p.Resources.TryGetValue("hp", out var hpVal) ? hpVal : 0;
+        if (hp > 0)
+            return ToolResult.Error(string.Empty,
+                $"Игрок «{p.Name}» не на 0 HP (текущий HP: {hp}) — спасбросок не нужен.");
+
+        world.Flags ??= new Dictionary<string, object>();
+        var (successes, failures) = ReadDeathSaves(world.Flags);
+
+        int roll = D20.Roll(world.Rng, 20);
+
+        int successDelta = 0;
+        int failureDelta = 0;
+        string specialNote = "";
+
+        if (roll == 20)
+        {
+            // Natural 20: regain 1 HP, become conscious, reset saves.
+            p.Resources["hp"] = 1;
+            successes = 0;
+            failures = 0;
+            specialNote = "Natural 20! Игрок приходит в сознание с 1 HP.";
+        }
+        else if (roll == 1)
+        {
+            // Natural 1: 2 failures.
+            failureDelta = 2;
+            specialNote = "Natural 1! Два провала.";
+        }
+        else if (roll >= 10)
+        {
+            successDelta = 1;
+        }
+        else
+        {
+            failureDelta = 1;
+        }
+
+        successes = Math.Min(3, successes + successDelta);
+        failures = Math.Min(3, failures + failureDelta);
+
+        // 3 failures → dead. 3 successes → stable (HP stays 0, no more
+        // saves needed; clears the deathSaves flag so a subsequent
+        // heal-and-drop-to-0 starts fresh).
+        bool died = false;
+        bool stabilized = false;
+        if (failures >= 3 && roll != 20)
+        {
+            p.IsAlive = false;
+            died = true;
+            world.Flags.Remove("deathSaves");
+        }
+        else if (successes >= 3 && roll != 20)
+        {
+            stabilized = true;
+            world.Flags["deathSaves"] = "3,0";
+        }
+        else if (roll != 20)
+        {
+            world.Flags["deathSaves"] = $"{successes},{failures}";
+        }
+        else
+        {
+            // Natural 20 cleared the flag above implicitly (saves reset).
+            // Make sure it's not lingering from a previous turn.
+            world.Flags.Remove("deathSaves");
+        }
+
+        var sb = new System.Text.StringBuilder();
+        sb.Append($"Спасбросок от смерти: d20={roll}. ");
+        if (!string.IsNullOrEmpty(specialNote))
+            sb.Append($"{specialNote} ");
+        sb.Append($"Успехи: {successes}/3, Провалы: {failures}/3.");
+        if (died)
+            sb.Append(" Игрок погиб!");
+        else if (stabilized)
+            sb.Append(" Игрок стабилизирован (больше спасбросков не нужно).");
+        return ToolResult.Ok(string.Empty, sb.ToString().Trim());
+    };
+
+    /// <summary>
+    /// Parse the <c>deathSaves</c> flag (<c>"S,F"</c>) into a tuple.
+    /// Missing / malformed → (0, 0). Internal so other tools / the UI
+    /// can read the same state.
+    /// </summary>
+    internal static (int Successes, int Failures) ReadDeathSaves(
+        Dictionary<string, object> flags)
+    {
+        if (!flags.TryGetValue("deathSaves", out var v) || v is null)
+            return (0, 0);
+        var s = v.ToString() ?? "";
+        var parts = s.Split(',', StringSplitOptions.TrimEntries);
+        if (parts.Length != 2) return (0, 0);
+        if (!int.TryParse(parts[0], out var suc)) suc = 0;
+        if (!int.TryParse(parts[1], out var fail)) fail = 0;
+        return (Math.Clamp(suc, 0, 3), Math.Clamp(fail, 0, 3));
+    }
 }
 
 // ─── Dice expression evaluator ───────────────────────────────────────────

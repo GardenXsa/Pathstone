@@ -99,7 +99,7 @@ public sealed class ClientSession
         _client.TurnEnd += OnTurnEnd;
         _client.Error += e => RaiseEvent(Error, e);
         _client.Kicked += k => RaiseEvent(Kicked, k);
-        _client.Disconnected += reason => RaiseEvent(Disconnected, reason);
+        _client.Disconnected += info => RaiseEvent(Disconnected, info);
     }
 
     // ─── Properties (local state cache) ──────────────────────────────
@@ -216,9 +216,12 @@ public sealed class ClientSession
     /// <summary>Host kicked this client.</summary>
     public event Action<KickedMsg>? Kicked;
 
-    /// <summary>WebSocket connection dropped. Carries the reason
-    /// (may be empty).</summary>
-    public event Action<string>? Disconnected;
+    /// <summary>WebSocket connection dropped. Carries the close reason
+    /// (may be empty) and an <see cref="DisconnectedInfo.Intentional"/>
+    /// flag distinguishing user/host-initiated disconnects (Leave button,
+    /// kick) from network drops. The UI uses the flag to decide whether
+    /// to show a reconnect overlay.</summary>
+    public event Action<DisconnectedInfo>? Disconnected;
 
     // ─── Connect / disconnect ────────────────────────────────────────
 
@@ -233,8 +236,34 @@ public sealed class ClientSession
         return welcome;
     }
 
-    /// <summary>Graceful disconnect.</summary>
+    /// <summary>Graceful disconnect. Marks the disconnect as intentional
+    /// (the user clicked Leave) so the <see cref="Disconnected"/> event
+    /// suppresses the reconnect overlay.</summary>
     public Task DisconnectAsync() => _client.DisconnectAsync();
+
+    /// <summary>
+    /// Re-connect to the same host/port as the last successful
+    /// <see cref="ConnectAsync"/>. Performs the HelloMsg → WelcomeMsg
+    /// handshake again. On success, raises <see cref="Welcomed"/> with
+    /// the fresh WelcomeMsg (which carries a fresh party snapshot —
+    /// the host re-sends members, save id, turn, etc.).
+    ///
+    /// <para>
+    /// On failure (host still unreachable, handshake timeout, reject),
+    /// the method throws — the caller (GameViewModel) catches it and
+    /// retries up to 3 times with 2-second backoff before giving up and
+    /// showing the "Не удалось переподключиться" exit-only overlay.
+    /// </para>
+    /// </summary>
+    public async Task<WelcomeMsg> ReconnectAsync(CancellationToken ct = default)
+    {
+        var welcome = await _client.ReconnectAsync(ct).ConfigureAwait(false);
+        // OnWelcomed (the GameClient event handler) runs the state-cache
+        // update + raises the session-level Welcomed event, so the UI
+        // refreshes its members list + party status from the fresh
+        // snapshot.
+        return welcome;
+    }
 
     // ─── Outgoing player actions / chat ──────────────────────────────
 

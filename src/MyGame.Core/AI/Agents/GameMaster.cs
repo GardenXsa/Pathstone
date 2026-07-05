@@ -473,6 +473,50 @@ public sealed class GameMaster
         sb.AppendLine("## Время в мире");
         sb.AppendLine($"- {_world.Clock}");
 
+        // COMBAT-DEATH: surface the structured combat state to the GM so
+        // it knows whose turn it is and doesn't act out of order. When
+        // combat is inactive (the default), this block is omitted — the
+        // GM is freeform-narrating. When active, we list the round, the
+        // current actor (whose turn it is), and the full initiative
+        // order with the active combatant marked.
+        if (_world.Combat is { Active: true } combat && combat.TurnOrder.Count > 0)
+        {
+            sb.AppendLine();
+            sb.AppendLine("## БОЙ");
+            sb.AppendLine($"- Раунд: {combat.Round}");
+            var currentIdx = Math.Clamp(combat.CurrentActorIndex, 0, combat.TurnOrder.Count - 1);
+            var currentName = combat.TurnOrder[currentIdx].Name;
+            sb.AppendLine($"- Сейчас ход: {currentName}");
+            // Initiative order with markers: "►" for the current actor,
+            // "✓" for those who already acted this round, "·" otherwise.
+            var order = string.Join(", ", combat.TurnOrder.Select((c, i) =>
+            {
+                var marker = i == currentIdx ? "►" : c.HasActedThisRound ? "✓" : "·";
+                return $"{marker}{c.Name} ({c.Initiative})";
+            }));
+            sb.AppendLine($"- Инициатива: {order}");
+            sb.AppendLine("- Соблюдай очерёдность. Действуй только за текущего бойца; для передачи хода вызывай next_turn.");
+        }
+
+        // COMBAT-DEATH: when the player is at 0 HP, surface the death-
+        // save tally so the GM knows to call death_save (and eventually
+        // narrate the death / stabilisation). The "deathSaves" flag is
+        // "S,F" (0-3 each); we read it leniently.
+        if (p.Resources.TryGetValue("hp", out var playerHp) && playerHp <= 0 && p.IsAlive)
+        {
+            var (suc, fail) = ReadDeathSaves(_world.Flags);
+            sb.AppendLine();
+            sb.AppendLine("## Спасброски от смерти");
+            sb.AppendLine($"- Игрок на 0 HP! Успехи: {suc}/3, Провалы: {fail}/3.");
+            sb.AppendLine("- Каждый ход вызывай death_save, пока игрок не стабилизируется (3 успеха) или не умрёт (3 провала).");
+        }
+        else if (!p.IsAlive)
+        {
+            sb.AppendLine();
+            sb.AppendLine("## ВНИМАНИЕ");
+            sb.AppendLine("- Игрок мёртв. Не вызывай инструменты, меняющие мир; просто наррируй финал и заверши сцену.");
+        }
+
         sb.AppendLine();
         sb.AppendLine($"## Текущая локация: {loc?.Name ?? "—"}");
         if (loc is not null)
@@ -559,5 +603,23 @@ public sealed class GameMaster
         if (!flags.TryGetValue(key, out var v) || v is null) return null;
         var s = v.ToString();
         return string.IsNullOrWhiteSpace(s) ? null : s;
+    }
+
+    /// <summary>
+    /// Read the <c>"deathSaves"</c> world flag (<c>"S,F"</c>) into a
+    /// tuple of (successes, failures), each clamped to [0, 3]. Missing
+    /// / malformed → (0, 0). Used by the system-prompt world-state block
+    /// to surface the death-save tally to the GM.
+    /// </summary>
+    private static (int Successes, int Failures) ReadDeathSaves(
+        System.Collections.Generic.Dictionary<string, object>? flags)
+    {
+        var s = TryGetFlagString(flags, "deathSaves");
+        if (string.IsNullOrWhiteSpace(s)) return (0, 0);
+        var parts = s.Split(',', StringSplitOptions.TrimEntries);
+        if (parts.Length != 2) return (0, 0);
+        if (!int.TryParse(parts[0], out var suc)) suc = 0;
+        if (!int.TryParse(parts[1], out var fail)) fail = 0;
+        return (Math.Clamp(suc, 0, 3), Math.Clamp(fail, 0, 3));
     }
 }

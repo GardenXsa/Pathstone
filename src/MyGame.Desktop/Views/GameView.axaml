@@ -10,22 +10,30 @@
              x:Class="MyGame.Desktop.Views.GameView"
              x:DataType="vm:GameViewModel">
 
-    <DockPanel LastChildFill="True">
+    <Grid>
+        <DockPanel LastChildFill="True">
 
         <!-- Top bar -->
         <Border DockPanel.Dock="Top" Classes="TopBar">
-            <Grid ColumnDefinitions="Auto,*,Auto,Auto,Auto,Auto">
+            <Grid ColumnDefinitions="Auto,*,Auto,Auto,Auto,Auto,Auto">
                 <TextBlock Grid.Column="0" Text="{Binding GameName}" Classes="AppTitle"
                            VerticalAlignment="Center" Margin="0,0,12,0"/>
                 <TextBlock Grid.Column="1" Text="{Binding ShareAddress}" Classes="Muted Small"
                            VerticalAlignment="Center" IsVisible="{Binding IsMultiplayer}"/>
-                <TextBlock Grid.Column="2" Text="{Binding ClockDisplay}" Classes="Muted Small"
+                <!-- COMBAT-DEATH (issue #88): combat indicator. Red text,
+                     only visible when CombatDisplay is non-empty. -->
+                <TextBlock Grid.Column="2" Text="{Binding CombatDisplay}"
+                           Foreground="{StaticResource AppDangerBrush}"
+                           FontWeight="SemiBold" Classes="Small"
+                           VerticalAlignment="Center" Margin="12,0"
+                           IsVisible="{Binding CombatDisplay, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"/>
+                <TextBlock Grid.Column="3" Text="{Binding ClockDisplay}" Classes="Muted Small"
                            VerticalAlignment="Center" Margin="12,0"
                            FontFamily="Cascadia Mono,Consolas,Menlo,monospace"/>
                 <!-- Token billing widget (issue #6) — monospace, two
                      TextBlocks in a horizontal StackPanel so each can
                      collapse independently when its value is empty. -->
-                <StackPanel Grid.Column="3" Orientation="Horizontal" VerticalAlignment="Center"
+                <StackPanel Grid.Column="4" Orientation="Horizontal" VerticalAlignment="Center"
                             Margin="12,0" Spacing="8"
                             ToolTip.Tip="Использование токенов AI за этот ход и сессию">
                     <TextBlock Text="{Binding LastTurnTokensDisplay}" Classes="Muted Small"
@@ -35,11 +43,11 @@
                                FontFamily="Cascadia Mono,Consolas,Menlo,monospace"
                                IsVisible="{Binding SessionTokensDisplay, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"/>
                 </StackPanel>
-                <Button Grid.Column="4" Content="💾 Сохранить" Command="{Binding SaveCommand}"
+                <Button Grid.Column="5" Content="💾 Сохранить" Command="{Binding SaveCommand}"
                         Classes="SmallButton" Margin="0,0,6,0"
                         IsVisible="{Binding CanSave}"
                         ToolTip.Tip="Сохранить текущее состояние"/>
-                <Button Grid.Column="5" Content="Выйти" Command="{Binding LeaveGameCommand}"
+                <Button Grid.Column="6" Content="Выйти" Command="{Binding LeaveGameCommand}"
                         Classes="SmallButton Danger"
                         ToolTip.Tip="Выйти из игры"/>
             </Grid>
@@ -217,4 +225,112 @@
 
         </Grid>
     </DockPanel>
+
+        <!-- COMBAT-DEATH (issue #63): death overlay. Covers the game
+             screen with a semi-opaque panel showing the death message
+             + two options: reload the last save (loses progress since
+             last save) or leave to the main menu (without saving the
+             dead state). Only visible when IsPlayerDead = true. -->
+        <Border Background="#CC000000"
+                IsVisible="{Binding IsPlayerDead}"
+                HorizontalAlignment="Stretch"
+                VerticalAlignment="Stretch"
+                ZIndex="100">
+            <Border HorizontalAlignment="Center" VerticalAlignment="Center"
+                    Background="{StaticResource AppSurfaceBrush}"
+                    BorderBrush="{StaticResource AppDangerBrush}"
+                    BorderThickness="2" CornerRadius="8"
+                    Padding="40,30" MinWidth="380" MaxWidth="560">
+                <StackPanel Spacing="14" HorizontalAlignment="Center">
+                    <TextBlock Text="💀" FontSize="48" HorizontalAlignment="Center"/>
+                    <TextBlock Text="Ваш персонаж погиб."
+                               FontSize="22" FontWeight="Bold"
+                               HorizontalAlignment="Center"
+                               Foreground="{StaticResource AppDangerBrush}"/>
+                    <TextBlock Text="Путь окончен. Выберите, что делать дальше."
+                               Classes="Muted Small"
+                               HorizontalAlignment="Center" TextWrapping="Wrap"
+                               TextAlignment="Center"/>
+                    <Border Classes="Separator" Margin="0,4"/>
+                    <Button Content="↺ Загрузить последнее сохранение"
+                            Command="{Binding ReloadLastSaveCommand}"
+                            Classes="MenuButton Primary"
+                            HorizontalAlignment="Stretch"
+                            ToolTip.Tip="Перезагрузить текущее сохранение (прогресс после последнего сохранения будет потерян)"/>
+                    <Button Content="🚪 Выйти в меню"
+                            Command="{Binding LeaveToMenuCommand}"
+                            Classes="MenuButton"
+                            HorizontalAlignment="Stretch"
+                            ToolTip.Tip="Выйти в главное меню без сохранения текущего состояния"/>
+                </StackPanel>
+            </Border>
+        </Border>
+
+        <!-- RECONNECT (issue #7): disconnect overlay. Covers the game
+             screen with a semi-opaque panel when the client WebSocket
+             drops unexpectedly (network failure, host shutdown). Two
+             variants share the overlay:
+
+             1) Default (ReconnectFailed = false): shows the disconnect
+                reason + a "Переподключиться" button (calls
+                ReconnectCommand, retries 3x with 2s backoff) + a
+                "Выйти в меню" button (calls LeaveToMenuCommand).
+             2) Failed (ReconnectFailed = true): all 3 reconnect
+                attempts failed; switches to a "Не удалось
+                переподключиться" message with only the exit button.
+
+             Suppressed entirely when IsDisconnected = false (normal
+             play, intentional leave, or kick — the Kicked event
+             surfaces its own inline error via OnClientKicked). -->
+        <Border Background="#CC000000"
+                IsVisible="{Binding IsDisconnected}"
+                HorizontalAlignment="Stretch"
+                VerticalAlignment="Stretch"
+                ZIndex="100">
+            <Border HorizontalAlignment="Center" VerticalAlignment="Center"
+                    Background="{StaticResource AppSurfaceBrush}"
+                    BorderBrush="{StaticResource AppDangerBrush}"
+                    BorderThickness="2" CornerRadius="8"
+                    Padding="40,30" MinWidth="380" MaxWidth="560">
+                <StackPanel Spacing="14" HorizontalAlignment="Center">
+                    <TextBlock Text="📡" FontSize="48" HorizontalAlignment="Center"/>
+                    <!-- Default state: "Соединение потеряно" -->
+                    <TextBlock Text="Соединение потеряно."
+                               FontSize="22" FontWeight="Bold"
+                               HorizontalAlignment="Center"
+                               Foreground="{StaticResource AppDangerBrush}"
+                               IsVisible="{Binding !ReconnectFailed}"/>
+                    <TextBlock Text="{Binding DisconnectReason, StringFormat='Причина: {0}'}"
+                               Classes="Muted Small"
+                               HorizontalAlignment="Center" TextWrapping="Wrap"
+                               TextAlignment="Center"
+                               IsVisible="{Binding !ReconnectFailed}"/>
+                    <!-- Failed state: "Не удалось переподключиться" -->
+                    <TextBlock Text="Не удалось переподключиться."
+                               FontSize="22" FontWeight="Bold"
+                               HorizontalAlignment="Center"
+                               Foreground="{StaticResource AppDangerBrush}"
+                               IsVisible="{Binding ReconnectFailed}"/>
+                    <TextBlock Text="Сервер недоступен. Проверьте соединение и попробуйте позже."
+                               Classes="Muted Small"
+                               HorizontalAlignment="Center" TextWrapping="Wrap"
+                               TextAlignment="Center"
+                               IsVisible="{Binding ReconnectFailed}"/>
+                    <Border Classes="Separator" Margin="0,4"/>
+                    <!-- Reconnect button — only in default state -->
+                    <Button Content="↺ Переподключиться"
+                            Command="{Binding ReconnectCommand}"
+                            Classes="MenuButton Primary"
+                            HorizontalAlignment="Stretch"
+                            IsVisible="{Binding !ReconnectFailed}"
+                            ToolTip.Tip="Переподключиться к хосту (3 попытки с задержкой 2 с)"/>
+                    <Button Content="🚪 Выйти в меню"
+                            Command="{Binding LeaveToMenuCommand}"
+                            Classes="MenuButton"
+                            HorizontalAlignment="Stretch"
+                            ToolTip.Tip="Выйти в главное меню"/>
+                </StackPanel>
+            </Border>
+        </Border>
+    </Grid>
 </UserControl>

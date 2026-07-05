@@ -53,6 +53,14 @@ public static class DefaultWorld
         world.Registries = registries;
 
         // ─── Locations (small village + surrounding wilderness) ────────────
+        //
+        // The valley is laid out on a coarse integer grid with the village
+        // at (0,0). The existing 6 locations form a small cross; the new
+        // 8 add a southern road + cemetery, an eastern crossroads hub with
+        // a farm, a western watchtower + forest lake + mountain pass, and
+        // an eastern old mine off the cave. Every connection is cardinal
+        // (север/юг/восток/запад/вглубь/наружу) so the Connect helper's
+        // reverse-direction switch covers it.
         var village = NewLocation("Деревня Туманная",
             "Небольшая деревня у реки, окружённая туманными лесами. Дымок из труб, лай собак, скрип колодезного журавля.",
             "village", 0, 0, danger: 0);
@@ -72,7 +80,34 @@ public static class DefaultWorld
             "Сырой извилистый туннель, уходящий в недра холма. Где-то в темноте журчит вода и слышно дыхание чего-то крупного.",
             "underground", 0, 3, danger: 7);
 
+        // New: surrounding wilderness ring (8 locations, 14 total).
+        var tower = NewLocation("Сторожевая башня",
+            "Старая каменная башня на западном холме. Деревянный настил её верхней площадки ещё держит, и с него видно всю Долину Туманов — от перевала до пещер.",
+            "landmark", -1, 0, danger: 0);
+        var lake = NewLocation("Лесное озеро",
+            "Тихий разлив ручья среди елей. Вода чёрная, гладкая, и иногда по ней бегут круги — не от ветра. На берегу — хижина отшельника.",
+            "coast", -1, 1, danger: 1);
+        var crossroads = NewLocation("Развилка",
+            "Перекрёсток трёх дорог: на север — к деревне, на юг — к ферме, на запад — к руинам. Покосившийся дорожный столб, заросший мхом.",
+            "road", 1, -1, danger: 0);
+        var farm = NewLocation("Заброшенная ферма",
+            "Дряхлая изба с провалившейся крышей и заросшее бурьяном поле. На заборе сохнет тряпка — то ли память о хозяине, то ли сигнал разбойникам.",
+            "farmland", 1, -2, danger: 2);
+        var southRoad = NewLocation("Тракт на юг",
+            "Старая мощёная дорога, уходящая на юг мимо кладбища. Камни местами выворочены, но путь ещё различим.",
+            "road", 0, -2, danger: 1);
+        var cemetery = NewLocation("Старое кладбище",
+            "Покосившиеся надгробия, склеп с ржавой решёткой, чья-то свежая яма. По ночам здесь, говорят, танцуют бледные огни.",
+            "ruin", 0, -3, danger: 3);
+        var pass = NewLocation("Перевал",
+            "Каменистая тропа, вьющаяся между скал к западу от руин. Ветер здесь злой и холодный — он несёт запах снежных вершин.",
+            "mountain", -1, -1, danger: 3);
+        var oldMine = NewLocation("Старая шахта",
+            "Брошенный наклонник с гнилыми крепями. В тьме поблёскивает слюда — и чьи-то глаза. Из глубины доносится стук кирки, хотя никого живого тут не осталось.",
+            "underground", 1, 2, danger: 4);
+
         // Connect them (bidirectional).
+        // Existing cross:
         Connect(village, forest, "север");
         Connect(village, river, "восток");
         Connect(village, ruins, "юг");
@@ -80,22 +115,50 @@ public static class DefaultWorld
         Connect(cave, deepCave, "вглубь");
         ruins.Exits.Add(new LocationExit { To = ruins.Id, Direction = "вниз (locked)", Locked = true });
 
+        // New connections (cardinal — see Connect helper for reverse-dir
+        // switch). All exits are unique per-location so the WorldPanel
+        // can list them without ambiguity.
+        Connect(village, tower, "запад");         // village ↔ tower
+        Connect(forest, lake, "запад");           // forest  ↔ lake
+        Connect(cave, oldMine, "восток");         // cave    ↔ oldMine
+        Connect(ruins, crossroads, "восток");     // ruins   ↔ crossroads
+        Connect(crossroads, farm, "юг");          // xroads  ↔ farm
+        Connect(ruins, southRoad, "юг");          // ruins   ↔ southRoad
+        Connect(southRoad, cemetery, "юг");       // sRoad   ↔ cemetery
+        Connect(ruins, pass, "запад");            // ruins   ↔ pass
+
         world.AddLocation(village);
         world.AddLocation(forest);
         world.AddLocation(river);
         world.AddLocation(ruins);
         world.AddLocation(cave);
         world.AddLocation(deepCave);
+        world.AddLocation(tower);
+        world.AddLocation(lake);
+        world.AddLocation(crossroads);
+        world.AddLocation(farm);
+        world.AddLocation(southRoad);
+        world.AddLocation(cemetery);
+        world.AddLocation(pass);
+        world.AddLocation(oldMine);
 
         village.Visited = true;
         village.Discovered = true;
         forest.Discovered = true;   // visible on the map but not yet visited
+        tower.Discovered = true;    // seen from the village square
+        river.Discovered = true;    // the ford is visible from the village
+        southRoad.Discovered = true;// the southern road is visible from the village
 
         // ─── Buildings in the village ──────────────────────────────────────
         SpawnBuildingFromTemplate(world, "bld_tavern", village.Id, registries);
         SpawnBuildingFromTemplate(world, "bld_smithy", village.Id, registries);
         SpawnBuildingFromTemplate(world, "bld_temple", village.Id, registries);
         SpawnBuildingFromTemplate(world, "bld_guard_tower", village.Id, registries);
+
+        // Watchtower (a separate landmark location): a small fortress
+        // building with a guard occupant. The guard gives the
+        // "Зачистить шахту" quest below.
+        SpawnBuildingFromTemplate(world, "bld_guard_tower", tower.Id, registries);
 
         // ─── NPCs at locations ─────────────────────────────────────────────
         // Village elder — quest giver.
@@ -120,7 +183,53 @@ public static class DefaultWorld
         // Deep cave: an owlbear cub.
         world.SpawnNpcFromTemplate("npc_owl_bear_cub", deepCave.Id);
 
-        // ─── A starting quest from the elder ───────────────────────────────
+        // ─── New NPCs at the expanded locations ────────────────────────────
+        //
+        // Watchtower: a town guard (already spawned as the building's
+        // occupant above — the guard tower template lists npc_town_guard
+        // as an occupant). Find them and store the id for the quest giver
+        // field below. (The guard is at the tower location, not the
+        // village — the village's bld_guard_tower also spawned a guard,
+        // but we want the tower one for this quest.)
+        var towerGuard = world.Npcs.FirstOrDefault(n =>
+            n.LocationId == tower.Id && n.TemplateId == "npc_town_guard");
+
+        // Lake: a wandering merchant by the water (the closest thing to
+        // a "hermit" the content pack offers — a lone traveler camped
+        // out by the lake). Gives the "Найти пропавшего караванщика"
+        // quest below.
+        var lakeHermit = world.SpawnNpcFromTemplate("npc_merchant_traveler", lake.Id);
+
+        // Crossroads: a second merchant (the merchant's colleague, asking
+        // passers-by if they've seen the missing caravan).
+        // — Actually to keep quest-giver discovery simple, the same lake
+        // hermit gives the caravan quest. No NPC here; the crossroads is
+        // a narrative anchor only.
+
+        // Farm: a bandit ambush.
+        world.SpawnNpcFromTemplate("npc_bandit", farm.Id);
+        world.SpawnNpcFromTemplate("npc_bandit", farm.Id);
+
+        // Cemetery: an undead (a ghost — same template, different
+        // location, suggests "the dead walk here too").
+        world.SpawnNpcFromTemplate("npc_ghost", cemetery.Id);
+
+        // Old mine: goblins + an owlbear (a tougher monster for the
+        // "Зачистить шахту" quest target).
+        world.SpawnNpcFromTemplate("npc_goblin", oldMine.Id);
+        world.SpawnNpcFromTemplate("npc_goblin", oldMine.Id);
+        world.SpawnNpcFromTemplate("npc_owl_bear_cub", oldMine.Id);
+
+        // Mountain pass: a wolf (mountain wolf).
+        world.SpawnNpcFromTemplate("npc_wolf", pass.Id);
+
+        // ─── Quests ────────────────────────────────────────────────────────
+        //
+        // Existing: "Потерянный амулет" — given by the village elder.
+        // New: "Зачистить шахту" — given by the watchtower guard.
+        // New: "Найти пропавшего караванщика" — given by the lake hermit.
+
+        // Quest 1: Lost amulet (existing — keep).
         var amuletItem = registries.Items.Get("qst_lost_amulet");
         var quest = new Quest
         {
@@ -137,6 +246,61 @@ public static class DefaultWorld
             Reward = new QuestReward { Currency = 50, Experience = 100, Items = amuletItem is null ? null : new() { amuletItem.Id } },
         };
         world.Quests.Add(quest);
+
+        // Quest 2: Clear the old mine — given by the watchtower guard.
+        // Only add the quest if the guard actually spawned (defensive —
+        // if bld_guard_tower didn't list npc_town_guard as an occupant,
+        // towerGuard would be null).
+        if (towerGuard is not null)
+        {
+            var mineQuest = new Quest
+            {
+                Id = EntityId.NewId(),
+                Name = "Зачистить шахту",
+                Description = "Страж с башни просит зачистить старую шахту к востоку от пещеры — гоблины и совомедведь сделали оттуда логово и угрожают тракту.",
+                GiverNpcId = towerGuard.Id,
+                Status = QuestStatus.Active,
+                Objectives = new()
+                {
+                    new() { Id = "obj_mine_kill_goblins", Description = "Уничтожить гоблинов в Старой шахте" },
+                    new() { Id = "obj_mine_kill_beast", Description = "Справиться с совомедведем в шахте" },
+                    new() { Id = "obj_mine_report", Description = "Доложить стражу на башне об успехе" },
+                },
+                Reward = new QuestReward
+                {
+                    Currency = 75,
+                    Experience = 150,
+                    Items = new() { "tre_gem_ruby" },
+                },
+            };
+            world.Quests.Add(mineQuest);
+        }
+
+        // Quest 3: Find the missing caravaneer — given by the lake hermit.
+        if (lakeHermit is not null)
+        {
+            var caravanQuest = new Quest
+            {
+                Id = EntityId.NewId(),
+                Name = "Найти пропавшего караванщика",
+                Description = "Странствующий торговец у лесного озера просит разузнать судьбу своего напарника — караван пропал по тракту на юг, и последним местом, где его видели, была Развилка.",
+                GiverNpcId = lakeHermit.Id,
+                Status = QuestStatus.Active,
+                Objectives = new()
+                {
+                    new() { Id = "obj_caravan_xroads", Description = "Осмотреть Развилку на следы каравана" },
+                    new() { Id = "obj_caravan_farm", Description = "Проверить Заброшенную ферму — возможно, разбойники причастны" },
+                    new() { Id = "obj_caravan_return", Description = "Вернуться к торговцу у озера с вестями" },
+                },
+                Reward = new QuestReward
+                {
+                    Currency = 60,
+                    Experience = 120,
+                    Items = new() { "misc_scroll_map" },
+                },
+            };
+            world.Quests.Add(caravanQuest);
+        }
 
         // ─── Starting player ───────────────────────────────────────────────
         var player = EntityFactory.CreatePlayer(new()

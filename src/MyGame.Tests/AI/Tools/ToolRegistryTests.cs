@@ -12,10 +12,11 @@ namespace MyGame.Tests.AI.Tools;
 public class ToolRegistryTests
 {
     /// <summary>
-    /// The 18 built-in tools the registry registers. Mirrors the list in
-    /// ToolRegistry.RegisterBuiltins (5 MVP + 13 expansion). If this list
-    /// drifts from the source, the Constructor_RegistersAllBuiltinTools
-    /// test will fail — update both together.
+    /// The 22 built-in tools the registry registers. Mirrors the list in
+    /// ToolRegistry.RegisterBuiltins (5 MVP + 13 expansion + 4 combat/
+    /// death from COMBAT-DEATH). If this list drifts from the source, the
+    /// Constructor_RegistersAllBuiltinTools test will fail — update both
+    /// together.
     /// </summary>
     private static readonly string[] ExpectedTools =
     {
@@ -37,6 +38,11 @@ public class ToolRegistryTests
         "deal_damage",
         "apply_status",
         "create_item_template",
+        // COMBAT-DEATH (issues #88, #63)
+        "start_combat",
+        "end_combat",
+        "next_turn",
+        "death_save",
     };
 
     private static ToolRegistry MakeRegistry()

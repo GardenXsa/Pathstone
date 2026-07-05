@@ -137,6 +137,38 @@ public partial class GameViewModel : ViewModelBase
     [ObservableProperty] private bool _canSave;
     [ObservableProperty] private bool _canSubmit = true;
 
+    // ─── Combat + death UI state (issues #88, #63) ──────────────────────
+    //
+    // CombatDisplay: a one-line combat indicator for the top bar — null
+    // when no combat is active. Refreshed in RefreshFromWorld.
+    // IsPlayerDead: drives the death overlay. True when the active
+    // player's IsAlive flag is false; set in RefreshFromWorld. The
+    // overlay's "reload last save" and "leave to menu" buttons are
+    // bound to the dedicated relay commands below.
+    [ObservableProperty] private string? _combatDisplay;
+    [ObservableProperty] private bool _isPlayerDead;
+
+    // ─── Reconnect overlay state (issue #7) ────────────────────────────
+    //
+    // IsDisconnected: drives the reconnect overlay. True when the
+    // ClientSession's Disconnected event fires with Intentional=false
+    // (network drop). The overlay offers "Переподключиться" (calls
+    // ReconnectCommand, retries 3x with 2s backoff) and "Выйти в меню"
+    // (calls LeaveToMenuCommand). On reconnect success the Welcomed
+    // event fires and refreshes the members list + party status.
+    //
+    // ReconnectFailed: true after 3 reconnect attempts have all failed.
+    // Switches the overlay to a simpler "Не удалось переподключиться"
+    // message with only the "Выйти в меню" button. Reset to false on a
+    // successful reconnect (so a subsequent drop starts fresh).
+    //
+    // DisconnectReason: the close reason from the Disconnected event,
+    // shown in the overlay body. Empty string when no disconnect has
+    // occurred.
+    [ObservableProperty] private bool _isDisconnected;
+    [ObservableProperty] private bool _reconnectFailed;
+    [ObservableProperty] private string _disconnectReason = string.Empty;
+
     // ─── Token billing (issue #6) ─────────────────────────────────────
     //
     // Per-turn + per-session token counters. Accumulate after each GM
@@ -310,15 +342,36 @@ public partial class GameViewModel : ViewModelBase
             return;
         }
 
-        _world = loaded.Value.world;
-        _meta = loaded.Value.meta;
-        var log = loaded.Value.log;
+        ApplyLoadedSave(loaded.Value.world, loaded.Value.meta, loaded.Value.log, resetHistory: true);
+        await Task.CompletedTask;
+    }
 
-        lock (_logLock) _log.AddRange(log);
-        await Dispatcher.UIThread.InvokeAsync(() =>
+    /// <summary>
+    /// Apply a freshly-loaded (world, meta, log) tuple to this VM:
+    /// replace <c>_world</c>/<c>_meta</c>, swap the in-memory log,
+    /// build a fresh GameMaster (history reset when
+    /// <paramref name="resetHistory"/> is true), restore session-tokens
+    /// from meta, and refresh the UI. Shared between initial load
+    /// (<see cref="InitSinglePlayerAsync"/>) and the death-overlay
+    /// reload (<see cref="ReloadLastSaveAsync"/>).
+    /// </summary>
+    private void ApplyLoadedSave(World world, SaveMeta meta, LogEntry[] log, bool resetHistory)
+    {
+        _world = world ?? throw new ArgumentNullException(nameof(world));
+        _meta = meta ?? throw new ArgumentNullException(nameof(meta));
+
+        // Reset the in-memory log to the loaded snapshot. The lock guards
+        // against the AppendLog thread (which can fire from a background
+        // GM continuation) racing the clear.
+        lock (_logLock)
+        {
+            _log.Clear();
+            _log.AddRange(log ?? Array.Empty<LogEntry>());
+        }
+        Dispatcher.UIThread.Post(() =>
         {
             Log.Clear();
-            foreach (var e in log) Log.Add(e);
+            foreach (var e in log ?? Array.Empty<LogEntry>()) Log.Add(e);
         });
 
         var settings = _settingsStore.Load();
@@ -326,6 +379,8 @@ public partial class GameViewModel : ViewModelBase
         var prompts = ServiceHost.Resolve<PromptLoader>();
         var tools = new ToolRegistry(_world);
         _gm = new GameMaster(ai, _world, prompts, tools, settings.MaxToolIterations);
+        if (resetHistory)
+            _gm.ResetHistory();
 
         GameName = _meta?.Name ?? "Игра";
         CanSave = true;
@@ -333,6 +388,9 @@ public partial class GameViewModel : ViewModelBase
         // survives a reload. Last-turn counter is reset (a fresh session
         // has no "last turn" yet).
         RestoreTokensFromMeta();
+        // Reset the level-up baseline so a reloaded game doesn't toast a
+        // false level-up on the next turn.
+        _previousLevel = null;
         RefreshFromWorld();
     }
 
@@ -578,6 +636,179 @@ public partial class GameViewModel : ViewModelBase
         }
     }
 
+    /// <summary>
+    /// COMBAT-DEATH (issue #63): reload the current save from disk,
+    /// discarding the in-memory state (which has the dead player). The
+    /// GM is rebuilt from scratch — the conversation history from the
+    /// dead-state session is dropped. The save on disk reflects the
+    /// pre-death snapshot because RunSinglePlayerTurnAsync skips the
+    /// post-turn auto-save when the player just died.
+    ///
+    /// <para>
+    /// Single-player only. Host: no-op (the host owns the save, but
+    /// mid-session reload isn't supported in MVP — the user can leave
+    /// and re-enter instead). Client: no-op (the host owns the world).
+    /// </para>
+    /// </summary>
+    [RelayCommand]
+    private async Task ReloadLastSaveAsync()
+    {
+        if (!StandaloneSinglePlayer)
+        {
+            // Multiplayer modes don't support mid-session reload from
+            // the death overlay in MVP. Just go to the menu — the user
+            // can re-host / re-join.
+            _shell.NavigateToMenu();
+            return;
+        }
+        if (string.IsNullOrEmpty(_saveId))
+        {
+            ErrorMessage = "Сохранение не найдено — не из чего загружать.";
+            return;
+        }
+
+        IsBusy = true;
+        try
+        {
+            var loaded = _saveManager.LoadAll(_saveId);
+            if (loaded is null)
+            {
+                ErrorMessage = $"Сохранение {_saveId} не найдено.";
+                return;
+            }
+            AppendLog(LogEntry.System("Перезагрузка последнего сохранения…"));
+            ApplyLoadedSave(loaded.Value.world, loaded.Value.meta, loaded.Value.log, resetHistory: true);
+            AppendLog(LogEntry.System("Сохранение загружено. Удачи!"));
+        }
+        catch (Exception ex)
+        {
+            ErrorMessage = $"Не удалось загрузить сохранение: {ex.Message}";
+        }
+        finally
+        {
+            IsBusy = false;
+        }
+        await Task.CompletedTask;
+    }
+
+    /// <summary>
+    /// COMBAT-DEATH (issue #63): leave to the main menu WITHOUT saving
+    /// the current (dead) state. The save on disk is left as-is, so the
+    /// player can pick it up later from the «Загрузить» menu. Differs
+    /// from <see cref="LeaveGameAsync"/> in that the latter saves before
+    /// leaving (we don't want that here — we'd overwrite the pre-death
+    /// save with the dead state).
+    /// </summary>
+    [RelayCommand]
+    private void LeaveToMenu()
+    {
+        // Best-effort: stop the host session if any (no save — we don't
+        // want to persist the dead state).
+        if (IsHost && HostSession is not null)
+        {
+            try { HostSession.StopAsync().FireAndForget(); } catch { /* best-effort */ }
+            _hostShutdownCts?.Cancel();
+        }
+        else if (ClientSession is not null)
+        {
+            try { ClientSession.DisconnectAsync().FireAndForget(); } catch { /* best-effort */ }
+        }
+        _shell.NavigateToMenu();
+    }
+
+    /// <summary>
+    /// RECONNECT (issue #7): attempt to re-establish the client WebSocket
+    /// to the same host/port. Tries up to 3 times with a 2-second backoff
+    /// between attempts. On success: clears IsDisconnected (the overlay
+    /// hides); the Welcomed event (raised by ClientSession.ReconnectAsync
+    /// via GameClient.ConnectAsync) refreshes the members list + party
+    /// status from the fresh WelcomeMsg. On all-fail: sets ReconnectFailed
+    /// = true so the overlay switches to the "Не удалось переподключиться"
+    /// exit-only state.
+    ///
+    /// <para>
+    /// Client-mode only. No-op in single-player / host modes (those don't
+    /// have a remote peer to reconnect to — the Leave command handles
+    /// their teardown).
+    /// </para>
+    /// </summary>
+    [RelayCommand(CanExecute = nameof(CanReconnect))]
+    private async Task ReconnectAsync()
+    {
+        if (ClientSession is null) return;
+
+        CanSubmit = false;
+        IsBusy = true;
+        StatusText = "Переподключение…";
+        try
+        {
+            const int maxAttempts = 3;
+            const int backoffMs = 2000;
+
+            Exception? lastError = null;
+            for (int attempt = 1; attempt <= maxAttempts; attempt++)
+            {
+                StatusText = $"Переподключение (попытка {attempt}/{maxAttempts})…";
+                try
+                {
+                    // ReconnectAsync re-runs the HelloMsg→WelcomeMsg
+                    // handshake. On success, GameClient raises Welcomed,
+                    // which fires ClientSession.Welcomed, which our
+                    // OnClientWelcomed handler picks up to refresh the
+                    // Members list. We just need to clear the overlay
+                    // state here.
+                    await ClientSession.ReconnectAsync(CancellationToken.None);
+                    IsDisconnected = false;
+                    ReconnectFailed = false;
+                    DisconnectReason = string.Empty;
+                    ErrorMessage = null;
+                    StatusText = "Переподключение выполнено.";
+                    AppendLog(LogEntry.System("Переподключение выполнено."));
+                    return;
+                }
+                catch (Exception ex)
+                {
+                    lastError = ex;
+                    System.Diagnostics.Trace.WriteLine(
+                        $"[GameViewModel] Reconnect attempt {attempt} failed: {ex.Message}");
+                    // Backoff before the next attempt (skip on the last
+                    // attempt — no point waiting before giving up).
+                    if (attempt < maxAttempts)
+                    {
+                        try { await Task.Delay(backoffMs); } catch { /* ignore */ }
+                    }
+                }
+            }
+
+            // All attempts failed — switch the overlay to exit-only mode.
+            ReconnectFailed = true;
+            StatusText = null;
+            ErrorMessage = $"Не удалось переподключиться: {lastError?.Message ?? "неизвестная ошибка"}";
+            AppendLog(LogEntry.System(
+                $"Переподключение не удалось после {maxAttempts} попыток."));
+        }
+        finally
+        {
+            IsBusy = false;
+            CanSubmit = true;
+            // Clear the transient status text — the overlay's own
+            // message takes over the user-facing surface now.
+            if (IsDisconnected) StatusText = null;
+        }
+    }
+
+    /// <summary>
+    /// CanExecute for ReconnectCommand. The button is only enabled in
+    /// client mode (where the overlay is shown), when a reconnect isn't
+    /// already in flight (IsBusy), and when the previous reconnect
+    /// attempt didn't already exhaust the retry budget (ReconnectFailed).
+    /// </summary>
+    private bool CanReconnect() =>
+        ClientSession is not null
+        && !IsBusy
+        && IsDisconnected
+        && !ReconnectFailed;
+
     // ─── Single-player GM loop ───────────────────────────────────────
 
     private async Task RunSinglePlayerTurnAsync(string text)
@@ -641,7 +872,15 @@ public partial class GameViewModel : ViewModelBase
 
         // Increment turn + save.
         _world.Turn++;
-        if (_meta is not null && _saveId is not null)
+
+        // COMBAT-DEATH: when the player just died this turn, do NOT
+        // auto-save. Otherwise the on-disk save would lock the player
+        // into a dead state, and "Загрузить последнее сохранение" from
+        // the death overlay would reload the dead state — defeating the
+        // point. Skipping the save preserves the pre-death snapshot.
+        var playerAfterTurn = _world.ActivePlayer ?? _world.Players.FirstOrDefault();
+        bool playerJustDied = playerAfterTurn is { IsAlive: false };
+        if (_meta is not null && _saveId is not null && !playerJustDied)
         {
             // Persist session-tokens into meta before the save so the
             // counter survives reload.
@@ -761,6 +1000,24 @@ public partial class GameViewModel : ViewModelBase
             var p = _world.ActivePlayer ?? _world.Players.FirstOrDefault();
             CharacterSummary = BuildCharacterSummary(p);
             WorldInfo = BuildWorldInfo(_world, p);
+
+            // COMBAT-DEATH: refresh the top-bar combat indicator + the
+            // death-overlay flag. CombatDisplay is null when no combat
+            // is active (so the bound TextBlock collapses); otherwise
+            // "⚔ Бой: раунд {round}, ход: {actor}". IsPlayerDead drives
+            // the death overlay (covers the game screen with reload/
+            // leave buttons).
+            if (_world.Combat is { Active: true } combat && combat.TurnOrder.Count > 0)
+            {
+                var idx = Math.Clamp(combat.CurrentActorIndex, 0, combat.TurnOrder.Count - 1);
+                var actor = combat.TurnOrder[idx].Name;
+                CombatDisplay = $"⚔ Бой: раунд {combat.Round}, ход: {actor}";
+            }
+            else
+            {
+                CombatDisplay = null;
+            }
+            IsPlayerDead = p is { IsAlive: false };
 
             // Seed the level-tracking baseline on the first refresh (covers
             // InitializeAsync + post-load). Actual level-up detection runs
@@ -1358,11 +1615,25 @@ public partial class GameViewModel : ViewModelBase
             AppendLog(LogEntry.System($"Кикнут: {k.Reason}"));
         });
 
-    private void OnClientDisconnected(string reason) =>
+    private void OnClientDisconnected(DisconnectedInfo info) =>
         Dispatcher.UIThread.Post(() =>
         {
-            ErrorMessage = $"Соединение разорвано: {reason}";
-            AppendLog(LogEntry.System($"Разрыв соединения: {reason}"));
+            // Intentional disconnect (user clicked Leave, or the host
+            // kicked us): don't show the reconnect overlay. The Leave
+            // command already navigates to menu; the Kicked event
+            // already surfaced an inline error via OnClientKicked.
+            if (info.Intentional)
+            {
+                AppendLog(LogEntry.System($"Соединение разорвано: {info.Reason}"));
+                return;
+            }
+
+            // Unexpected network drop: show the reconnect overlay.
+            IsDisconnected = true;
+            ReconnectFailed = false;
+            DisconnectReason = info.Reason ?? string.Empty;
+            ErrorMessage = $"Соединение потеряно: {info.Reason}";
+            AppendLog(LogEntry.System($"Разрыв соединения: {info.Reason}"));
         });
 }
 

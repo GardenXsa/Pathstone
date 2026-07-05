@@ -27,10 +27,13 @@ namespace MyGame.Core.Multiplayer;
 ///   <item>NO React hook. The client is a plain class with C# events. The
 ///     Avalonia UI layer wires up an <c>IObservable</c> adapter or calls
 ///     <c>Dispatcher.UIThread.Post</c> from the event handlers.</item>
-///   <item>NO reconnection. If the connection drops, the
-///     <see cref="Disconnected"/> event fires and the UI is responsible
-///     for showing a "Reconnect?" dialog. (The TS source had auto-reconnect
-///     via socket.io; that's a future feature.)</item>
+///   <item>Manual reconnection via <see cref="ReconnectAsync"/>. When the
+///     connection drops unexpectedly, the <see cref="Disconnected"/> event
+///     fires with <see cref="DisconnectedInfo.Intentional"/> = false; the
+///     UI is responsible for showing a "Reconnect?" dialog and calling
+///     <see cref="ReconnectAsync"/> on user accept. (The TS source had
+///     auto-reconnect via socket.io; the C# port makes it user-driven so
+///     the player can choose to bail to menu instead.)</item>
 ///   <item>NO JWT / cookies. The client sends a <see cref="HelloMsg"/>
 ///     with the local <c>Profile</c> identity in the first frame after
 ///     the WebSocket upgrade.</item>
@@ -54,7 +57,22 @@ public sealed class GameClient
     private ClientWebSocket? _ws;
     private Task? _readLoopTask;
     private readonly SemaphoreSlim _sendSemaphore = new(1, 1);
-    private readonly CancellationTokenSource _ownCts = new();
+    // Non-readonly: ReconnectAsync may swap this for a fresh CTS when the
+    // previous one was cancelled (e.g. by DisconnectAsync).
+    private CancellationTokenSource _ownCts = new();
+
+    // Host + port from the last successful ConnectAsync. Stored so
+    // ReconnectAsync can re-run the handshake without the caller having
+    // to pass them again. Null/0 until the first successful connect.
+    private string? _host;
+    private int _port;
+
+    // Set to true by DisconnectAsync (the user clicked Leave) or by the
+    // Kicked handler (the host kicked us). The read loop reads this when
+    // raising Disconnected so the UI knows whether to show a reconnect
+    // overlay (network drop) or not (intentional leave / kick). Reset to
+    // false at the start of every ConnectAsync / ReconnectAsync call.
+    private volatile bool _intentionalDisconnect;
 
     /// <summary>
     /// The connection id assigned by the host in <see cref="WelcomeMsg"/>.
@@ -145,10 +163,15 @@ public sealed class GameClient
     /// is closed immediately after this event fires.</summary>
     public event Action<KickedMsg>? Kicked;
 
-    /// <summary>Raised when the WebSocket connection drops (network
-    /// failure, host shutdown, or graceful close). The string carries
-    /// the close status description (may be empty).</summary>
-    public event Action<string>? Disconnected;
+    /// <summary>
+    /// Raised when the WebSocket connection drops (network failure, host
+    /// shutdown, graceful close, kick, or user-initiated leave). The
+    /// payload is a <see cref="DisconnectedInfo"/> record carrying the
+    /// close reason and an <see cref="DisconnectedInfo.Intentional"/>
+    /// flag — true when the disconnect was user-initiated (Leave button)
+    /// or host-initiated (kick), false when it was a network drop.
+    /// </summary>
+    public event Action<DisconnectedInfo>? Disconnected;
 
     // ─── Connect / disconnect ────────────────────────────────────────
 
@@ -170,6 +193,12 @@ public sealed class GameClient
             throw new ArgumentException("host is required.", nameof(host));
         if (port <= 0 || port > 65535)
             throw new ArgumentOutOfRangeException(nameof(port));
+
+        // Store host/port for ReconnectAsync. Reset the intentional flag
+        // — a fresh connect is by definition not a disconnect.
+        _host = host;
+        _port = port;
+        _intentionalDisconnect = false;
 
         // Link the caller's CT with our own (so DisconnectAsync can
         // cancel an in-flight connect too).
@@ -274,10 +303,15 @@ public sealed class GameClient
 
     /// <summary>
     /// Graceful disconnect: send a Close frame, wait for the read loop to
-    /// finish, dispose the WebSocket. Safe to call multiple times.
+    /// finish, dispose the WebSocket. Safe to call multiple times. Marks
+    /// the disconnect as intentional (<see cref="_intentionalDisconnect"/>)
+    /// so the <see cref="Disconnected"/> event (if it fires — see the
+    /// read-loop finally block) carries <see cref="DisconnectedInfo.Intentional"/>
+    /// = true, telling the UI NOT to show the reconnect overlay.
     /// </summary>
     public async Task DisconnectAsync()
     {
+        _intentionalDisconnect = true;
         _ownCts.Cancel();
 
         var ws = Interlocked.Exchange(ref _ws, null);
@@ -292,6 +326,64 @@ public sealed class GameClient
             try { await _readLoopTask.ConfigureAwait(false); } catch { /* ignore */ }
             _readLoopTask = null;
         }
+    }
+
+    /// <summary>
+    /// Re-connect to the same host/port as the last successful
+    /// <see cref="ConnectAsync"/>. Performs the same HelloMsg →
+    /// WelcomeMsg handshake. Reuses the stored host + port (set on the
+    /// first successful connect); throws if no previous connect was
+    /// made. Returns the fresh WelcomeMsg on success.
+    ///
+    /// <para>
+    /// Cleans up the previous (now-dead) socket + read loop before
+    /// re-connecting. The intentional-disconnect flag is reset to false
+    /// (a reconnect attempt is by definition not intentional — if this
+    /// one also drops, the UI should show the overlay again).
+    /// </para>
+    /// </summary>
+    /// <exception cref="InvalidOperationException">
+    /// No previous host/port stored (ConnectAsync was never called).
+    /// </exception>
+    public async Task<WelcomeMsg> ReconnectAsync(CancellationToken ct)
+    {
+        if (string.IsNullOrEmpty(_host) || _port <= 0)
+            throw new InvalidOperationException("No previous host/port to reconnect to.");
+
+        // Reset the intentional flag — this is a fresh attempt.
+        _intentionalDisconnect = false;
+
+        // Clean up the previous (now-dead) socket + read loop. The read
+        // loop should already have exited (the network drop broke the
+        // receive), but defensively await it to be sure no stale task
+        // is left running.
+        var oldWs = Interlocked.Exchange(ref _ws, null);
+        if (oldWs is not null)
+        {
+            try { oldWs.Dispose(); } catch { /* ignore */ }
+        }
+        if (_readLoopTask is not null)
+        {
+            try { await _readLoopTask.ConfigureAwait(false); } catch { /* ignore */ }
+            _readLoopTask = null;
+        }
+
+        // If the previous CTS was cancelled (e.g. by DisconnectAsync),
+        // replace it with a fresh one so the new read loop can run.
+        // (ConnectAsync links _ownCts.Token into its own linked CTS, so
+        // a cancelled _ownCts would break the new handshake.)
+        if (_ownCts.IsCancellationRequested)
+        {
+            _ownCts.Dispose();
+            _ownCts = new CancellationTokenSource();
+        }
+
+        // Reset handshake-derived state so IsConnected returns false
+        // until the new Welcome arrives.
+        ConnectionId = Guid.Empty;
+        Role = MemberRole.Player;
+
+        return await ConnectAsync(_host, _port, ct).ConfigureAwait(false);
     }
 
     // ─── Read loop ───────────────────────────────────────────────────
@@ -318,13 +410,13 @@ public sealed class GameClient
                 catch (WebSocketException ex)
                 {
                     Trace.WriteLine($"[GameClient] Read failed: {ex.Message}");
-                    RaiseEvent(Disconnected, ex.Message);
+                    RaiseEvent(Disconnected, new DisconnectedInfo(ex.Message, _intentionalDisconnect));
                     break;
                 }
 
                 if (closed)
                 {
-                    RaiseEvent(Disconnected, "server closed connection");
+                    RaiseEvent(Disconnected, new DisconnectedInfo("server closed connection", _intentionalDisconnect));
                     break;
                 }
 
@@ -354,10 +446,13 @@ public sealed class GameClient
         finally
         {
             // If the loop exits without Disconnected having been raised
-            // (e.g. via cancellation), raise it now so the UI updates.
+            // (e.g. via cancellation that wasn't from DisconnectAsync —
+            // an intentional cancel suppresses this via the
+            // !ct.IsCancellationRequested check), raise it now so the
+            // UI updates.
             if (!ct.IsCancellationRequested)
             {
-                RaiseEvent(Disconnected, "connection lost");
+                RaiseEvent(Disconnected, new DisconnectedInfo("connection lost", _intentionalDisconnect));
             }
         }
     }
@@ -382,8 +477,11 @@ public sealed class GameClient
             case ErrorMsg e:          RaiseEvent(Error, e); break;
             case KickedMsg k:
                 RaiseEvent(Kicked, k);
-                // Host will close the connection; let the read loop pick
-                // that up and raise Disconnected.
+                // Mark the subsequent Disconnected (raised when the host
+                // closes the socket) as intentional — the user was
+                // kicked, not network-dropped. Suppresses the reconnect
+                // overlay.
+                _intentionalDisconnect = true;
                 break;
             case PingMsg ping:
                 // Reply with PongMsg echoing the Ts. Fire-and-forget —
@@ -491,3 +589,20 @@ public sealed class GameClient
         }
     }
 }
+
+/// <summary>
+/// Payload for <see cref="GameClient.Disconnected"/>. Carries the
+/// close reason (free-form string from the WebSocket close frame or
+/// the read-loop's exception message) and an
+/// <see cref="Intentional"/> flag distinguishing user/host-initiated
+/// disconnects (Leave button, kick) from network drops.
+///
+/// <para>
+/// The UI uses <see cref="Intentional"/> to decide whether to show the
+/// reconnect overlay: <c>false</c> → show overlay (network drop, offer
+/// "Переподключиться" / "Выйти в меню"); <c>true</c> → suppress the
+/// overlay (the Leave command already navigates to menu; a kick shows
+/// its own inline error via <see cref="GameClient.Kicked"/>).
+/// </para>
+/// </summary>
+public sealed record DisconnectedInfo(string Reason, bool Intentional);

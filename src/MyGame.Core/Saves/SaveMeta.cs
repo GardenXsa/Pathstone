@@ -108,12 +108,22 @@ public sealed record SaveMeta
 
     /// <summary>
     /// Save-file layout version. Bumped when the on-disk file layout
-    /// changes in a way that requires a migration on load. Currently 1
-    /// (first version of the desktop-port format — NOT compatible with
-    /// the TS app's <c>SPLIT_STORAGE_VERSION = 2</c> saves, which use a
-    /// 3-directory layout that this port deliberately collapses).
+    /// changes in a way that requires a migration on load. Currently 2
+    /// (v2 = item-instance Weight field backfill — older saves had
+    /// <c>Item.Weight = 0</c> default; the migrator backfills from the
+    /// item's template on load). NOT compatible with the TS app's
+    /// <c>SPLIT_STORAGE_VERSION = 2</c> saves, which use a 3-directory
+    /// layout that this port deliberately collapses.
+    ///
+    /// <para>
+    /// <b>Settable</b> (not init-only) so the
+    /// <see cref="SaveMigrator"/> can bump the version on an in-memory
+    /// meta after running migrations. (Init-only would force a
+    /// <c>with</c>-expression clone, which works but is wasteful for a
+    /// single-field update.)
+    /// </para>
     /// </summary>
-    public int StorageVersion { get; init; } = 1;
+    public int StorageVersion { get; set; } = SaveMigrator.CurrentStorageVersion;
 
     /// <summary>
     /// Cumulative prompt (input) tokens billed across all sessions on
