@@ -33,7 +33,13 @@ public partial class CharacterPanelViewModel : ObservableObject
         Name = p.Name;
         Race = p.Race ?? "—";
         Class = p.Class ?? "—";
-        Level = p.Level?.ToString() ?? "1";
+        var lvl = p.Level ?? 1;
+        Level = lvl.ToString();
+        // XP / leveling. NextLevelXp uses the simple "level * 100" curve.
+        // The award_xp tool handles the actual XP grant + level-up math;
+        // the panel just reflects the current totals.
+        Experience = p.Experience ?? 0;
+        NextLevelXp = lvl * 100;
         Background = p.Background ?? "—";
         Speed = p.Speed?.ToString() ?? "30";
 
@@ -49,6 +55,21 @@ public partial class CharacterPanelViewModel : ObservableObject
         foreach (var kv in p.Equipped)
             Equipped.Add(new EquippedRow(kv.Key, kv.Value.Name, kv.Value.Description ?? ""));
 
+        // Active status effects. Populated from the character's Effects list.
+        // Each effect is rendered as a row in the «Эффекты» section (below
+        // Equipped, above Skills). Hidden entirely when no effects are active.
+        Effects.Clear();
+        if (p.Effects is not null)
+        {
+            foreach (var eff in p.Effects)
+            {
+                Effects.Add(new StatusEffectRow(
+                    eff.Name,
+                    eff.Description ?? "",
+                    eff.Duration));
+            }
+        }
+
         ProficientSkills.Clear();
         if (p.ProficientSkills is not null)
             foreach (var s in p.ProficientSkills)
@@ -59,22 +80,29 @@ public partial class CharacterPanelViewModel : ObservableObject
         OnPropertyChanged(nameof(HasAttributes));
         OnPropertyChanged(nameof(HasResources));
         OnPropertyChanged(nameof(HasEquipped));
+        OnPropertyChanged(nameof(HasEffects));
         OnPropertyChanged(nameof(HasSkills));
+        OnPropertyChanged(nameof(XpProgress));
     }
 
     private void Clear()
     {
         Name = Race = Class = Level = Background = Speed = "—";
+        Experience = 0;
+        NextLevelXp = 100;
         Attributes.Clear();
         Resources.Clear();
         Equipped.Clear();
+        Effects.Clear();
         ProficientSkills.Clear();
         Currency = 0;
         InventoryCount = 0;
         OnPropertyChanged(nameof(HasAttributes));
         OnPropertyChanged(nameof(HasResources));
         OnPropertyChanged(nameof(HasEquipped));
+        OnPropertyChanged(nameof(HasEffects));
         OnPropertyChanged(nameof(HasSkills));
+        OnPropertyChanged(nameof(XpProgress));
     }
 
     // ─── Observable properties ───────────────────────────────────────
@@ -88,14 +116,27 @@ public partial class CharacterPanelViewModel : ObservableObject
     [ObservableProperty] private int _currency;
     [ObservableProperty] private int _inventoryCount;
 
+    /// <summary>Total XP the player has accumulated so far.</summary>
+    [ObservableProperty] private int _experience;
+
+    /// <summary>XP threshold to reach the next level (level * 100).</summary>
+    [ObservableProperty] private int _nextLevelXp = 100;
+
+    /// <summary>Progress 0-100 toward the next level, for the XP bar.</summary>
+    public double XpProgress => NextLevelXp > 0
+        ? System.Math.Min(100.0, (Experience / (double)NextLevelXp) * 100.0)
+        : 0;
+
     public ObservableCollection<AttributeRow> Attributes { get; } = new();
     public ObservableCollection<ResourceRow> Resources { get; } = new();
     public ObservableCollection<EquippedRow> Equipped { get; } = new();
+    public ObservableCollection<StatusEffectRow> Effects { get; } = new();
     public ObservableCollection<string> ProficientSkills { get; } = new();
 
     public bool HasAttributes => Attributes.Count > 0;
     public bool HasResources => Resources.Count > 0;
     public bool HasEquipped => Equipped.Count > 0;
+    public bool HasEffects => Effects.Count > 0;
     public bool HasSkills => ProficientSkills.Count > 0;
 }
 
@@ -107,3 +148,10 @@ public sealed record ResourceRow(string Name, int Value);
 
 /// <summary>One row in the equipped-gear list (slot → item name).</summary>
 public sealed record EquippedRow(string Slot, string ItemName, string Description);
+
+/// <summary>
+/// One active status effect on the character. Duration &lt; 0 means
+/// «until dispelled»; 0 means «expired» (will be reaped on the next tick);
+/// positive values are rounds remaining.
+/// </summary>
+public sealed record StatusEffectRow(string Name, string Description, int Duration);

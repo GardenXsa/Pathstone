@@ -164,6 +164,20 @@ public sealed class Item : Entity
     /// <summary>Stack size (1 for unstackable items).</summary>
     public int Quantity { get; set; } = 1;
 
+    /// <summary>
+    /// Per-unit weight in lb, denormalized from the
+    /// <see cref="ItemTemplate.Weight"/> at instantiation time so the UI /
+    /// inventory panel can compute carried weight without a registry lookup.
+    /// </summary>
+    /// <remarks>
+    /// TODO(save-migration): existing saves load Item instances without this
+    /// field, so they default to 0 here. A future SaveManager migration should
+    /// backfill <see cref="Weight"/> from the item's <see cref="TemplateId"/>
+    /// in the content registry on load. Until then, items created before this
+    /// change will report 0 weight in the inventory bar.
+    /// </remarks>
+    public double Weight { get; set; }
+
     /// <summary>Optional runtime override of the template's damage profile.</summary>
     public Damage? CustomDamage { get; set; }
 

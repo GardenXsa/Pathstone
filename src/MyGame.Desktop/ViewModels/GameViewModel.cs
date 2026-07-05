@@ -74,6 +74,14 @@ public partial class GameViewModel : ViewModelBase
     private readonly List<LogEntry> _log = new();
     private readonly object _logLock = new();
 
+    /// <summary>
+    /// Player level as of the previous turn. Used to detect level-ups after
+    /// a GM turn resolves (single-player + host modes). Null until the first
+    /// refresh, at which point it's seeded with the current player level
+    /// (so the first turn never reports a false level-up).
+    /// </summary>
+    private int? _previousLevel;
+
     // ─── Chat panel state ────────────────────────────────────────────
     private readonly ObservableCollection<ChatLine> _chat = new();
 
@@ -106,6 +114,13 @@ public partial class GameViewModel : ViewModelBase
         // an event; this VM decides how to apply it (single-player mutates
         // the world directly; multiplayer routes through the GM tool flow).
         InventoryPanel.ItemActionRequested += OnInventoryAction;
+
+        // Wire world-panel travel → world mutations. Each exit row is a
+        // Button bound to WorldPanel.TravelCommand; the panel forwards the
+        // clicked ExitRow here, and we move the player, mark the
+        // destination visited/discovered, log the trip, persist, and
+        // (if the destination is dangerous) roll a random encounter.
+        WorldPanel.TravelRequested += OnTravel;
     }
 
     // ─── Observable props ────────────────────────────────────────────
@@ -481,6 +496,30 @@ public partial class GameViewModel : ViewModelBase
             }
         }
         RefreshFromWorld();
+        // Detect a level-up that occurred during this turn and toast it.
+        // Runs after RefreshFromWorld so the character panel already shows
+        // the new level.
+        CheckLevelUpAndToast();
+    }
+
+    /// <summary>
+    /// Compare the player's current level against the previously recorded
+    /// baseline; if it went up, emit a system log entry celebrating the
+    /// new level. Then update the baseline. No-op when the player or world
+    /// is missing, or on the very first refresh (where the baseline is
+    /// seeded to the current level rather than a stale value).
+    /// </summary>
+    private void CheckLevelUpAndToast()
+    {
+        if (_world is null) return;
+        var p = _world.ActivePlayer ?? _world.Players.FirstOrDefault();
+        if (p is null) return;
+        int current = p.Level ?? 1;
+        if (_previousLevel is int prev && current > prev)
+        {
+            AppendLog(LogEntry.System($"Новый уровень! Теперь вы {current}-го уровня."));
+        }
+        _previousLevel = current;
     }
 
     private void AppendLog(LogEntry entry)
@@ -500,6 +539,13 @@ public partial class GameViewModel : ViewModelBase
             var p = _world.ActivePlayer ?? _world.Players.FirstOrDefault();
             CharacterSummary = BuildCharacterSummary(p);
             WorldInfo = BuildWorldInfo(_world, p);
+
+            // Seed the level-tracking baseline on the first refresh (covers
+            // InitializeAsync + post-load). Actual level-up detection runs
+            // in the single-player / host turn-end handlers, comparing
+            // against this baseline.
+            if (_previousLevel is null && p is not null)
+                _previousLevel = p.Level ?? 1;
 
             // Push the live world into every side panel so the UI stays
             // in sync after each GM turn / state update.
@@ -744,6 +790,127 @@ public partial class GameViewModel : ViewModelBase
         return 0;
     }
 
+    // ─── Travel handler ──────────────────────────────────────────────
+    //
+    // The world panel raises TravelRequested when the user clicks an exit
+    // row. We apply it directly to the live World (single-player + host
+    // modes), mirroring OnInventoryAction's pattern: mutate, log, refresh
+    // panels, persist async. Client mode is a no-op for world mutations
+    // (the panel buttons are effectively read-only in client mode since
+    // CanSave is false — travel authority there should route through the
+    // host via a future tool-call message).
+    private void OnTravel(Panels.ExitRow exit)
+    {
+        if (_world is null) return;
+        if (exit is null) return;
+        if (exit.Locked)
+        {
+            AppendLog(LogEntry.System($"Выход «{exit.Direction}» заперт."));
+            return;
+        }
+
+        // Find the destination location by display name. ExitRow stores
+        // the destination's display name (resolved in WorldPanelViewModel
+        // from exit.To → world.GetLocation(...).Name). Matching back by
+        // name is robust to entity-id churn across save/load.
+        var destLoc = _world.Locations.FirstOrDefault(l =>
+            string.Equals(l.Name, exit.ToName, StringComparison.Ordinal));
+        if (destLoc is null)
+        {
+            AppendLog(LogEntry.System($"Не удалось найти локацию «{exit.ToName}»."));
+            return;
+        }
+
+        var player = _world.ActivePlayer ?? _world.Players.FirstOrDefault();
+        if (player is null) return;
+
+        // Mutate the world: move the player, mark the destination as
+        // visited + discovered so it shows up on the map immediately.
+        player.LocationId = destLoc.Id;
+        destLoc.Visited = true;
+        destLoc.Discovered = true;
+
+        AppendLog(LogEntry.System($"Вы прошли в «{destLoc.Name}»."));
+
+        // Random encounter hook: dangerous destinations may spawn hostile
+        // NPCs on arrival. Simple inline implementation (the
+        // random-encounters task may later expand this into a richer
+        // subsystem with ambush distance, party size, terrain modifiers).
+        MaybeRandomEncounter(destLoc);
+
+        RefreshFromWorld();
+
+        // Persist immediately in single-player/host modes so the change
+        // survives a reload. Skip in client mode (no save authority).
+        if (CanSave && _saveId is not null && _meta is not null)
+        {
+            _ = Task.Run(() =>
+            {
+                try { _saveManager.SaveAll(_saveId, _world, _meta, Log.ToArray()); }
+                catch (Exception ex) { System.Diagnostics.Trace.WriteLine($"[save] {ex.Message}"); }
+            });
+        }
+    }
+
+    /// <summary>
+    /// Simple inline random-encounter roll. If the destination danger > 0
+    /// and a d100 roll lands below <paramref name="destLoc"/>.Danger * 10,
+    /// spawn 1–2 hostile NPCs at the destination. Terrain picks the
+    /// creature template (wolves in forests, goblins in caves/underground,
+    /// goblins elsewhere as a default).
+    ///
+    /// <para>
+    /// This is the minimal hook that makes travel immediately dangerous
+    /// and gives the GM something to work with. A future random-encounters
+    /// task can expand this into a proper subsystem (party size scaling,
+    /// ambush detection, terrain-aware creature tables, faction-based
+    /// hostility).
+    /// </para>
+    /// </summary>
+    private void MaybeRandomEncounter(Location destLoc)
+    {
+        if (_world is null) return;
+        if (destLoc.Danger <= 0) return;
+
+        // Danger is on a 0-10 scale; *10 gives a 0-100 percent chance.
+        int chance = destLoc.Danger * 10;
+        if (_world.Rng.NextInt(100) >= chance) return;
+
+        // Pick the creature template based on terrain.
+        string creatureTplId = destLoc.Terrain switch
+        {
+            "forest" => "npc_wolf",
+            "swamp" => "npc_wolf",
+            "cave" => "npc_goblin",
+            "underground" => "npc_goblin",
+            "ruin" => "npc_ghost",
+            _ => "npc_goblin",
+        };
+
+        // Spawn 1-2 of them.
+        int count = _world.Rng.NextInt(1, 3); // 1 or 2
+        int spawned = 0;
+        for (int i = 0; i < count; i++)
+        {
+            var npc = _world.SpawnNpcFromTemplate(creatureTplId, destLoc.Id);
+            if (npc is not null)
+            {
+                // Force hostile so the GM picks up combat cues.
+                npc.Disposition = "hostile";
+                spawned++;
+            }
+        }
+
+        if (spawned > 0)
+        {
+            var label = creatureTplId == "npc_wolf" ? "волки"
+                : creatureTplId == "npc_ghost" ? "призраки"
+                : "гоблины";
+            AppendLog(LogEntry.System(
+                $"⚠ Из тени выходит угроза: {spawned} × {label}!"));
+        }
+    }
+
     // ─── HostSession event handlers (marshal to UI thread) ───────────
 
     private void OnMemberJoined(MemberInfo m) =>
@@ -830,6 +997,10 @@ public partial class GameViewModel : ViewModelBase
             StatusText = null;
             if (HostSession is not null)
                 foreach (var m in HostSession.Members) { /* noop */ }
+            // Detect a level-up that occurred during this host turn and
+            // toast it. RefreshFromHostWorld has already pushed the new
+            // state to all panels via OnNarrativeFinal.
+            CheckLevelUpAndToast();
         });
 
     private void OnTurnFailed(string err) =>

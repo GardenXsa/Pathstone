@@ -49,8 +49,11 @@ public partial class InventoryPanelViewModel : ObservableObject
         foreach (var kv in p.Equipped)
             Equipped.Add(new InventoryItemRow(kv.Value, slot: kv.Key));
 
-        // Compute total carried weight.
-        var total = p.Inventory.Items.Sum(i => (i.Quantity > 0 ? 1 : 1) * ItemWeight(i));
+        // Compute total carried weight. Stackable items contribute
+        // weight * quantity; non-stackables (quantity==1) just contribute
+        // their weight. Math.Max(1, qty) guards against malformed saves
+        // where quantity slipped to 0 or negative.
+        var total = p.Inventory.Items.Sum(i => ItemWeight(i) * Math.Max(1, i.Quantity));
         CarriedWeight = Math.Round(total, 1);
         OnPropertyChanged(nameof(WeightPercent));
         OnPropertyChanged(nameof(IsOverweight));
@@ -73,12 +76,11 @@ public partial class InventoryPanelViewModel : ObservableObject
 
     private static double ItemWeight(Item it)
     {
-        // The Item entity doesn't carry weight directly; the template does.
-        // We'd need a registry lookup. For the panel display, fall back to
-        // a per-item default if the template isn't available. This is a
-        // known limitation — the save should ideally denormalize weight
-        // onto the item instance (TBD). For now, return 0.5 per unit.
-        return 0.5;
+        // The Item entity carries its per-unit weight (denormalized from
+        // ItemTemplate.Weight at instantiation time by EntityFactory). Items
+        // loaded from pre-migration saves default to 0 here — they'll report
+        // no weight until re-instantiated (see Item.Weight TODO).
+        return it.Weight;
     }
 
     // ─── Observable properties ───────────────────────────────────────

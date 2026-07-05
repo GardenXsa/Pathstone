@@ -2,6 +2,8 @@ using System.Text;
 using System.Text.Json;
 using MyGame.Core.AI.Prompts;
 using MyGame.Core.AI.Tools;
+using MyGame.Core.World;
+using MyGame.Core.World.Entities;
 
 
 namespace MyGame.Core.AI.Agents;
@@ -338,6 +340,14 @@ public sealed class GameMaster
             return sb.ToString();
         }
 
+        // World title (set by the world-builder via Flags["worldTitle"]).
+        var worldTitle = TryGetFlagString(_world.Flags, "worldTitle");
+        if (!string.IsNullOrWhiteSpace(worldTitle))
+        {
+            sb.AppendLine($"## Мир: {worldTitle}");
+            sb.AppendLine();
+        }
+
         var loc = _world.GetLocation(p.LocationId);
 
         sb.AppendLine("## Персонаж игрока");
@@ -351,6 +361,40 @@ public sealed class GameMaster
         if (p.Inventory.Items.Count > 0)
             sb.AppendLine($"- Инвентарь: {string.Join(", ", p.Inventory.Items.Select(i => $"{i.Name} ×{i.Quantity}"))}");
         sb.AppendLine($"- Валюта: {p.Inventory.Currency}");
+
+        // Active status effects on the player (name + duration).
+        if (p.Effects is { Count: > 0 })
+        {
+            var effs = string.Join(", ", p.Effects.Select(e =>
+            {
+                var dur = e.Duration < 0
+                    ? "постоянно"
+                    : $"{e.Duration} ход.";
+                return $"{e.Name} ({dur})";
+            }));
+            sb.AppendLine($"- Эффекты: {effs}");
+        }
+
+        // Active quests (up to 5): name + completed/total + next incomplete.
+        var activeQuests = _world.Quests
+            .Where(q => q.Status == QuestStatus.Active)
+            .Take(5)
+            .ToList();
+        if (activeQuests.Count > 0)
+        {
+            sb.AppendLine();
+            sb.AppendLine("## Активные квесты");
+            foreach (var q in activeQuests)
+            {
+                var done = q.Objectives.Count(o => o.Done);
+                var total = q.Objectives.Count;
+                var next = q.Objectives.FirstOrDefault(o => !o.Done);
+                var nextLabel = next is not null && !string.IsNullOrWhiteSpace(next.Description)
+                    ? $" → далее: {next.Description}"
+                    : "";
+                sb.AppendLine($"- {q.Name} [{done}/{total}]{nextLabel}");
+            }
+        }
 
         sb.AppendLine();
         sb.AppendLine("## Время в мире");
@@ -373,10 +417,22 @@ public sealed class GameMaster
             }
             if (loc.Npcs.Count > 0)
             {
+                // Enriched: name + race/class + level + disposition.
                 var npcs = string.Join(", ", loc.Npcs
                     .Select(id => _world.GetNpc(id))
                     .Where(n => n is not null)
-                    .Select(n => $"{n!.Name} ({n!.Id})"));
+                    .Select(n =>
+                    {
+                        var npc = n!;
+                        var disp = TryGetFlagString(npc.Flags, "disposition");
+                        if (string.IsNullOrWhiteSpace(disp))
+                            disp = npc.Disposition ?? "neutral";
+                        var rc = string.IsNullOrEmpty(npc.Race) && string.IsNullOrEmpty(npc.Class)
+                            ? ""
+                            : $" {npc.Race ?? "—"}/{npc.Class ?? "—"}";
+                        var lvl = npc.Level is int l ? $" ур.{l}" : "";
+                        return $"{npc.Name}{rc}{lvl} ({disp})";
+                    }));
                 sb.AppendLine($"- Обитатели: {npcs}");
             }
             if (loc.Buildings.Count > 0)
@@ -403,6 +459,32 @@ public sealed class GameMaster
             }
         }
 
+        // Last player action — continuity hint pulled from the in-memory
+        // conversation history (the World itself doesn't store a log).
+        var lastUser = _history.LastOrDefault(m => m.Role == ChatRole.User);
+        if (lastUser?.Content is string la && !string.IsNullOrWhiteSpace(la))
+        {
+            const int MaxLen = 240;
+            var trimmed = la.Length > MaxLen ? la.Substring(0, MaxLen) + "…" : la;
+            sb.AppendLine();
+            sb.AppendLine("## Последнее действие игрока");
+            sb.AppendLine($"- {trimmed}");
+        }
+
         return sb.ToString();
+    }
+
+    /// <summary>
+    /// Best-effort string extraction from a <see cref="Entity.Flags"/> /
+    /// <see cref="World.Flags"/> entry. Values may be either plain strings
+    /// (set in-memory) or <see cref="System.Text.Json.JsonElement"/> values
+    /// (after a save round-trip). Returns null when missing or non-string.
+    /// </summary>
+    private static string? TryGetFlagString(System.Collections.Generic.Dictionary<string, object>? flags, string key)
+    {
+        if (flags is null) return null;
+        if (!flags.TryGetValue(key, out var v) || v is null) return null;
+        var s = v.ToString();
+        return string.IsNullOrWhiteSpace(s) ? null : s;
     }
 }

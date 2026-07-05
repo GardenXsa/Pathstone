@@ -221,6 +221,11 @@ public static class EntityFactory
             Name = template.Name,
             Quantity = Math.Max(1, quantity),
             Equipped = false,
+            // Denormalize the template's per-unit weight onto the instance so
+            // the inventory panel can compute carried weight without a
+            // registry lookup (older saves had Item without this field — they
+            // default to 0 until re-instantiated; see Item.Weight TODO).
+            Weight = template.Weight,
         };
     }
 

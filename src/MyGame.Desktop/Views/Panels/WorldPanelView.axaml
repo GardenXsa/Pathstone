@@ -5,6 +5,8 @@
              xmlns:vm="using:MyGame.Desktop.ViewModels.Panels"
              mc:Ignorable="d" d:DesignWidth="320" d:DesignHeight="600"
              x:Class="MyGame.Desktop.Views.Panels.WorldPanelView"
+             x:Name="Root"
+             x:CompileBindings="False"
              x:DataType="vm:WorldPanelViewModel">
 
     <ScrollViewer HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto">
@@ -48,14 +50,23 @@
                     <ItemsControl ItemsSource="{Binding Exits}">
                         <ItemsControl.ItemTemplate>
                             <DataTemplate DataType="vm:ExitRow">
-                                <Grid ColumnDefinitions="Auto,*,Auto" Margin="0,1">
-                                    <TextBlock Grid.Column="0" Text="→" Classes="Small Muted" Margin="0,0,6,0"/>
-                                    <TextBlock Grid.Column="1" Text="{Binding Direction}" Classes="Small"/>
-                                    <TextBlock Grid.Column="2" Text="{Binding ToName}" Classes="Small Muted"
-                                               IsVisible="{Binding !Locked}"/>
-                                    <TextBlock Grid.Column="2" Text="🔒" Classes="Small"
-                                               IsVisible="{Binding Locked}"/>
-                                </Grid>
+                                <Button Classes="ExitButton"
+                                        Command="{Binding DataContext.TravelCommand, ElementName=Root}"
+                                        CommandParameter="{Binding}"
+                                        IsEnabled="{Binding !Locked}"
+                                        Padding="6,3"
+                                        Margin="0,1"
+                                        HorizontalContentAlignment="Stretch"
+                                        CornerRadius="4">
+                                    <Grid ColumnDefinitions="Auto,*,Auto">
+                                        <TextBlock Grid.Column="0" Text="→" Classes="Small Muted" Margin="0,0,6,0"/>
+                                        <TextBlock Grid.Column="1" Text="{Binding Direction}" Classes="Small"/>
+                                        <TextBlock Grid.Column="2" Text="{Binding ToName}" Classes="Small Muted"
+                                                   IsVisible="{Binding !Locked}"/>
+                                        <TextBlock Grid.Column="2" Text="🔒 (заперто)" Classes="Small"
+                                                   IsVisible="{Binding Locked}"/>
+                                    </Grid>
+                                </Button>
                             </DataTemplate>
                         </ItemsControl.ItemTemplate>
                     </ItemsControl>

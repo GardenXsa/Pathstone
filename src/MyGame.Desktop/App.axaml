@@ -212,6 +212,24 @@
             <Setter Property="FontSize" Value="12" />
             <Setter Property="CornerRadius" Value="3" />
         </Style>
+        <!-- Exit-row button in WorldPanel: flat, full-width, faint border so
+             the user sees it's clickable without dominating the panel. -->
+        <Style Selector="Button.ExitButton">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="Foreground" Value="{StaticResource AppForegroundBrush}" />
+            <Setter Property="BorderBrush" Value="{StaticResource AppBorderBrush}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="CornerRadius" Value="4" />
+            <Setter Property="Padding" Value="6,3" />
+            <Setter Property="FontSize" Value="12" />
+            <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+        </Style>
+        <Style Selector="Button.ExitButton:pointerover /template/ ContentPresenter">
+            <Setter Property="Background" Value="{StaticResource AppSurfaceAltBrush}" />
+        </Style>
+        <Style Selector="Button.ExitButton:disabled /template/ ContentPresenter">
+            <Setter Property="Opacity" Value="0.55" />
+        </Style>
 
         <!-- Inputs -->
         <Style Selector="TextBox">
@@ -250,6 +268,12 @@
         </Style>
         <Style Selector="Border.ItemRow.EquippedRow">
             <Setter Property="BorderBrush" Value="{StaticResource AppAccentBrush}" />
+            <Setter Property="BorderThickness" Value="1" />
+        </Style>
+        <!-- Effects section: warm-tinted border so the user notices
+             active debuffs/buffs at a glance. -->
+        <Style Selector="Border.PanelSection.EffectsSection">
+            <Setter Property="BorderBrush" Value="#B6793A" />
             <Setter Property="BorderThickness" Value="1" />
         </Style>
         <Style Selector="Border.QuestRow">

@@ -144,6 +144,21 @@ public partial class MainViewModel : ObservableObject
     }
 
     /// <summary>
+    /// Navigate to the character-creation screen for a freshly-built world.
+    /// The save was just created by <see cref="WorldBuildViewModel"/>;
+    /// the CC screen will load it, swap the auto-created «Странник» for
+    /// the player's chosen character (name/race/class/background +
+    /// class-appropriate starter gear + attributes), persist, and then
+    /// navigate into the game via <see cref="NavigateToGame"/>.
+    /// </summary>
+    public void NavigateToCharacterCreation(string saveId)
+    {
+        var vm = new CharacterCreationViewModel(_saveManager, this, saveId);
+        vm.Title = "Создание персонажа";
+        CurrentView = vm;
+    }
+
+    /// <summary>
     /// Navigate to a single-player game loaded from an existing save.
     /// </summary>
     public Task NavigateToGame(string saveId)

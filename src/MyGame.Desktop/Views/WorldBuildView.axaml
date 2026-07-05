@@ -57,7 +57,8 @@
                     <Button Content="Отмена" Command="{Binding CancelCommand}" Classes="MenuButton"
                             IsVisible="{Binding IsBusy}"/>
                     <Button Content="Продолжить →" Command="{Binding EnterGameCommand}" Classes="MenuButton Primary"
-                            IsVisible="{Binding Completed}"/>
+                            IsVisible="{Binding Completed}"
+                            ToolTip.Tip="Перейти к созданию персонажа"/>
                     <Button Content="Повторить" Command="{Binding StartCommand}" Classes="MenuButton"
                             IsVisible="{Binding Failed}"/>
                     <Button Content="В меню" Command="{Binding BackCommand}" Classes="SmallButton"

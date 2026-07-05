@@ -237,8 +237,11 @@ public partial class WorldBuildViewModel : ViewModelBase
     private bool CanCancel() => IsBusy && _cts is not null;
 
     /// <summary>
-    /// After a successful build, navigate to the game screen with the
-    /// freshly-created save.
+    /// After a successful build, navigate to the character-creation
+    /// screen. The CC screen loads the freshly-created save, swaps the
+    /// auto-created «Странник» for the player's chosen character
+    /// (name/race/class/background + class-appropriate starter gear),
+    /// persists, and then navigates into the game itself.
     /// </summary>
     [RelayCommand(CanExecute = nameof(CanEnterGame))]
     private async Task EnterGameAsync()
@@ -253,7 +256,11 @@ public partial class WorldBuildViewModel : ViewModelBase
             FinalSummary = "Не удалось найти созданный сейв.";
             return;
         }
-        await _shell.NavigateToGame(saves[0].Id);
+        // Route through character creation instead of jumping straight
+        // into the game. The CC screen will navigate to the game itself
+        // once the player picks a class / name / background.
+        _shell.NavigateToCharacterCreation(saves[0].Id);
+        await Task.CompletedTask;
     }
 
     private bool CanEnterGame() => Completed;

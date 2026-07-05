@@ -1,6 +1,8 @@
+using System;
 using System.Collections.ObjectModel;
 using System.Linq;
 using CommunityToolkit.Mvvm.ComponentModel;
+using CommunityToolkit.Mvvm.Input;
 using MyGame.Core.Common;
 using MyGame.Core.World;
 using MyGame.Core.World.Entities;
@@ -11,11 +13,20 @@ namespace MyGame.Desktop.ViewModels.Panels;
 /// View model for the world panel. Shows the current location (with its
 /// description, exits, inhabitants, buildings, ground items), the
 /// discovered-locations map (visited + discovered flags), and the world
-/// clock. Read-only — travel happens via the GM tool flow
-/// (<c>move_player</c>) or future travel UI.
+/// clock. Exits are clickable: <see cref="TravelRequested"/> fires when
+/// the user clicks one, and the owning GameViewModel performs the actual
+/// world mutation (set LocationId, mark Visited/Discovered, log, save,
+/// and roll a random encounter if the destination is dangerous).
 /// </summary>
 public partial class WorldPanelViewModel : ObservableObject
 {
+    /// <summary>
+    /// Raised when the user clicks an exit row. The owning GameViewModel
+    /// subscribes and mutates the world directly (single-player) — moving
+    /// the active player, marking the destination visited, and rolling
+    /// a random encounter if the destination danger > 0.
+    /// </summary>
+    public event Action<ExitRow>? TravelRequested;
     /// <summary>Refresh from the given world.</summary>
     public void RefreshFromWorld(World world)
     {
@@ -124,6 +135,16 @@ public partial class WorldPanelViewModel : ObservableObject
     public bool HasBuildings => BuildingsHere.Count > 0;
     public bool HasGroundItems => GroundItems.Count > 0;
     public bool HasLocations => AllLocations.Count > 0;
+
+    // ─── Commands ────────────────────────────────────────────────────
+
+    /// <summary>
+    /// Raised by the exit-row Button in the view. Forwards the chosen
+    /// exit row to <see cref="TravelRequested"/> subscribers (the
+    /// GameViewModel owns the actual world mutation).
+    /// </summary>
+    [RelayCommand]
+    private void Travel(ExitRow exit) => TravelRequested?.Invoke(exit);
 }
 
 /// <summary>One exit from the current location.</summary>

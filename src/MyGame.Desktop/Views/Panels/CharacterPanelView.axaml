@@ -21,6 +21,19 @@
                         <Run Text=" · ур. "/>
                         <Run Text="{Binding Level}"/>
                     </TextBlock>
+                    <!-- XP / progression -->
+                    <StackPanel Spacing="2" Margin="0,2">
+                        <Grid ColumnDefinitions="*,Auto">
+                            <TextBlock Grid.Column="0" Text="Опыт" Classes="Small Muted"/>
+                            <TextBlock Grid.Column="1" Classes="Small Muted" TextAlignment="Right"
+                                       FontFamily="Cascadia Mono,Consolas,Menlo,monospace">
+                                <Run Text="{Binding Experience}"/>
+                                <Run Text="/"/>
+                                <Run Text="{Binding NextLevelXp}"/>
+                            </TextBlock>
+                        </Grid>
+                        <ProgressBar Value="{Binding XpProgress}" Maximum="100" Height="4"/>
+                    </StackPanel>
                     <TextBlock Classes="Muted Small" Text="{Binding Background}" TextWrapping="Wrap"/>
                     <TextBlock Classes="Muted Small">
                         <Run Text="Скорость: "/>
@@ -78,6 +91,30 @@
                                         <Run Text=": "/>
                                         <Run Text="{Binding ItemName}" FontWeight="SemiBold"/>
                                     </TextBlock>
+                                    <TextBlock Text="{Binding Description}" Classes="Muted Small" TextWrapping="Wrap"
+                                               IsVisible="{Binding Description, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"/>
+                                </StackPanel>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </StackPanel>
+            </Border>
+
+            <!-- Active status effects -->
+            <Border Classes="PanelSection EffectsSection" IsVisible="{Binding HasEffects}">
+                <StackPanel Spacing="4">
+                    <TextBlock Text="Эффекты" Classes="SectionTitle"/>
+                    <ItemsControl ItemsSource="{Binding Effects}">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate DataType="vm:StatusEffectRow">
+                                <StackPanel Margin="0,1" Spacing="1">
+                                    <Grid ColumnDefinitions="*,Auto">
+                                        <TextBlock Grid.Column="0" Text="{Binding Name}" FontWeight="SemiBold" Classes="Small"/>
+                                        <TextBlock Grid.Column="1" Classes="Small Muted" TextAlignment="Right">
+                                            <Run Text="{Binding Duration}"/>
+                                            <Run Text=" ход."/>
+                                        </TextBlock>
+                                    </Grid>
                                     <TextBlock Text="{Binding Description}" Classes="Muted Small" TextWrapping="Wrap"
                                                IsVisible="{Binding Description, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"/>
                                 </StackPanel>
