@@ -36,6 +36,7 @@
         <Color x:Key="AppAccentFg">#FFFFFF</Color>
         <Color x:Key="AppDanger">#E5484D</Color>
         <Color x:Key="AppSuccess">#3DD68C</Color>
+        <Color x:Key="AppWarning">#F5A623</Color>
 
         <SolidColorBrush x:Key="AppBackgroundBrush" Color="{StaticResource AppBackground}" />
         <SolidColorBrush x:Key="AppSurfaceBrush" Color="{StaticResource AppSurface}" />
@@ -47,6 +48,7 @@
         <SolidColorBrush x:Key="AppAccentFgBrush" Color="{StaticResource AppAccentFg}" />
         <SolidColorBrush x:Key="AppDangerBrush" Color="{StaticResource AppDanger}" />
         <SolidColorBrush x:Key="AppSuccessBrush" Color="{StaticResource AppSuccess}" />
+        <SolidColorBrush x:Key="AppWarningBrush" Color="{StaticResource AppWarning}" />
     </Application.Resources>
 
     <!-- Per-control style overrides for the dark game look. -->
@@ -227,6 +229,23 @@
             <Setter Property="Padding" Value="6,2" />
             <Setter Property="FontSize" Value="12" />
             <Setter Property="CornerRadius" Value="3" />
+        </Style>
+        <!-- Stat +/- button in the character-creation point-buy block.
+             Compact, accent-tinted, monospace label. Disabled state
+             (no points left / stat at 0) fades to 30% opacity. -->
+        <Style Selector="Button.StatButton">
+            <Setter Property="Padding" Value="0" />
+            <Setter Property="FontSize" Value="16" />
+            <Setter Property="FontWeight" Value="Bold" />
+            <Setter Property="CornerRadius" Value="3" />
+            <Setter Property="HorizontalContentAlignment" Value="Center" />
+            <Setter Property="VerticalContentAlignment" Value="Center" />
+            <Setter Property="Background" Value="{DynamicResource AppAccentBrush}" />
+            <Setter Property="Foreground" Value="{DynamicResource AppAccentFgBrush}" />
+            <Setter Property="BorderThickness" Value="0" />
+        </Style>
+        <Style Selector="Button.StatButton:disabled /template/ ContentPresenter">
+            <Setter Property="Opacity" Value="0.3" />
         </Style>
         <!-- Exit-row button in WorldPanel: flat, full-width, faint border so
              the user sees it's clickable without dominating the panel. -->

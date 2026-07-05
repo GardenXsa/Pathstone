@@ -3,7 +3,7 @@
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              xmlns:vm="using:MyGame.Desktop.ViewModels"
-             mc:Ignorable="d" d:DesignWidth="800" d:DesignHeight="600"
+             mc:Ignorable="d" d:DesignWidth="800" d:DesignHeight="700"
              x:Class="MyGame.Desktop.Views.CharacterCreationView"
              x:DataType="vm:CharacterCreationViewModel">
 
@@ -26,60 +26,128 @@
             <TextBlock Text="{Binding ErrorMessage}" />
         </Border>
 
-        <ScrollViewer HorizontalScrollBarVisibility="Disabled">
-            <StackPanel Margin="32,24" Spacing="18" MaxWidth="720" HorizontalAlignment="Center">
+        <ScrollViewer HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto">
+            <StackPanel Margin="32,24" Spacing="18" MaxWidth="520" HorizontalAlignment="Center">
 
-                <TextBlock Text="Создайте своего героя" Classes="ScreenTitle"
-                           HorizontalAlignment="Center"/>
-
-                <TextBlock Text="Мир готов. Теперь выберите, кем войдёте в него. Стартовые характеристики, снаряжение и владения зависят от класса."
-                           Classes="Muted Small" TextWrapping="Wrap" TextAlignment="Center"/>
+                <StackPanel Spacing="4" HorizontalAlignment="Center">
+                    <TextBlock Text="Создайте своего героя" Classes="ScreenTitle"
+                               HorizontalAlignment="Center"/>
+                    <TextBlock Text="Мир готов. Теперь выберите, кем войдёте в него."
+                               Classes="Muted Small" TextWrapping="Wrap" TextAlignment="Center"/>
+                </StackPanel>
 
                 <!-- Name -->
                 <StackPanel Spacing="6">
                     <TextBlock Text="Имя" Classes="FieldLabel"/>
-                    <TextBox Text="{Binding Name}" PlaceholderText="Например: Странник"
+                    <TextBox Text="{Binding Name}" PlaceholderText="Введите имя персонажа"
+                            
                              ToolTip.Tip="Имя персонажа"/>
                 </StackPanel>
 
-                <!-- Race + Class + Background -->
-                <Grid ColumnDefinitions="*,*,*" Margin="0,4,0,0">
+                <!-- Race + Class (free-form text, per TS original) -->
+                <Grid ColumnDefinitions="*,*" Margin="0,4,0,0">
                     <StackPanel Grid.Column="0" Spacing="6" Margin="0,0,8,0">
-                        <TextBlock Text="Раса" Classes="FieldLabel"/>
-                        <ComboBox ItemsSource="{Binding RaceOptions}"
-                                  SelectedItem="{Binding Race}"
-                                  HorizontalAlignment="Stretch"
-                                  ToolTip.Tip="Выберите расу"/>
+                        <TextBlock Text="Происхождение" Classes="FieldLabel"/>
+                        <TextBox Text="{Binding Race}"
+                                 PlaceholderText="Человек, эльф, гном…"
+                                 ToolTip.Tip="Происхождение / раса персонажа"/>
                     </StackPanel>
-                    <StackPanel Grid.Column="1" Spacing="6" Margin="0,0,8,0">
-                        <TextBlock Text="Класс" Classes="FieldLabel"/>
-                        <ComboBox ItemsSource="{Binding ClassOptions}"
-                                  SelectedItem="{Binding Class}"
-                                  HorizontalAlignment="Stretch"
-                                  ToolTip.Tip="Выберите класс"/>
-                    </StackPanel>
-                    <StackPanel Grid.Column="2" Spacing="6">
-                        <TextBlock Text="Предыстория" Classes="FieldLabel"/>
-                        <ComboBox ItemsSource="{Binding BackgroundOptions}"
-                                  SelectedItem="{Binding Background}"
-                                  HorizontalAlignment="Stretch"
-                                  ToolTip.Tip="Выберите предысторию"/>
+                    <StackPanel Grid.Column="1" Spacing="6">
+                        <TextBlock Text="Роль" Classes="FieldLabel"/>
+                        <TextBox Text="{Binding Class}"
+                                 PlaceholderText="Странник, воин, маг…"
+                                 ToolTip.Tip="Класс / роль персонажа"/>
                     </StackPanel>
                 </Grid>
 
-                <!-- Preview -->
-                <Border Classes="InfoBox" Padding="12">
-                    <StackPanel Spacing="4">
-                        <TextBlock Text="Предпросмотр класса" Classes="SectionTitle"/>
-                        <TextBlock Text="{Binding PreviewText}" Classes="Small"
-                                   TextWrapping="Wrap"
-                                   FontFamily="Cascadia Mono,Consolas,Menlo,monospace"/>
+                <!-- Background -->
+                <StackPanel Spacing="6">
+                    <TextBlock Text="Предыстория" Classes="FieldLabel"/>
+                    <TextBox Text="{Binding Background}"
+                             PlaceholderText="Кто вы, откуда, зачем сюда пришли…"
+                             ToolTip.Tip="Предыстория персонажа"/>
+                </StackPanel>
+
+                <!-- Point-buy stats block -->
+                <Border Classes="PanelSection" Padding="12,10" Margin="0,4,0,0">
+                    <StackPanel Spacing="10">
+
+                        <!-- Header: label + remaining points -->
+                        <Grid ColumnDefinitions="*,Auto">
+                            <TextBlock Grid.Column="0" Text="Характеристики" Classes="SectionTitle"/>
+                            <TextBlock Grid.Column="1" VerticalAlignment="Center"
+                                       Text="{Binding RemainingPoints, StringFormat='Очки: {0} / 20'}"
+                                       FontFamily="Cascadia Mono,Consolas,Menlo,monospace"
+                                       FontWeight="SemiBold"
+                                       Foreground="{DynamicResource AppAccentBrush}"/>
+                        </Grid>
+
+                        <!-- 6 attribute rows -->
+                        <ItemsControl ItemsSource="{Binding Stats}">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate DataType="vm:StatRow">
+                                    <Border Margin="0,0,0,4" Padding="8,5"
+                                            BorderBrush="{DynamicResource AppBorderBrush}"
+                                            BorderThickness="1" CornerRadius="4"
+                                            Background="{DynamicResource AppSurfaceAltBrush}">
+                                        <Grid ColumnDefinitions="*,Auto,Auto">
+                                            <!-- Name + abbr + description -->
+                                            <StackPanel Grid.Column="0" Spacing="0">
+                                                <StackPanel Orientation="Horizontal" Spacing="6">
+                                                    <TextBlock Text="{Binding Name}" FontWeight="SemiBold" FontSize="13"/>
+                                                    <TextBlock Text="{Binding Abbr}" Classes="Muted Small"
+                                                               FontFamily="Cascadia Mono,Consolas,Monospace"/>
+                                                </StackPanel>
+                                                <TextBlock Text="{Binding Desc}" Classes="Muted Small"
+                                                           FontSize="11" Opacity="0.7"/>
+                                            </StackPanel>
+                                            <!-- Value -->
+                                            <TextBlock Grid.Column="1" VerticalAlignment="Center"
+                                                       Text="{Binding Value}"
+                                                       MinWidth="40" TextAlignment="Center"
+                                                       FontSize="18" FontWeight="Bold"
+                                                       FontFamily="Cascadia Mono,Consolas,Menlo,monospace"
+                                                       Margin="10,0"/>
+                                            <!-- +/- buttons -->
+                                            <StackPanel Grid.Column="2" Spacing="2" VerticalAlignment="Center">
+                                                <Button Content="+"
+                                                        Command="{Binding $parent[ItemsControl].((vm:CharacterCreationViewModel)DataContext).IncrementCommand}"
+                                                        CommandParameter="{Binding Key}"
+                                                        Classes="StatButton"
+                                                        Width="26" Height="20" Padding="0"
+                                                        ToolTip.Tip="Увеличить"/>
+                                                <Button Content="−"
+                                                        Command="{Binding $parent[ItemsControl].((vm:CharacterCreationViewModel)DataContext).DecrementCommand}"
+                                                        CommandParameter="{Binding Key}"
+                                                        Classes="StatButton"
+                                                        Width="26" Height="20" Padding="0"
+                                                        ToolTip.Tip="Уменьшить"/>
+                                            </StackPanel>
+                                        </Grid>
+                                    </Border>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+
+                        <!-- Low-stat warnings (INT 0 / CHA 0) -->
+                        <StackPanel Spacing="2" IsVisible="{Binding HasLowIntelligence}">
+                            <TextBlock Text="⚠ Интеллект 0: ты еле связываешь слова. NPC не будут тебя понимать."
+                                       Classes="Muted Small" FontSize="11"
+                                       Foreground="{DynamicResource AppWarningBrush}"
+                                       TextWrapping="Wrap"/>
+                        </StackPanel>
+                        <StackPanel Spacing="2" IsVisible="{Binding HasLowCharisma}">
+                            <TextBlock Text="⚠ Харизма 0: ты отталкиваешь людей. NPC будут грубить и отказывать."
+                                       Classes="Muted Small" FontSize="11"
+                                       Foreground="{DynamicResource AppWarningBrush}"
+                                       TextWrapping="Wrap"/>
+                        </StackPanel>
                     </StackPanel>
                 </Border>
 
                 <!-- Action buttons -->
                 <StackPanel Spacing="10" HorizontalAlignment="Center" Margin="0,8,0,0">
-                    <Button Content="Создать персонажа →" Command="{Binding CreateCommand}"
+                    <Button Content="Начать игру →" Command="{Binding CreateCommand}"
                             Classes="MenuButton Primary"
                             HorizontalAlignment="Stretch"
                             ToolTip.Tip="Создать персонажа и начать игру"/>
@@ -88,7 +156,7 @@
                             ToolTip.Tip="Вернуться в меню"/>
                 </StackPanel>
 
-                <TextBlock Text="После создания персонажа мир загрузится в одиночном режиме. Старый персонаж «Странник» будет заменён."
+                <TextBlock Text="Стартовое снаряжение выдаст Мастер игры во вступительной сцене."
                            Classes="Muted Small" TextWrapping="Wrap" TextAlignment="Center"/>
             </StackPanel>
         </ScrollViewer>

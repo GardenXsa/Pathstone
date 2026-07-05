@@ -302,19 +302,31 @@ public static class DefaultWorld
             world.Quests.Add(caravanQuest);
         }
 
-        // ─── No starting player ───────────────────────────────────────────
-        // The world is created WITHOUT a player. The player is created on
-        // the CharacterCreation screen (single-player + host) or the
-        // multiplayer character-create step, where the user picks name /
-        // race / class / background — and the class profile grants the
-        // appropriate starter gear (see CharacterCreationViewModel.
-        // GetClassProfile). Pre-equipping an auto-player «Странник» here
-        // would bypass the user's class choice and ignore the
-        // StartSceneAgent's role-appropriate setup (issue #106).
-        //
-        // The village is still marked Visited/Discovered so the
-        // CharacterCreation screen can default the starting location to
-        // the village (the most sensible spawn point for this world).
+        // ─── Pending player (placeholder, empty inventory) ───────────────
+        // Per the TS original (createNewWorld + buildDefaultWorld): the
+        // world ships with a PENDING placeholder player. The user creates
+        // their real character on the CharacterCreation screen — that
+        // flow takes this pending player's locationId + (empty) inventory
+        // + (empty) equipped, and replaces the identity with the chosen
+        // name/race/class/background/attributes (see
+        // CharacterCreationViewModel.CreateAsync → mirrors TS
+        // createPlayerInBuiltWorld). Starter gear is NOT granted here —
+        // the StartSceneAgent grants it via AI tools (give_item /
+        // equip_player / create_item_template) during the opening turn,
+        // matching the TS original's design where the agent owns item
+        // grants (defaultWorld.ts: "Starting gear is NO LONGER granted
+        // by the engine here. The GM agent owns item grants").
+        var pendingPlayer = EntityFactory.CreatePlayer(new()
+        {
+            Name = "__PENDING_CHARACTER__",
+            Race = "pending",
+            Class = "pending",
+            Level = 1,
+            LocationId = village.Id,
+            StartingCurrency = 15,
+            ProficientSkills = new[] { "perception", "survival", "athletics" },
+        }, ruleset);
+        world.SpawnPlayer(pendingPlayer);
 
         return world;
     }

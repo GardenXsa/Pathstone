@@ -115,3 +115,29 @@ public sealed class SplitMaxMinusOneConverter : IValueConverter
     public object? ConvertBack(object? value, Type targetType, object? parameter, CultureInfo culture)
         => throw new NotSupportedException("SplitMaxMinusOneConverter is one-way only.");
 }
+
+/// <summary>
+/// One-way string-equality → bool converter. Returns true when the bound
+/// string value equals the <c>ConverterParameter</c> (case-insensitive).
+/// Used in the game's story feed to toggle the visibility of per-kind
+/// chat bubbles (narrative / action / tool / system) inside a single
+/// <c>DataTemplate</c> — each bubble's <c>IsVisible</c> is bound to
+/// <c>Kind</c> via this converter with the matching <c>ConverterParameter</c>.
+/// Port of the TS <c>AgentFeed</c>'s role-based bubble switching.
+/// </summary>
+public sealed class StringEqualsConverter : IValueConverter
+{
+    /// <summary>Shared immutable instance for XAML {x:Static} use.</summary>
+    public static readonly StringEqualsConverter Instance = new();
+
+    public object? Convert(object? value, Type targetType, object? parameter, CultureInfo culture)
+    {
+        var s = value as string;
+        var p = parameter as string;
+        if (s is null || p is null) return false;
+        return string.Equals(s, p, StringComparison.OrdinalIgnoreCase);
+    }
+
+    public object? ConvertBack(object? value, Type targetType, object? parameter, CultureInfo culture)
+        => throw new NotSupportedException("StringEqualsConverter is one-way only.");
+}

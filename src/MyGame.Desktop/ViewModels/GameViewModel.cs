@@ -787,6 +787,29 @@ public partial class GameViewModel : ViewModelBase
     private bool CanSubmitAction() => CanSubmit && !IsWaiting && !IsLobby && !IsLocalSpectator;
 
     /// <summary>
+    /// Quick action — send a canned player action immediately. Port of the
+    /// TS PlayerInput's QUICK_ACTIONS row (осмотреться / обыскать / отдохнуть
+    /// / путешествовать / поговорить). The <c>CommandParameter</c> is the
+    /// action key (look/search/rest/travel/talk); the matching Russian text
+    /// is sent to the GM. Skips typing for the most common exploration moves.
+    /// </summary>
+    [RelayCommand(CanExecute = nameof(CanSubmitAction))]
+    private async Task QuickActionAsync(string key)
+    {
+        var text = key switch
+        {
+            "look"   => "Я осматриваюсь вокруг. Что я вижу?",
+            "search" => "Я обыскиваю окрестности в поисках чего-нибудь интересного.",
+            "rest"   => "Я хочу немного отдохнуть и перевести дух.",
+            "travel" => "Я хочу отправиться дальше. Куда можно пойти?",
+            "talk"   => "Я хочу поговорить с тем, кто рядом.",
+            _ => key,
+        };
+        CurrentAction = text;
+        await SubmitActionAsync();
+    }
+
+    /// <summary>
     /// Send a chat message (lobby chat in multiplayer; in single-player
     /// this is a no-op since there's nobody to chat with).
     /// </summary>

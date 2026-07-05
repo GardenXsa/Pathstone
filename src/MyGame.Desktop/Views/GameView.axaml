@@ -314,48 +314,148 @@
                          Hidden in lobby mode. -->
                     <DockPanel LastChildFill="True"
                                IsVisible="{Binding !IsLobby}">
-                        <!-- Input box at bottom -->
-                        <Border DockPanel.Dock="Bottom" Classes="InputBar" Padding="8">
-                            <Grid ColumnDefinitions="*,Auto">
-                                <TextBox Grid.Column="0" x:Name="ActionInput" Text="{Binding CurrentAction}" AutomationProperties.Name="Поле ввода действия игрока"
-                                         PlaceholderText="Опишите действие вашего персонажа…"
-                                         IsEnabled="{Binding CanSubmit}"
-                                         KeyDown="OnActionKeyDown"
-                                         ToolTip.Tip="Опишите действие вашего персонажа"/>
-                                <Button Grid.Column="1" Content="Отправить" AutomationProperties.Name="Отправить действие игровому мастеру"
-                                        Command="{Binding SubmitActionCommand}"
-                                        Classes="SmallButton Primary"
-                                        Margin="6,0,0,0"
-                                        IsEnabled="{Binding CanSubmit}"
-                                        ToolTip.Tip="Отправить действие GM"/>
-                            </Grid>
+                        <!-- Input box at bottom — quick actions row + text field + send -->
+                        <Border DockPanel.Dock="Bottom" Classes="InputBar" Padding="8,6">
+                            <StackPanel Spacing="4">
+                                <!-- Quick actions (port of TS PlayerInput QUICK_ACTIONS).
+                                     One-tap canned exploration moves. -->
+                                <StackPanel Orientation="Horizontal" Spacing="4"
+                                            IsVisible="{Binding CanSubmit}">
+                                    <Button Content="👁 Осмотреться"
+                                            Command="{Binding QuickActionCommand}"
+                                            CommandParameter="look"
+                                            Classes="TinyButton"
+                                            IsEnabled="{Binding CanSubmit}"
+                                            ToolTip.Tip="Осмотреться вокруг"/>
+                                    <Button Content="🔍 Обыскать"
+                                            Command="{Binding QuickActionCommand}"
+                                            CommandParameter="search"
+                                            Classes="TinyButton"
+                                            IsEnabled="{Binding CanSubmit}"
+                                            ToolTip.Tip="Обыскать окрестности"/>
+                                    <Button Content="💤 Отдохнуть"
+                                            Command="{Binding QuickActionCommand}"
+                                            CommandParameter="rest"
+                                            Classes="TinyButton"
+                                            IsEnabled="{Binding CanSubmit}"
+                                            ToolTip.Tip="Отдохнуть"/>
+                                    <Button Content="🚶 Путешествовать"
+                                            Command="{Binding QuickActionCommand}"
+                                            CommandParameter="travel"
+                                            Classes="TinyButton"
+                                            IsEnabled="{Binding CanSubmit}"
+                                            ToolTip.Tip="Отправиться дальше"/>
+                                    <Button Content="💬 Поговорить"
+                                            Command="{Binding QuickActionCommand}"
+                                            CommandParameter="talk"
+                                            Classes="TinyButton"
+                                            IsEnabled="{Binding CanSubmit}"
+                                            ToolTip.Tip="Поговорить с тем, кто рядом"/>
+                                </StackPanel>
+                                <Grid ColumnDefinitions="*,Auto">
+                                    <TextBox Grid.Column="0" x:Name="ActionInput" Text="{Binding CurrentAction}" AutomationProperties.Name="Поле ввода действия игрока"
+                                             PlaceholderText="Опишите действие вашего персонажа…"
+                                             IsEnabled="{Binding CanSubmit}"
+                                             KeyDown="OnActionKeyDown"
+                                             ToolTip.Tip="Опишите действие вашего персонажа"/>
+                                    <Button Grid.Column="1" Content="Отправить" AutomationProperties.Name="Отправить действие игровому мастеру"
+                                            Command="{Binding SubmitActionCommand}"
+                                            Classes="SmallButton Primary"
+                                            Margin="6,0,0,0"
+                                            IsEnabled="{Binding CanSubmit}"
+                                            ToolTip.Tip="Отправить действие GM"/>
+                                </Grid>
+                            </StackPanel>
                         </Border>
 
-                        <!-- Narrative stream -->
+                        <!-- Story feed — chat-style bubbles. Port of TS AgentFeed:
+                             - narrative (GM) → LEFT bubble with "ГМ" label
+                             - action (player) → RIGHT bubble, accent, italic
+                             - tool → LEFT compact mechanic card
+                             - system → HIDDEN (directorial/engine noise)
+                             Streaming text shows as a left GM bubble while the
+                             GM is actively generating a turn. -->
                         <ScrollViewer x:Name="NarrativeScroll"
                                       HorizontalScrollBarVisibility="Disabled"
                                       VerticalScrollBarVisibility="Auto"
                                       Padding="8">
-                            <StackPanel>
+                            <StackPanel Spacing="4">
                                 <ItemsControl ItemsSource="{Binding Log}">
                                     <ItemsControl.ItemTemplate>
                                         <DataTemplate DataType="core:LogEntry">
-                                            <Border Classes="LogEntry" Padding="6,4">
-                                                <TextBlock Text="{Binding Text}" TextWrapping="Wrap"/>
-                                            </Border>
+                                            <Panel Margin="0,2">
+
+                                                <!-- NARRATIVE (GM) — left bubble -->
+                                                <Border HorizontalAlignment="Left"
+                                                        MaxWidth="560"
+                                                        IsVisible="{Binding Kind, Converter={x:Static conv:StringEqualsConverter.Instance}, ConverterParameter=narrative}"
+                                                        CornerRadius="10,10,10,2"
+                                                        BorderBrush="{DynamicResource AppBorderBrush}"
+                                                        BorderThickness="1"
+                                                        Background="{DynamicResource AppSurfaceAltBrush}"
+                                                        Padding="10,6" Margin="0,1">
+                                                    <StackPanel Spacing="2">
+                                                        <TextBlock Text="ГМ" FontSize="10" FontWeight="SemiBold"
+                                                                   Foreground="{DynamicResource AppAccentBrush}"/>
+                                                        <TextBlock Text="{Binding Text}" TextWrapping="Wrap"
+                                                                   FontSize="13" LineHeight="18"/>
+                                                    </StackPanel>
+                                                </Border>
+
+                                                <!-- ACTION (player) — right bubble, accent, italic -->
+                                                <Border HorizontalAlignment="Right"
+                                                        MaxWidth="520"
+                                                        IsVisible="{Binding Kind, Converter={x:Static conv:StringEqualsConverter.Instance}, ConverterParameter=action}"
+                                                        CornerRadius="10,10,2,10"
+                                                        Background="{DynamicResource AppAccentBrush}"
+                                                        BorderThickness="0"
+                                                        Padding="10,6" Margin="0,1">
+                                                    <TextBlock Text="{Binding Text}" TextWrapping="Wrap"
+                                                               Foreground="{DynamicResource AppAccentFgBrush}"
+                                                               FontStyle="Italic" FontSize="13" LineHeight="18"/>
+                                                </Border>
+
+                                                <!-- TOOL — left compact mechanic card -->
+                                                <Border HorizontalAlignment="Left"
+                                                        MaxWidth="500"
+                                                        IsVisible="{Binding Kind, Converter={x:Static conv:StringEqualsConverter.Instance}, ConverterParameter=tool}"
+                                                        CornerRadius="4"
+                                                        BorderBrush="{DynamicResource AppBorderBrush}"
+                                                        BorderThickness="1,1,1,1"
+                                                        Background="{DynamicResource AppSurfaceBrush}"
+                                                        Padding="8,4" Margin="0,1">
+                                                    <StackPanel Spacing="1">
+                                                        <TextBlock Text="🔧 инструмент" FontSize="10"
+                                                                   Foreground="{DynamicResource AppMutedBrush}"
+                                                                   FontFamily="Cascadia Mono,Consolas,Menlo,monospace"/>
+                                                        <TextBlock Text="{Binding Text}" TextWrapping="Wrap"
+                                                                   FontSize="11" LineHeight="15"
+                                                                   FontFamily="Cascadia Mono,Consolas,Menlo,monospace"
+                                                                   Foreground="{DynamicResource AppMutedBrush}"/>
+                                                    </StackPanel>
+                                                </Border>
+
+                                                <!-- SYSTEM → hidden (directorial / engine noise) -->
+                                            </Panel>
                                         </DataTemplate>
                                     </ItemsControl.ItemTemplate>
                                 </ItemsControl>
-                                <!-- Live-streaming narrative text (issue #5).
-                                     Bound to StreamingNarrativeText on the VM,
-                                     which is throttled to ~50ms-per-update to
-                                     avoid flooding the UI. Visible only while
-                                     the GM is actively streaming a turn; cleared
-                                     the moment the final NarrativeResult is
-                                     appended to the Log above. -->
-                                <Border Classes="LogEntry StreamingEntry" Padding="6,4"
+                                <!-- Live-streaming narrative text — left GM bubble
+                                     while the GM is actively generating a turn. -->
+                                <Border HorizontalAlignment="Left"
+                                        MaxWidth="560"
+                                        CornerRadius="10,10,10,2"
+                                        BorderBrush="{DynamicResource AppAccentBrush}"
+                                        BorderThickness="1"
+                                        Background="{DynamicResource AppSurfaceAltBrush}"
+                                        Padding="10,6" Margin="0,1"
                                         IsVisible="{Binding StreamingNarrativeText, Converter={x:Static StringConverters.IsNotNullOrEmpty}}">
-                                    <TextBlock Text="{Binding StreamingNarrativeText}" TextWrapping="Wrap"/>
+                                    <StackPanel Spacing="2">
+                                        <TextBlock Text="ГМ пишет…" FontSize="10" FontWeight="SemiBold"
+                                                   Foreground="{DynamicResource AppAccentBrush}"/>
+                                        <TextBlock Text="{Binding StreamingNarrativeText}" TextWrapping="Wrap"
+                                                   FontSize="13" LineHeight="18"/>
+                                    </StackPanel>
                                 </Border>
                             </StackPanel>
                         </ScrollViewer>
