@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Text;
 using System.Text.Json;
 using MyGame.Core.AI.Prompts;
@@ -158,52 +159,89 @@ public sealed class GameMaster
     public Task<NarrativeResult> ProcessActionAsync(
         string playerAction,
         CancellationToken ct = default)
-        => ProcessActionAsync(playerAction, narrativeDelta: null, ct);
+        => ProcessActionBatchAsync(new[] { playerAction }, narrativeDelta: null, ct);
 
     /// <summary>
     /// Process one player action with optional streaming narrative deltas.
-    ///
-    /// <para>
-    /// Same loop as the parameterless overload, but each iteration uses
-    /// <see cref="AiClient.StreamChatWithToolsAsync"/> so the assistant's
-    /// content deltas are forwarded to <paramref name="narrativeDelta"/>
-    /// as they arrive (giving the UI a live-typing feel). Tool-call
-    /// deltas are accumulated internally and processed identically to the
-    /// non-streaming path.
-    /// </para>
-    ///
-    /// <para>
-    /// <b>Anti-loop</b>: after each tool call, the
-    /// <see cref="LoopDetector"/> checks for repetition (direct repeat or
-    /// ping-pong pattern). If detected, a Russian-language system nudge is
-    /// injected into the working history telling the GM to vary its
-    /// approach. The loop is NOT broken — the GM is given a chance to
-    /// self-correct. Up to <see cref="LoopDetector.MaxNudges"/> nudges per
-    /// turn; beyond that, <see cref="_maxIterations"/> caps termination.
-    /// </para>
     /// </summary>
-    /// <param name="playerAction">The user's free-text action.</param>
-    /// <param name="narrativeDelta">Optional <see cref="IProgress{T}"/>
-    /// that receives each streamed content delta. The Progress handler is
-    /// posted on the captured SynchronizationContext (UI thread when the
-    /// caller is on the UI thread). Null = no streaming callback (final
-    /// narration is returned in <see cref="NarrativeResult.NarrativeText"/>
-    /// as before).</param>
-    /// <param name="ct">Cancellation token — aborts the in-flight HTTP
-    /// stream and propagates <see cref="OperationCanceledException"/>.</param>
-    public async Task<NarrativeResult> ProcessActionAsync(
+    public Task<NarrativeResult> ProcessActionAsync(
         string playerAction,
         IProgress<string>? narrativeDelta,
         CancellationToken ct = default)
+        => ProcessActionBatchAsync(new[] { playerAction }, narrativeDelta, ct);
+
+    /// <summary>
+    /// Process a batch of player actions in a single GM turn. This is the
+    /// "action_queue" turn model: all players act, the GM resolves the
+    /// actions together in one narration + tool-call loop.
+    ///
+    /// <list type="bullet">
+    ///   <item><c>actions.Count == 0</c> → returns immediately with an
+    ///     empty result (no-op).</item>
+    ///   <item><c>actions.Count == 1</c> → identical to the legacy
+    ///     single-action <see cref="ProcessActionAsync(string, CancellationToken)"/>
+    ///     call (the player action becomes the lone user message).</item>
+    ///   <item><c>actions.Count &gt; 1</c> → builds a single combined user
+    ///     message listing the numbered actions and runs the GM once. The
+    ///     GM narrates the resolution of ALL actions in one scene.</item>
+    /// </list>
+    ///
+    /// <para><b>Prompt structure (issue #89):</b> the system prompt is
+    /// built from <c>system.md</c> (rules) + <c>narrator.md</c> (style
+    /// guide) + <c>tools-guide.md</c> (tool reference) + a static
+    /// world-lore block (title, theme, setting, atmosphere, starting
+    /// hook). All of these change ONLY on world rebuild, so the system
+    /// prompt is byte-identical across turns within a session — which
+    /// lets the AI provider cache it server-side. The dynamic per-turn
+    /// world state (player, location, NPCs, time, last action) is sent
+    /// as a SEPARATE user message right before the player action,
+    /// labeled <c>## ТЕКУЩЕЕ СОСТОЯНИЕ МИРА</c>, so it doesn't
+    /// invalidate the cached system prefix.</para>
+    /// </summary>
+    /// <param name="actions">Player action texts. Order is preserved in
+    /// the combined prompt (1-indexed list).</param>
+    /// <param name="narrativeDelta">Optional streaming callback. See
+    /// <see cref="ProcessActionAsync(string, IProgress{string}, CancellationToken)"/>.</param>
+    /// <param name="ct">Cancellation token.</param>
+    public async Task<NarrativeResult> ProcessActionBatchAsync(
+        IReadOnlyList<string> actions,
+        IProgress<string>? narrativeDelta = null,
+        CancellationToken ct = default)
     {
+        if (actions is null || actions.Count == 0)
+        {
+            return new NarrativeResult { NarrativeText = string.Empty };
+        }
+
+        var playerAction = actions.Count == 1
+            ? actions[0]
+            : BuildBatchActionMessage(actions);
+
         if (string.IsNullOrWhiteSpace(playerAction))
-            throw new ArgumentException("playerAction is required.", nameof(playerAction));
+            throw new ArgumentException("Action text is required.", nameof(actions));
 
         // Reset the loop detector for this turn — signatures don't carry
         // across turns.
         _loopDetector.Reset();
 
+        // Build the STATIC system prompt (system.md + narrator.md +
+        // tools-guide.md + STATIC_WORLD_LORE). Identical across turns
+        // within a session → eligible for provider-side prompt caching.
         var systemPrompt = BuildSystemPrompt();
+
+        // Verification hook (issue #89): when MYGAME_VERIFY_STATIC_PROMPT=1,
+        // assert that the system prompt is byte-identical to the previous
+        // turn's. If it differs, the cache is being defeated — log a
+        // warning so the dev sees it. (No-op in production unless the
+        // env var is set.)
+        VerifyStaticSystemPrompt(systemPrompt);
+
+        // Dynamic per-turn world state (player, location, NPCs, time,
+        // last action). Goes in a separate user message labeled clearly
+        // as context, NOT as a player command. This keeps the cached
+        // system prefix untouched.
+        var worldStateBlock = "## ТЕКУЩЕЕ СОСТОЯНИЕ МИРА\n" + BuildWorldStateBlock();
+
         var toolDefs = _tools.Definitions.ToList();
         var working = new List<ChatMessage>();
         working.Add(ChatMessage.System(systemPrompt));
@@ -213,6 +251,13 @@ public sealed class GameMaster
             ? _history.Skip(_history.Count - MessagesConstants.MaxConversationMessages).ToList()
             : _history;
         working.AddRange(trimmedHistory);
+        working.Add(ChatMessage.User(worldStateBlock));
+        // firstNewIdx marks where the per-turn messages start. Everything
+        // from here onward is new this turn and gets persisted to
+        // _history (the world-state context-refresh message is NOT
+        // persisted — it's per-turn and would otherwise leave stale
+        // snapshots in history).
+        var firstNewIdx = working.Count;
         working.Add(ChatMessage.User(playerAction));
 
         var narration = new StringBuilder();
@@ -303,13 +348,11 @@ public sealed class GameMaster
 
             // Persist the new messages from this turn into the in-memory
             // history (excluding the system prompt, which is rebuilt each
-            // turn). The first message in `working` is the system prompt;
-            // the second-through-second-to-last are prior history (already
-            // in _history); the last N are this turn's new messages.
-            // Simpler: skip system (idx 0) and the trimmed history, take
-            // the rest.
+            // turn, AND excluding the per-turn world-state user message,
+            // which would leave stale state snapshots in history). The
+            // first new message is the player action at firstNewIdx.
             var newMessages = working
-                .Skip(1 + trimmedHistory.Count)
+                .Skip(firstNewIdx)
                 .ToList();
             _history.AddRange(newMessages);
             TrimHistory();
@@ -329,11 +372,12 @@ public sealed class GameMaster
         {
             // Even on failure, persist whatever messages we accumulated so
             // the next turn can continue from where we left off (the TS
-            // source did the same).
-            var userActionIdx = working.FindIndex(m => m.Role == ChatRole.User && m.Content == playerAction);
-            if (userActionIdx >= 0)
+            // source did the same). Persist from the player action
+            // (firstNewIdx) onwards — the per-turn world-state user
+            // message is excluded to avoid stale snapshots in history.
+            if (firstNewIdx < working.Count)
             {
-                _history.AddRange(working.Skip(userActionIdx));
+                _history.AddRange(working.Skip(firstNewIdx));
                 TrimHistory();
             }
 
@@ -359,40 +403,126 @@ public sealed class GameMaster
     }
 
     /// <summary>
-    /// Build the system prompt: load the <c>system.md</c> template and
-    /// fill in the <c>{{WORLD_STATE}}</c>, <c>{{ITEM_TEMPLATES}}</c>,
-    /// <c>{{NPC_TEMPLATES}}</c>, <c>{{BUILDING_TEMPLATES}}</c>
-    /// placeholders with a minimal world snapshot.
+    /// Build the combined user-message text for a batch of player actions.
+    /// Renders as a numbered Russian list so the GM knows multiple players
+    /// are acting in one turn and resolves them in one narration. Example:
+    /// <code>
+    /// ## Действия игроков в этом ходу:
     ///
-    /// The TS source's <c>buildStableSystemPrompt</c> + <c>buildLiveStatePrompt</c>
-    /// produced a rich ~10KB block with attributes, resources, equipment,
-    /// inventory, log tail, all-locations overview, world lore, etc. We
-    /// ship a much smaller snapshot here — enough for the GM to know who
-    /// the player is, where they are, and what templates are available.
-    /// A later task can port the full rendering.
+    /// 1. атакую гоблина мечом
+    /// 2. кастую огненный шар
+    /// </code>
+    /// </summary>
+    private static string BuildBatchActionMessage(IReadOnlyList<string> actions)
+    {
+        var sb = new StringBuilder();
+        sb.AppendLine("## Действия игроков в этом ходу:");
+        sb.AppendLine();
+        for (int i = 0; i < actions.Count; i++)
+        {
+            sb.AppendLine($"{i + 1}. {actions[i]}");
+        }
+        return sb.ToString();
+    }
+
+    /// <summary>
+    /// Build the STATIC system prompt: <c>system.md</c> (rules) +
+    /// <c>narrator.md</c> (style guide) + <c>tools-guide.md</c> (tool
+    /// reference) + a static world-lore block. All components change only
+    /// on world rebuild, NOT per-turn — so the system prompt is
+    /// byte-identical across turns within a session, which lets the AI
+    /// provider cache it server-side (issue #89).
+    ///
+    /// <para>
+    /// The <c>system.md</c> template's <c>{{WORLD_STATE}}</c> placeholder
+    /// was removed in favor of a separate per-turn user message (see
+    /// <see cref="ProcessActionBatchAsync"/>). The
+    /// <c>{{STATIC_WORLD_LORE}}</c> placeholder is filled here with world
+    /// title + theme + setting + atmosphere + starting hook (read from
+    /// <see cref="World.World.Flags"/>). The
+    /// <c>{{ITEM_TEMPLATES}}</c> / <c>{{NPC_TEMPLATES}}</c> /
+    /// <c>{{BUILDING_TEMPLATES}}</c> placeholders are filled with the
+    /// current registry contents (which only change on world rebuild).
+    /// </para>
     /// </summary>
     private string BuildSystemPrompt()
     {
-        var worldState = BuildWorldStateBlock();
+        var staticLore = BuildStaticWorldLoreBlock();
         var itemTpls = string.Join(", ", _world.Registries.Items.All().Select(t => t.Id).OrderBy(s => s).Take(30));
         var npcTpls = string.Join(", ", _world.Registries.Npcs.All().Select(t => t.Id).OrderBy(s => s).Take(30));
         var bldTpls = string.Join(", ", _world.Registries.Buildings.All().Select(t => t.Id).OrderBy(s => s).Take(30));
 
         var vars = new Dictionary<string, string>
         {
-            ["WORLD_STATE"] = worldState,
+            ["STATIC_WORLD_LORE"] = staticLore,
             ["ITEM_TEMPLATES"] = itemTpls,
             ["NPC_TEMPLATES"] = npcTpls,
             ["BUILDING_TEMPLATES"] = bldTpls,
         };
 
         var system = _prompts.Render("system", vars);
-        // The narrator style guide is appended to the system prompt so the
-        // model gets both the rules block and the style block in one
-        // stable prefix (good for provider-side prompt caching).
         var narrator = _prompts.Get("narrator");
-        return system + "\n\n---\n\n" + narrator;
+        var toolsGuide = _prompts.Exists("tools-guide") ? _prompts.Get("tools-guide") : string.Empty;
+        return system + "\n\n---\n\n" + narrator + "\n\n---\n\n" + toolsGuide;
     }
+
+    /// <summary>
+    /// Render the static world-lore block from <see cref="World.World.Flags"/>.
+    /// Pulls worldTitle / worldTheme / worldSetting / worldAtmosphere /
+    /// startingHook — these are set by the world-builder and change only
+    /// on world rebuild, so the rendered block is byte-identical across
+    /// turns within a session (cached by the provider along with the rest
+    /// of the system prompt).
+    /// </summary>
+    private string BuildStaticWorldLoreBlock()
+    {
+        var sb = new StringBuilder();
+        var title = TryGetFlagString(_world.Flags, "worldTitle");
+        var theme = TryGetFlagString(_world.Flags, "worldTheme");
+        var setting = TryGetFlagString(_world.Flags, "worldSetting");
+        var atmosphere = TryGetFlagString(_world.Flags, "worldAtmosphere");
+        var hook = TryGetFlagString(_world.Flags, "startingHook");
+
+        if (!string.IsNullOrWhiteSpace(title))
+            sb.AppendLine($"- Название мира: {title}");
+        if (!string.IsNullOrWhiteSpace(theme))
+            sb.AppendLine($"- Тема: {theme}");
+        if (!string.IsNullOrWhiteSpace(setting))
+            sb.AppendLine($"- Сеттинг: {setting}");
+        if (!string.IsNullOrWhiteSpace(atmosphere))
+            sb.AppendLine($"- Атмосфера: {atmosphere}");
+        if (!string.IsNullOrWhiteSpace(hook))
+            sb.AppendLine($"- Стартовый крючок: {hook}");
+
+        if (sb.Length == 0)
+            sb.AppendLine("(лор мира ещё не задан — используй дефолтные предположения тёмного фэнтези).");
+
+        return sb.ToString();
+    }
+
+    /// <summary>
+    /// Verification hook for issue #89. When the environment variable
+    /// <c>MYGAME_VERIFY_STATIC_PROMPT</c> is set to <c>"1"</c>, asserts
+    /// that the system prompt is byte-identical to the previous turn's.
+    /// If it differs, logs a warning (the prompt-cache is being defeated).
+    /// No-op in production unless the env var is set.
+    /// </summary>
+    private void VerifyStaticSystemPrompt(string systemPrompt)
+    {
+        if (!s_verifyStaticPrompt) return;
+
+        if (_lastSystemPrompt is not null && !string.Equals(_lastSystemPrompt, systemPrompt, StringComparison.Ordinal))
+        {
+            Trace.WriteLine("[GameMaster] WARNING: system prompt differs from the previous turn — " +
+                            "provider-side prompt caching is defeated. " +
+                            "Static prefix should not change between turns of the same world.");
+        }
+        _lastSystemPrompt = systemPrompt;
+    }
+
+    private string? _lastSystemPrompt;
+    private static readonly bool s_verifyStaticPrompt =
+        Environment.GetEnvironmentVariable("MYGAME_VERIFY_STATIC_PROMPT") == "1";
 
     /// <summary>
     /// Render a minimal world-state block. The full TS version

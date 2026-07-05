@@ -180,6 +180,19 @@ public partial class GameViewModel : ViewModelBase
     [ObservableProperty] private int _sessionTotalTokens;
     [ObservableProperty] private int _lastTurnTokens;
 
+    // ─── Action-queue batching (issue #12) ──────────────────────────
+    //
+    // BatchCountdown: seconds remaining in the host's batching window
+    // (5 → 4 → 3 → 2 → 1 → 0). 0 means no batching in progress. The
+    // host sets this via the HostSession.BatchCountdownChanged event
+    // when the batching window starts ticking. The pending-actions
+    // list (right column) already shows queued actions; this countdown
+    // gives the user a sense of when the next turn will fire.
+    //
+    // For single-player-host (1 ready member), the batching window
+    // fires immediately — no countdown is shown.
+    [ObservableProperty] private int _batchCountdown;
+
     /// <summary>
     /// Live-streaming narrative buffer. Bound to a TextBlock at the end
     /// of the log so the user sees the GM's narration appear word-by-word
@@ -423,6 +436,7 @@ public partial class GameViewModel : ViewModelBase
         session.StateUpdate += OnHostStateUpdate;
         session.TurnEnded += OnTurnEnded;
         session.TurnFailed += OnTurnFailed;
+        session.BatchCountdownChanged += OnHostBatchCountdownChanged;
 
         // Pre-populate the members list with the host + anyone already
         // connected (no one yet at this point, but defensive).
@@ -507,9 +521,14 @@ public partial class GameViewModel : ViewModelBase
             else if (IsHost && HostSession is not null)
             {
                 await HostSession.SubmitActionAsync(text);
-                // Drive a turn right away (the host is the only player
-                // in the typical case).
-                HostSession.ProcessNextTurnAsync().FireAndForget();
+                // The HostSession's batching window (issue #12) drives the
+                // GM turn: for single-player-host it fires immediately;
+                // for multi-player-host it waits up to 5s for other
+                // ready members to submit their actions, then drains the
+                // queue and runs the GM once on the batch. We do NOT
+                // call ProcessNextTurnAsync directly here — that would
+                // defeat the batching window by draining the queue
+                // before other players' actions could join the batch.
             }
             else if (ClientSession is not null)
             {
@@ -1499,6 +1518,17 @@ public partial class GameViewModel : ViewModelBase
             ErrorMessage = $"Ход не удался: {err}";
             AppendLog(LogEntry.System($"Ошибка хода: {err}"));
         });
+
+    /// <summary>
+    /// HostSession raises this every second while the batching window
+    /// (issue #12) is counting down. We mirror the value into the
+    /// <see cref="BatchCountdown"/> observable property so the UI can
+    /// show "Следующий ход через Ns..." (0 hides the indicator). For
+    /// single-player-host, the window fires immediately and this event
+    /// is never raised (BatchCountdown stays at 0).
+    /// </summary>
+    private void OnHostBatchCountdownChanged(int secondsRemaining) =>
+        Dispatcher.UIThread.Post(() => BatchCountdown = secondsRemaining);
 
     // ─── ClientSession event handlers ────────────────────────────────
 

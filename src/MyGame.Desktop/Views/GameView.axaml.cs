@@ -3,6 +3,7 @@ using Avalonia.Collections;
 using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Interactivity;
+using Avalonia.VisualTree;
 using MyGame.Desktop.ViewModels;
 using System.Collections.Specialized;
 using System.ComponentModel;
@@ -18,6 +19,11 @@ namespace MyGame.Desktop.Views;
 ///     <see cref="INotifyCollectionChanged.CollectionChanged"/> event).</item>
 ///   <item>Pressing Enter in the action input submits the action
 ///     (without needing a global keybinding).</item>
+///   <item>KEYBOARD-SHORTCUTS (issue #51): global keyboard shortcuts
+///     wired via the UserControl's <c>KeyDown</c> handler — Esc to
+///     clear input, Ctrl+S to save, Ctrl+L to leave (with confirm),
+///     Ctrl+Enter to submit + refocus, 1–4 to switch side-panel tabs,
+///     F1 to toggle a help overlay.</item>
 /// </list>
 /// </summary>
 public partial class GameView : UserControl
@@ -87,13 +93,25 @@ public partial class GameView : UserControl
     /// <summary>
     /// Enter (without Shift) submits the action; Shift+Enter inserts a
     /// newline. Escape clears the input.
+    ///
+    /// <para>
+    /// This handler is wired to the action input TextBox's
+    /// <see cref="InputElement.KeyDown"/> event. It runs before the
+    /// UserControl-level <see cref="OnGlobalKeyDown"/> handler
+    /// (KeyDown bubbles from child to parent); when it sets
+    /// <see cref="KeyEventArgs.Handled"/> = true, the global handler
+    /// never sees the event.
+    /// </para>
     /// </summary>
     private void OnActionKeyDown(object? sender, KeyEventArgs e)
     {
         if (_vm is null) return;
         if (e.Key == Key.Enter && (e.KeyModifiers & KeyModifiers.Shift) == 0)
         {
-            if (_vm.SubmitActionCommand.CanExecute(null))
+            // Ctrl+Enter falls through to the global handler (which
+            // also re-focuses the input); plain Enter just submits.
+            if ((e.KeyModifiers & KeyModifiers.Control) == 0 &&
+                _vm.SubmitActionCommand.CanExecute(null))
             {
                 _vm.SubmitActionCommand.Execute(null);
                 e.Handled = true;
@@ -101,8 +119,202 @@ public partial class GameView : UserControl
         }
         else if (e.Key == Key.Escape)
         {
-            _vm.CurrentAction = string.Empty;
-            e.Handled = true;
+            if (!string.IsNullOrEmpty(_vm.CurrentAction))
+            {
+                _vm.CurrentAction = string.Empty;
+                e.Handled = true;
+            }
         }
+    }
+
+    // ─── Global keyboard shortcuts (issue #51) ────────────────────────
+
+    /// <summary>
+    /// Global key handler wired on the UserControl. Routes the
+    /// shortcut keys (Esc, Ctrl+S, Ctrl+L, Ctrl+Enter, 1–4, F1) to
+    /// their actions. The TextBox-scoped <see cref="OnActionKeyDown"/>
+    /// runs first when focus is in the input; this handler picks up
+    /// everything else (and everything the TextBox handler didn't
+    /// mark handled).
+    /// </summary>
+    private void OnGlobalKeyDown(object? sender, KeyEventArgs e)
+    {
+        if (_vm is null) return;
+
+        // F1 toggles the help overlay first — works regardless of
+        // other overlays being open.
+        if (e.Key == Key.F1)
+        {
+            HelpOverlay.IsVisible = !HelpOverlay.IsVisible;
+            // Opening the help overlay dismisses the leave-confirm
+            // overlay if it was open (the user is exploring shortcuts,
+            // not leaving).
+            if (HelpOverlay.IsVisible) LeaveConfirmOverlay.IsVisible = false;
+            e.Handled = true;
+            return;
+        }
+
+        // If the help overlay is open, only Esc/F1 close it (F1
+        // handled above). Everything else is swallowed so the user
+        // doesn't accidentally trigger commands while reading.
+        if (HelpOverlay.IsVisible)
+        {
+            if (e.Key == Key.Escape)
+            {
+                HelpOverlay.IsVisible = false;
+                e.Handled = true;
+            }
+            return;
+        }
+
+        // If the leave-confirm overlay is open, Esc cancels and Enter
+        // confirms; other keys are swallowed.
+        if (LeaveConfirmOverlay.IsVisible)
+        {
+            if (e.Key == Key.Escape)
+            {
+                LeaveConfirmOverlay.IsVisible = false;
+                e.Handled = true;
+            }
+            else if (e.Key == Key.Enter)
+            {
+                LeaveConfirmOverlay.IsVisible = false;
+                if (_vm.LeaveGameCommand.CanExecute(null))
+                    _vm.LeaveGameCommand.Execute(null);
+                e.Handled = true;
+            }
+            return;
+        }
+
+        var mods = e.KeyModifiers;
+
+        // Ctrl+S → save
+        if (e.Key == Key.S && (mods & KeyModifiers.Control) != 0)
+        {
+            if (_vm.SaveCommand.CanExecute(null))
+                _vm.SaveCommand.Execute(null);
+            e.Handled = true;
+            return;
+        }
+
+        // Ctrl+L → show leave-confirm overlay
+        if (e.Key == Key.L && (mods & KeyModifiers.Control) != 0)
+        {
+            LeaveConfirmOverlay.IsVisible = true;
+            e.Handled = true;
+            return;
+        }
+
+        // Ctrl+Enter → submit + refocus input (fast play loop)
+        if (e.Key == Key.Enter && (mods & KeyModifiers.Control) != 0)
+        {
+            if (_vm.SubmitActionCommand.CanExecute(null))
+                _vm.SubmitActionCommand.Execute(null);
+            // Refocus the input so the user can immediately type the
+            // next action without clicking.
+            ActionInput.Focus();
+            e.Handled = true;
+            return;
+        }
+
+        // Esc → clear the action input. OnActionKeyDown handles this
+        // when focus is in the input; this branch covers the case
+        // where focus is elsewhere (a button, a list item, …). The
+        // spec says "if the input is already empty, do nothing" — we
+        // don't leave the game on Esc.
+        if (e.Key == Key.Escape)
+        {
+            if (!string.IsNullOrEmpty(_vm.CurrentAction))
+            {
+                _vm.CurrentAction = string.Empty;
+                e.Handled = true;
+            }
+            return;
+        }
+
+        // 1, 2, 3, 4 → switch side-panel tabs (Character / Inventory /
+        // Quests / World). Only when focus is NOT in a TextBox so
+        // typing "1" in the action input doesn't switch tabs. Both
+        // the top-row digits (D1..D4) and the numpad digits
+        // (NumPad1..NumPad4) work.
+        if (e.Key is Key.D1 or Key.D2 or Key.D3 or Key.D4
+                or Key.NumPad1 or Key.NumPad2 or Key.NumPad3 or Key.NumPad4)
+        {
+            if (!IsFocusInTextBox())
+            {
+                int idx = e.Key switch
+                {
+                    Key.D1 or Key.NumPad1 => 0,
+                    Key.D2 or Key.NumPad2 => 1,
+                    Key.D3 or Key.NumPad3 => 2,
+                    Key.D4 or Key.NumPad4 => 3,
+                    _ => -1,
+                };
+                if (idx >= 0 && idx < SideTabs.ItemCount)
+                {
+                    SideTabs.SelectedIndex = idx;
+                    e.Handled = true;
+                }
+            }
+            return;
+        }
+    }
+
+    /// <summary>
+    /// True when the currently focused element is a TextBox. Used to
+    /// suppress digit-key tab switching while the user is typing into
+    /// the action input or chat.
+    /// </summary>
+    private bool IsFocusInTextBox()
+    {
+        var topLevel = this.FindAncestorOfType<TopLevel>();
+        var focused = topLevel?.FocusManager?.GetFocusedElement();
+        return focused is TextBox;
+    }
+
+    // ─── Help overlay handlers (issue #51) ────────────────────────────
+
+    /// <summary>
+    /// Click anywhere on the help overlay's dim backdrop (outside the
+    /// centered panel) dismisses the overlay. Clicks on the inner
+    /// panel don't reach this handler because the inner Border eats
+    /// them (it's a sibling, not a child, of the backdrop — but
+    /// PointerPressed still fires on the backdrop only when the
+    /// pointer is over the backdrop itself).
+    /// </summary>
+    private void OnHelpOverlayClick(object? sender, PointerPressedEventArgs e)
+    {
+        HelpOverlay.IsVisible = false;
+        e.Handled = true;
+    }
+
+    // ─── Leave-confirm overlay handlers (issue #51) ───────────────────
+
+    /// <summary>
+    /// Click on the dim backdrop cancels leave (matches the "Отмена"
+    /// button behavior).
+    /// </summary>
+    private void OnLeaveConfirmOverlayClick(object? sender, PointerPressedEventArgs e)
+    {
+        LeaveConfirmOverlay.IsVisible = false;
+        e.Handled = true;
+    }
+
+    /// <summary>
+    /// "Выйти" button click — the Button's Command is already bound
+    /// to <c>LeaveGameCommand</c>, so this handler just hides the
+    /// overlay. The command itself navigates back to the menu.
+    /// </summary>
+    private void OnLeaveConfirmAccept(object? sender, RoutedEventArgs e)
+    {
+        LeaveConfirmOverlay.IsVisible = false;
+        // Don't mark Handled — let the Command binding execute.
+    }
+
+    /// <summary>"Отмена" button click — hide the overlay, stay in game.</summary>
+    private void OnLeaveConfirmCancel(object? sender, RoutedEventArgs e)
+    {
+        LeaveConfirmOverlay.IsVisible = false;
+        e.Handled = true;
     }
 }

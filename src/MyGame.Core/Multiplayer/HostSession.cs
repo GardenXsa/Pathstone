@@ -49,6 +49,17 @@ public sealed class HostSession
 {
     // ─── Config ──────────────────────────────────────────────────────
 
+    /// <summary>
+    /// Default batching window in seconds (issue #12). When the first
+    /// player action lands in the queue, the host waits up to this many
+    /// seconds for other ready non-spectator members to submit their
+    /// actions before draining the queue and running the GM. When all
+    /// ready members have submitted (or there's only one ready member),
+    /// the window fires immediately. Set to 0 to disable batching
+    /// entirely (drain + run on every action).
+    /// </summary>
+    public const int DefaultBatchWindowSeconds = 5;
+
     private readonly Profile.Profile _hostProfile;
     private readonly GameWorld _world;
     private readonly GameMaster _gm;
@@ -95,6 +106,25 @@ public sealed class HostSession
     /// <see cref="_sessionPromptTokens"/>.
     /// </summary>
     private int _sessionCompletionTokens;
+
+    // ─── Batching window state (issue #12) ───────────────────────────
+    //
+    // When the first player action lands in the queue, the host starts a
+    // batching window (DefaultBatchWindowSeconds, default 5). The window
+    // lets other ready non-spectator members submit their actions before
+    // the GM drains the queue. The window fires ProcessNextTurnAsync
+    // immediately when all ready members have submitted, OR after the
+    // timeout expires. Single-player-host (1 ready member) fires
+    // immediately — no countdown.
+    //
+    // _batchLock guards _batchWindowCts / _batchSubmitted /
+    // _batchReadyCount. The lock is held only briefly (no I/O, no event
+    // raises) — the actual ProcessNextTurnAsync call happens outside the
+    // lock to avoid re-entrancy with the turn lock.
+    private readonly object _batchLock = new();
+    private CancellationTokenSource? _batchWindowCts;
+    private readonly HashSet<Guid> _batchSubmitted = new();
+    private int _batchReadyCount;
 
     /// <summary>
     /// True after <see cref="StartAsync"/> has been called.
@@ -152,6 +182,11 @@ public sealed class HostSession
         _server.ChatReceived += c => RaiseEvent(ChatReceived, c);
         _server.ActionQueued += a => RaiseEvent(ActionQueued, a);
         _server.ActionCancelled += id => RaiseEventNullable(ActionCancelled, id);
+        // Batching window (issue #12): every queued action starts (or
+        // advances) a batching window. The window fires ProcessNextTurnAsync
+        // after DefaultBatchWindowSeconds OR when all ready non-spectator
+        // members have submitted. See OnActionQueuedBatching.
+        _server.ActionQueued += OnActionQueuedBatching;
     }
 
     // ─── Properties ──────────────────────────────────────────────────
@@ -258,6 +293,17 @@ public sealed class HostSession
     /// intact (the actions are NOT re-drained — caller can retry or
     /// cancel them).</summary>
     public event Action<string>? TurnFailed;
+
+    /// <summary>
+    /// Raised every second while the batching window (issue #12) is
+    /// counting down. Carries the seconds remaining (5 → 4 → 3 → 2 → 1).
+    /// A final 0 is raised when the window fires (either by timeout, by
+    /// all-ready-submitted, or by shutdown). Not raised at all when the
+    /// window fires immediately (single-player-host or
+    /// <see cref="DefaultBatchWindowSeconds"/> = 0). UI subscribers should
+    /// marshal to the UI thread — the event fires on a ThreadPool thread.
+    /// </summary>
+    public event Action<int>? BatchCountdownChanged;
 
     // ─── Lifecycle ───────────────────────────────────────────────────
 
@@ -417,10 +463,13 @@ public sealed class HostSession
                 new ActionResolvingMsg { ActionIds = actionIds },
                 ct).ConfigureAwait(false);
 
-            // Build the combined prompt: one block per action, with the
-            // player's nickname + the action text. The GM's system prompt
-            // already instructs it on how to handle multi-player turns.
-            var prompt = BuildCombinedPrompt(actions);
+            // Extract just the action texts. The GM's
+            // ProcessActionBatchAsync builds the combined user message
+            // ("## Действия игроков в этом ходу:\n1. ...\n2. ...")
+            // internally and resolves all queued actions in one GM turn
+            // (issue #12). The per-action log entries above still record
+            // who did what (with nicknames) for the save's log.json.
+            var texts = actions.Select(a => a.Text).ToList();
 
             // Append an action log entry per queued action (so the save's
             // log.json records who did what).
@@ -439,7 +488,7 @@ public sealed class HostSession
             NarrativeResult result;
             try
             {
-                result = await _gm.ProcessActionAsync(prompt, ct).ConfigureAwait(false);
+                result = await _gm.ProcessActionBatchAsync(texts, narrativeDelta: null, ct).ConfigureAwait(false);
             }
             catch (OperationCanceledException) when (ct.IsCancellationRequested)
             {
@@ -583,40 +632,206 @@ public sealed class HostSession
         }
     }
 
-    // ─── Helpers ─────────────────────────────────────────────────────
+    // ─── Batching window (issue #12) ──────────────────────────────────
 
     /// <summary>
-    /// Build the combined prompt for the GM from a batch of player
-    /// actions. Each action is rendered as a quoted block with the
-    /// player's nickname, so the GM can address multiple players in one
-    /// narration. Example:
-    /// <code>
-    /// Игрок Иван:
-    ///   "атакую гоблина мечом"
+    /// Handler for <see cref="HostServer.ActionQueued"/>. Every queued
+    /// action starts (or advances) a batching window. The window lets
+    /// other ready non-spectator members submit their actions before the
+    /// GM drains the queue, so multi-player turns resolve all queued
+    /// actions in one GM call (see <see cref="GameMaster.ProcessActionBatchAsync"/>).
     ///
-    /// Игрок Мария:
-    ///   "кастую огненный шар"
-    /// </code>
+    /// <para>
+    /// Window behavior:
+    /// </para>
+    /// <list type="bullet">
+    ///   <item>If <see cref="DefaultBatchWindowSeconds"/> is 0, batching
+    ///     is disabled — fire <see cref="ProcessNextTurnAsync"/> on every
+    ///     action.</item>
+    ///   <item>If a window is already active, record the submitter. If
+    ///     all ready non-spectator members have now submitted, fire the
+    ///     turn immediately (early fire).</item>
+    ///   <item>If no window is active, start one. If only one ready
+    ///     member exists (typical single-player-host), fire immediately
+    ///     (no countdown). Otherwise, schedule a
+    ///     <see cref="DefaultBatchWindowSeconds"/>-second timer that
+    ///     fires the turn on expiry, and check for early fire after each
+    ///     1-second tick.</item>
+    /// </list>
     /// </summary>
-    private static string BuildCombinedPrompt(IReadOnlyList<PlayerAction> actions)
+    private void OnActionQueuedBatching(PlayerAction action)
     {
-        if (actions.Count == 1)
+        // Batching disabled → fire immediately. (Read into a local so
+        // the compiler doesn't const-fold the check away when
+        // DefaultBatchWindowSeconds is a non-zero const — keeps the
+        // "set to 0 to disable" path reachable for devs who change
+        // the const.)
+        var windowSeconds = DefaultBatchWindowSeconds;
+        if (windowSeconds <= 0)
         {
-            return $"{actions[0].PlayerNickname}: {actions[0].Text}";
+            _ = ProcessNextTurnAsync(_shutdownToken);
+            return;
+        }
+        StartOrAdvanceBatchWindow(action.PlayerId);
+    }
+
+    private void StartOrAdvanceBatchWindow(Guid submitterId)
+    {
+        bool fireNow = false;
+        bool startTimer = false;
+        CancellationTokenSource? localCts = null;
+
+        lock (_batchLock)
+        {
+            if (_batchWindowCts is not null)
+            {
+                // Window already active — record the submitter.
+                _batchSubmitted.Add(submitterId);
+                if (_batchReadyCount > 0 && _batchSubmitted.Count >= _batchReadyCount)
+                {
+                    // All ready players have submitted — fire early.
+                    localCts = _batchWindowCts;
+                    _batchWindowCts = null;
+                    _batchSubmitted.Clear();
+                    fireNow = true;
+                }
+            }
+            else
+            {
+                // No window active — start a new one.
+                _batchSubmitted.Clear();
+                _batchSubmitted.Add(submitterId);
+                _batchReadyCount = CountReadyPlayers();
+
+                if (_batchReadyCount <= 1)
+                {
+                    // Single ready player (host only) — fire immediately,
+                    // no countdown.
+                    fireNow = true;
+                }
+                else
+                {
+                    _batchWindowCts = CancellationTokenSource.CreateLinkedTokenSource(_shutdownToken);
+                    localCts = _batchWindowCts;
+                    startTimer = true;
+                }
+            }
         }
 
-        var sb = new StringBuilder();
-        sb.AppendLine("Несколько игроков действуют одновременно в этом ходу:");
-        sb.AppendLine();
-        foreach (var a in actions)
+        // Outside the lock: schedule the timer OR fire immediately.
+        // (ProcessNextTurnAsync acquires _turnLock, which we don't want
+        // to nest under _batchLock — re-entrancy hazard.)
+        if (startTimer)
         {
-            sb.AppendLine($"Игрок {a.PlayerNickname}:");
-            sb.AppendLine($"  \"{a.Text}\"");
-            sb.AppendLine();
+            _ = RunBatchWindowAsync(localCts!);
+            return;
         }
-        sb.AppendLine("Опиши разрешение всех этих действий в одной общей сцене.");
-        return sb.ToString();
+
+        if (fireNow)
+        {
+            if (localCts is not null)
+            {
+                // Early-fire: cancel the running timer task. It will
+                // catch OperationCanceledException and exit cleanly.
+                try { localCts.Cancel(); localCts.Dispose(); } catch { /* ignore */ }
+            }
+            _ = ProcessNextTurnAsync(_shutdownToken);
+        }
     }
+
+    /// <summary>
+    /// Run the batching window countdown. Raises
+    /// <see cref="BatchCountdownChanged"/> every second (5 → 4 → 3 → 2 → 1),
+    /// then fires <see cref="ProcessNextTurnAsync"/>. Exits early (and
+    /// raises BatchCountdownChanged(0)) if:
+    /// <list type="bullet">
+    ///   <item>The CTS is cancelled (early fire from
+    ///     <see cref="StartOrAdvanceBatchWindow"/> when all ready members
+    ///     have submitted).</item>
+    ///   <item>All ready members submit during a 1-second tick — early
+    ///     fire from inside this loop.</item>
+    ///   <item>The host shuts down (linked to
+    ///     <see cref="_shutdownToken"/>).</item>
+    /// </list>
+    /// </summary>
+    private async Task RunBatchWindowAsync(CancellationTokenSource cts)
+    {
+        try
+        {
+            for (int remaining = DefaultBatchWindowSeconds; remaining > 0; remaining--)
+            {
+                RaiseEvent(BatchCountdownChanged, remaining);
+                try
+                {
+                    await Task.Delay(TimeSpan.FromSeconds(1), cts.Token).ConfigureAwait(false);
+                }
+                catch (OperationCanceledException)
+                {
+                    // Window was fired early (or shutdown). The early-fire
+                    // path raises BatchCountdownChanged(0) — but in case
+                    // this is the shutdown path, raise it here too.
+                    RaiseEvent(BatchCountdownChanged, 0);
+                    return;
+                }
+
+                // Check if all ready players have submitted during the
+                // 1-second wait. If so, fire early.
+                bool fireEarly = false;
+                lock (_batchLock)
+                {
+                    if (ReferenceEquals(_batchWindowCts, cts) &&
+                        _batchReadyCount > 0 &&
+                        _batchSubmitted.Count >= _batchReadyCount)
+                    {
+                        _batchWindowCts = null;
+                        _batchSubmitted.Clear();
+                        fireEarly = true;
+                    }
+                }
+                if (fireEarly)
+                {
+                    try { cts.Cancel(); cts.Dispose(); } catch { /* ignore */ }
+                    RaiseEvent(BatchCountdownChanged, 0);
+                    _ = ProcessNextTurnAsync(_shutdownToken);
+                    return;
+                }
+            }
+
+            // Timeout — fire.
+            lock (_batchLock)
+            {
+                if (ReferenceEquals(_batchWindowCts, cts))
+                {
+                    _batchWindowCts = null;
+                    _batchSubmitted.Clear();
+                }
+            }
+            try { cts.Cancel(); cts.Dispose(); } catch { /* ignore */ }
+            RaiseEvent(BatchCountdownChanged, 0);
+            _ = ProcessNextTurnAsync(_shutdownToken);
+        }
+        catch (Exception ex)
+        {
+            Trace.WriteLine($"[HostSession] Batch window failed: {ex}");
+            try { cts.Cancel(); cts.Dispose(); } catch { /* ignore */ }
+            RaiseEvent(BatchCountdownChanged, 0);
+        }
+    }
+
+    /// <summary>
+    /// Count the ready non-spectator members. "Ready" = MemberStatus.Ready
+    /// or MemberStatus.Playing. The host is always Ready (set in
+    /// HostServer.StartAsync). Spectators are excluded — they can't
+    /// submit actions. Returns at least 1 (the host).
+    /// </summary>
+    private int CountReadyPlayers()
+    {
+        return _server.Members
+            .Count(m => m.Role != MemberRole.Spectator &&
+                        (m.Status == MemberStatus.Ready || m.Status == MemberStatus.Playing));
+    }
+
+    // ─── Helpers ─────────────────────────────────────────────────────
 
     /// <summary>
     /// Ensure <see cref="_meta"/> is populated. If a save id was given

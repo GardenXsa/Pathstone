@@ -403,6 +403,63 @@ xvfb-run -a dotnet run --project src/MyGame.Desktop
 The application initializes the window, renders the main menu, and idles. There
 is no automated UI test harness yet (see issue tracker).
 
+### Packaging for Windows (issue #4)
+
+A self-contained single-file Windows x64 build + NSIS installer is the
+supported distribution path. The publish profile
+(`src/MyGame.Desktop/Properties/PublishProfiles/win-x64.pubxml`) bundles the
+.NET 8 runtime into the .exe, so end users don't need .NET installed.
+
+#### Prerequisites
+
+- .NET 8 SDK (build only)
+- [NSIS 3.x](https://nsis.sourceforge.io/) (installer only — `makensis` must
+  be on `PATH`)
+
+#### Build the publish output
+
+From the repository root (the `desktop-app/` directory):
+
+```bash
+# Linux / macOS:
+./scripts/build-windows.sh
+
+# Windows PowerShell:
+.\scripts\build-windows.ps1
+```
+
+Both produce `publish/win-x64/MyGame.Desktop.exe` plus the native Avalonia
+libraries extracted alongside (single-file with
+`IncludeNativeLibrariesForSelfExtract=true` — faster cold-start than
+embedding them in the bundle).
+
+#### Build the installer
+
+```bash
+makensis installer/pathstone.nsi
+```
+
+Produces `installer/Pathstone-Setup-0.2.0.exe`. The installer:
+
+- installs to `%LOCALAPPDATA%\Pathstone` (per-user, no admin / UAC prompt);
+- creates Start Menu shortcuts (Pathstone + Uninstall);
+- optionally creates a Desktop shortcut;
+- registers `.pathstone-world` and `.pathstone-char` file associations
+  (the app doesn't yet parse file-arg launch — registered for future use);
+- writes an Add/Remove Programs entry with display version, publisher,
+  install location, and estimated size;
+- ships an uninstaller that removes the install directory, shortcuts, and
+  registry entries (saves and settings live under `%APPDATA%\Pathstone` and
+  are preserved).
+
+The version string is `MyGame.Core.Common.Version.Current` (currently
+`0.2.0`); bump both the C# constant and `!define VERSION` at the top of
+`installer/pathstone.nsi` in lockstep when releasing.
+
+> **Note (closed #56):** the installer is unsigned. Windows SmartScreen will
+> show a warning on first run — users click "More info" → "Run anyway".
+> Code-signing requires a certificate (EV or OV) and is tracked separately.
+
 ---
 
 ## Configuration

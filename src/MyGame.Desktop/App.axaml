@@ -272,6 +272,17 @@
             <Setter Property="BorderThickness" Value="1" />
             <Setter Property="CornerRadius" Value="3" />
         </Style>
+        <!--
+            ITEM-RARITY (issue #66): rarity colors are applied via the
+            RarityBrushConverter (Converters/RarityBrushConverter.cs)
+            bound directly to Foreground / BorderBrush on the inventory
+            panel rows. Avalonia 11+ doesn't allow binding the Classes
+            property (it accepts a string literal only), so we can't
+            use the per-rarity style-class selector approach. The color
+            palette lives in the converter. The EquippedRow style below
+            still applies to equipped items (overrides the bound brush
+            because EquippedRow sets BorderBrush explicitly).
+        -->
         <Style Selector="Border.ItemRow.EquippedRow">
             <Setter Property="BorderBrush" Value="{StaticResource AppAccentBrush}" />
             <Setter Property="BorderThickness" Value="1" />

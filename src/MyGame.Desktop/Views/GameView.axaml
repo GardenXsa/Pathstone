@@ -8,7 +8,8 @@
              xmlns:mp="using:MyGame.Core.Multiplayer"
              mc:Ignorable="d" d:DesignWidth="1280" d:DesignHeight="800"
              x:Class="MyGame.Desktop.Views.GameView"
-             x:DataType="vm:GameViewModel">
+             x:DataType="vm:GameViewModel"
+             KeyDown="OnGlobalKeyDown">
 
     <Grid>
         <DockPanel LastChildFill="True">
@@ -92,7 +93,7 @@
                     </StackPanel>
 
                     <!-- Single-player: tabbed side panels (Character / Inventory / Quests / World) -->
-                    <TabControl IsVisible="{Binding !IsMultiplayer}" Padding="0">
+                    <TabControl x:Name="SideTabs" IsVisible="{Binding !IsMultiplayer}" Padding="0">
                         <TabItem Header="Персонаж" ToolTip.Tip="Лист персонажа">
                             <panels:CharacterPanelView DataContext="{Binding CharacterPanel}"/>
                         </TabItem>
@@ -150,7 +151,7 @@
                     <!-- Input box at bottom -->
                     <Border DockPanel.Dock="Bottom" Classes="InputBar" Padding="8">
                         <Grid ColumnDefinitions="*,Auto">
-                            <TextBox Grid.Column="0" Text="{Binding CurrentAction}"
+                            <TextBox Grid.Column="0" x:Name="ActionInput" Text="{Binding CurrentAction}"
                                      PlaceholderText="Опишите действие вашего персонажа…"
                                      IsEnabled="{Binding CanSubmit}"
                                      KeyDown="OnActionKeyDown"
@@ -329,6 +330,115 @@
                             Classes="MenuButton"
                             HorizontalAlignment="Stretch"
                             ToolTip.Tip="Выйти в главное меню"/>
+                </StackPanel>
+            </Border>
+        </Border>
+
+        <!-- KEYBOARD-SHORTCUTS (issue #51): F1 help overlay. Lists all
+             shortcuts. Toggled via OnGlobalKeyDown (F1 or Esc).
+             Click anywhere on the dim backdrop to dismiss. ZIndex 50
+             keeps it above the main DockPanel but below the
+             death/reconnect modal overlays (ZIndex 100) so those
+             stay interactive when both happen to be visible. -->
+        <Border x:Name="HelpOverlay"
+                Background="#CC000000"
+                IsVisible="False"
+                HorizontalAlignment="Stretch"
+                VerticalAlignment="Stretch"
+                ZIndex="50"
+                PointerPressed="OnHelpOverlayClick">
+            <Border HorizontalAlignment="Center" VerticalAlignment="Center"
+                    Background="{StaticResource AppSurfaceBrush}"
+                    BorderBrush="{StaticResource AppBorderBrush}"
+                    BorderThickness="1" CornerRadius="8"
+                    Padding="32,24" MinWidth="460" MaxWidth="620">
+                <StackPanel Spacing="12">
+                    <TextBlock Text="⌨ Горячие клавиши" FontSize="20" FontWeight="Bold"
+                               HorizontalAlignment="Center"/>
+                    <Border Classes="Separator" Margin="0,4"/>
+                    <StackPanel Spacing="5">
+                        <Grid ColumnDefinitions="140,*">
+                            <TextBlock Grid.Column="0" Text="Enter" FontWeight="SemiBold"
+                                       FontFamily="Cascadia Mono,Consolas,Menlo,monospace"/>
+                            <TextBlock Grid.Column="1" Text="Отправить действие"/>
+                        </Grid>
+                        <Grid ColumnDefinitions="140,*">
+                            <TextBlock Grid.Column="0" Text="Ctrl+Enter" FontWeight="SemiBold"
+                                       FontFamily="Cascadia Mono,Consolas,Menlo,monospace"/>
+                            <TextBlock Grid.Column="1" Text="Отправить + вернуть фокус на ввод (быстрый темп)"/>
+                        </Grid>
+                        <Grid ColumnDefinitions="140,*">
+                            <TextBlock Grid.Column="0" Text="Esc" FontWeight="SemiBold"
+                                       FontFamily="Cascadia Mono,Consolas,Menlo,monospace"/>
+                            <TextBlock Grid.Column="1" Text="Очистить ввод"/>
+                        </Grid>
+                        <Grid ColumnDefinitions="140,*">
+                            <TextBlock Grid.Column="0" Text="Ctrl+S" FontWeight="SemiBold"
+                                       FontFamily="Cascadia Mono,Consolas,Menlo,monospace"/>
+                            <TextBlock Grid.Column="1" Text="Сохранить игру"/>
+                        </Grid>
+                        <Grid ColumnDefinitions="140,*">
+                            <TextBlock Grid.Column="0" Text="Ctrl+L" FontWeight="SemiBold"
+                                       FontFamily="Cascadia Mono,Consolas,Menlo,monospace"/>
+                            <TextBlock Grid.Column="1" Text="Выйти из игры (с подтверждением)"/>
+                        </Grid>
+                        <Grid ColumnDefinitions="140,*">
+                            <TextBlock Grid.Column="0" Text="1, 2, 3, 4" FontWeight="SemiBold"
+                                       FontFamily="Cascadia Mono,Consolas,Menlo,monospace"/>
+                            <TextBlock Grid.Column="1" Text="Переключить панели (Персонаж / Сумка / Квесты / Мир)"/>
+                        </Grid>
+                        <Grid ColumnDefinitions="140,*">
+                            <TextBlock Grid.Column="0" Text="F1" FontWeight="SemiBold"
+                                       FontFamily="Cascadia Mono,Consolas,Menlo,monospace"/>
+                            <TextBlock Grid.Column="1" Text="Эта подсказка"/>
+                        </Grid>
+                    </StackPanel>
+                    <Border Classes="Separator" Margin="0,4"/>
+                    <TextBlock Text="Нажмите F1 или Esc, чтобы закрыть. Цифры 1–4 не работают, когда фокус в поле ввода."
+                               Classes="Muted Small" TextWrapping="Wrap" TextAlignment="Center"/>
+                </StackPanel>
+            </Border>
+        </Border>
+
+        <!-- KEYBOARD-SHORTCUTS (issue #51): Ctrl+L confirm overlay.
+             Asks the user to confirm leaving the game. "Выйти" calls
+             LeaveGameCommand directly; "Отмена" hides the overlay.
+             Esc also cancels, Enter confirms (handled in
+             OnGlobalKeyDown). ZIndex 51 — one above the help overlay
+             so the user can dismiss the help overlay first if both
+             happen to be visible. -->
+        <Border x:Name="LeaveConfirmOverlay"
+                Background="#CC000000"
+                IsVisible="False"
+                HorizontalAlignment="Stretch"
+                VerticalAlignment="Stretch"
+                ZIndex="51"
+                PointerPressed="OnLeaveConfirmOverlayClick">
+            <Border HorizontalAlignment="Center" VerticalAlignment="Center"
+                    Background="{StaticResource AppSurfaceBrush}"
+                    BorderBrush="{StaticResource AppDangerBrush}"
+                    BorderThickness="2" CornerRadius="8"
+                    Padding="40,30" MinWidth="380" MaxWidth="560">
+                <StackPanel Spacing="14" HorizontalAlignment="Center">
+                    <TextBlock Text="🚪" FontSize="48" HorizontalAlignment="Center"/>
+                    <TextBlock Text="Выйти из игры?"
+                               FontSize="22" FontWeight="Bold"
+                               HorizontalAlignment="Center"
+                               Foreground="{StaticResource AppDangerBrush}"/>
+                    <TextBlock Text="Несохранённый прогресс может быть потерян. Перед выходом рекомендуется сохранить (Ctrl+S)."
+                               Classes="Muted Small"
+                               HorizontalAlignment="Center" TextWrapping="Wrap"
+                               TextAlignment="Center"/>
+                    <Border Classes="Separator" Margin="0,4"/>
+                    <Button Content="Выйти" Command="{Binding LeaveGameCommand}"
+                            Classes="MenuButton Primary"
+                            HorizontalAlignment="Stretch"
+                            Click="OnLeaveConfirmAccept"
+                            ToolTip.Tip="Выйти из игры"/>
+                    <Button Content="Отмена" Classes="MenuButton"
+                            HorizontalAlignment="Stretch"
+                            Click="OnLeaveConfirmCancel"
+                            ToolTip.Tip="Остаться в игре"/>
                 </StackPanel>
             </Border>
         </Border>

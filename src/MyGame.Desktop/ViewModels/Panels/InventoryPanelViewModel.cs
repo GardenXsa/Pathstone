@@ -41,13 +41,24 @@ public partial class InventoryPanelViewModel : ObservableObject
         Currency = p.Inventory.Currency;
         Capacity = p.Inventory.Capacity;
 
+        // ITEM-RARITY (issue #66): look up the template for each item so
+        // the row can carry the template's rarity (color-coding in the
+        // view). Items whose template can't be found (e.g. loaded from a
+        // pre-migration save) fall back to "common".
+        var items = world?.Registries?.Items;
         Items.Clear();
         foreach (var it in p.Inventory.Items)
-            Items.Add(new InventoryItemRow(it));
+        {
+            var tmpl = it.TemplateId is null ? null : items?.Get(it.TemplateId);
+            Items.Add(new InventoryItemRow(it, rarity: tmpl?.Rarity));
+        }
 
         Equipped.Clear();
         foreach (var kv in p.Equipped)
-            Equipped.Add(new InventoryItemRow(kv.Value, slot: kv.Key));
+        {
+            var tmpl = kv.Value.TemplateId is null ? null : items?.Get(kv.Value.TemplateId);
+            Equipped.Add(new InventoryItemRow(kv.Value, slot: kv.Key, rarity: tmpl?.Rarity));
+        }
 
         // Compute total carried weight. Stackable items contribute
         // weight * quantity; non-stackables (quantity==1) just contribute
@@ -119,7 +130,7 @@ public partial class InventoryPanelViewModel : ObservableObject
 /// <summary>One row in the inventory list.</summary>
 public sealed class InventoryItemRow
 {
-    public InventoryItemRow(Item item, string? slot = null)
+    public InventoryItemRow(Item item, string? slot = null, string? rarity = null)
     {
         Id = item.Id;
         Name = item.Name;
@@ -134,7 +145,10 @@ public sealed class InventoryItemRow
         // view can bind without nulls; a later task that denormalizes
         // template info onto Item instances fills them in.
         Category = "";
-        Rarity = "common";
+        // ITEM-RARITY (issue #66): caller passes the template's rarity
+        // (looked up via World.Registries.Items). Defaults to "common"
+        // when the template wasn't found or the rarity is empty.
+        Rarity = NormalizeRarity(rarity);
         IsWeapon = false;
         IsArmor = false;
         IsConsumable = false;
@@ -154,6 +168,40 @@ public sealed class InventoryItemRow
     public bool IsConsumable { get; }
     public bool CanUse => IsConsumable;
     public bool CanEquip => IsWeapon || IsArmor;
+
+    // ─── Rarity-driven UI helpers (issue #66) ──────────────────────────
+    //
+    // RarityClass maps the rarity string to the CSS-like style class
+    // applied to the row's name TextBlock + Border (App.axaml defines
+    // matching TextBlock.Rarity* / Border.ItemRow.Rarity* selectors that
+    // set the foreground / left-border color).
+    //
+    // RarityLabel is the localized (Russian) adjective shown in the
+    // expanded item detail under the name.
+    public string RarityClass => Rarity switch
+    {
+        "common"    => "RarityCommon",
+        "uncommon"  => "RarityUncommon",
+        "rare"      => "RarityRare",
+        "veryRare"  => "RarityVeryRare",
+        "legendary" => "RarityLegendary",
+        "artifact"  => "RarityArtifact",
+        _           => "RarityCommon",
+    };
+
+    public string RarityLabel => Rarity switch
+    {
+        "common"    => "Обычный",
+        "uncommon"  => "Необычный",
+        "rare"      => "Редкий",
+        "veryRare"  => "Очень редкий",
+        "legendary" => "Легендарный",
+        "artifact"  => "Артефакт",
+        _           => "Обычный",
+    };
+
+    private static string NormalizeRarity(string? r) =>
+        string.IsNullOrEmpty(r) ? "common" : r;
 }
 
 /// <summary>Kind of item action the user requested.</summary>

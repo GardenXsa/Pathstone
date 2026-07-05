@@ -3,10 +3,18 @@
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              xmlns:vm="using:MyGame.Desktop.ViewModels.Panels"
+             xmlns:conv="using:MyGame.Desktop.Converters"
              mc:Ignorable="d" d:DesignWidth="320" d:DesignHeight="600"
              x:Class="MyGame.Desktop.Views.Panels.InventoryPanelView"
              x:Name="Root"
              x:CompileBindings="False">
+
+    <UserControl.Resources>
+        <!-- ITEM-RARITY (issue #66): converts the rarity string on
+             InventoryItemRow ("common" / "uncommon" / "rare" / ...) to
+             the matching color brush for the item name + left border. -->
+        <conv:RarityBrushConverter x:Key="RarityBrush" />
+    </UserControl.Resources>
 
     <DockPanel LastChildFill="True">
 
@@ -41,16 +49,32 @@
                 <ItemsControl ItemsSource="{Binding Items}" IsVisible="{Binding HasItems}">
                     <ItemsControl.ItemTemplate>
                         <DataTemplate DataType="vm:InventoryItemRow">
-                            <Border Classes="ItemRow" Padding="6,4" Margin="0,0,0,4"
+                            <!-- ITEM-RARITY (issue #66): the carried-item
+                                 row gets a 2px left-border accent in the
+                                 rarity color (BorderBrush bound via
+                                 RarityBrushConverter, BorderThickness
+                                 overridden inline to 2,1,1,1). The ItemRow
+                                 base style still applies for background
+                                 and corner radius. -->
+                            <Border Classes="ItemRow"
+                                    BorderBrush="{Binding Rarity, Converter={StaticResource RarityBrush}}"
+                                    BorderThickness="2,1,1,1"
+                                    Padding="6,4" Margin="0,0,0,4"
                                     ToolTip.Tip="{Binding Description}">
                                 <StackPanel Spacing="2">
                                     <Grid ColumnDefinitions="*,Auto">
-                                        <TextBlock Grid.Column="0" Text="{Binding Name}" FontWeight="SemiBold" Classes="Small"/>
+                                        <TextBlock Grid.Column="0" Text="{Binding Name}" FontWeight="SemiBold" Classes="Small"
+                                                   Foreground="{Binding Rarity, Converter={StaticResource RarityBrush}}"/>
                                         <TextBlock Grid.Column="1" Classes="Small Muted">
                                             <Run Text="×"/>
                                             <Run Text="{Binding Quantity}"/>
                                         </TextBlock>
                                     </Grid>
+                                    <!-- Rarity label (Russian adjective,
+                                         color-matched to the name). -->
+                                    <TextBlock Text="{Binding RarityLabel}"
+                                               FontStyle="Italic" Classes="Small"
+                                               Foreground="{Binding Rarity, Converter={StaticResource RarityBrush}}"/>
                                     <TextBlock Text="{Binding Description}" Classes="Muted Small" TextWrapping="Wrap"
                                                IsVisible="{Binding Description, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"/>
                                     <!-- Inline action buttons. Commands live on the parent VM;
@@ -85,14 +109,26 @@
                 <ItemsControl ItemsSource="{Binding Equipped}" IsVisible="{Binding HasEquipped}">
                     <ItemsControl.ItemTemplate>
                         <DataTemplate DataType="vm:InventoryItemRow">
+                            <!-- Equipped rows keep the EquippedRow class
+                                 (accent purple border, 1px). The name +
+                                 rarity label TextBlocks still get rarity
+                                 color via the Foreground binding; the
+                                 Slot Run has its own muted Foreground
+                                 which overrides the parent. -->
                             <Border Classes="ItemRow EquippedRow" Padding="6,4" Margin="0,0,0,4"
                                     ToolTip.Tip="{Binding Description}">
                                 <StackPanel Spacing="1">
-                                    <TextBlock Classes="Small">
+                                    <TextBlock Classes="Small"
+                                               Foreground="{Binding Rarity, Converter={StaticResource RarityBrush}}">
                                         <Run Text="{Binding Slot}" Foreground="{DynamicResource SystemControlForegroundChromeMediumBrush}"/>
                                         <Run Text=": "/>
                                         <Run Text="{Binding Name}" FontWeight="SemiBold"/>
                                     </TextBlock>
+                                    <!-- Rarity label (Russian adjective,
+                                         color-matched to the name). -->
+                                    <TextBlock Text="{Binding RarityLabel}"
+                                               FontStyle="Italic" Classes="Small"
+                                               Foreground="{Binding Rarity, Converter={StaticResource RarityBrush}}"/>
                                     <TextBlock Text="{Binding Description}" Classes="Muted Small" TextWrapping="Wrap"
                                                IsVisible="{Binding Description, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"/>
                                     <Button Content="Снять" Classes="TinyButton"
