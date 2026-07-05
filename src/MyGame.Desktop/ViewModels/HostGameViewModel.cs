@@ -181,9 +181,24 @@ public partial class HostGameViewModel : ViewModelBase
             //    can see who's joined, share the address, and start the
             //    game on demand. The HostServer's default status is
             //    Lobby, so we don't need to set it explicitly here.
-            ShareAddress = session.UpnpPublicAddress is { } publicAddr
-                ? $"Публичный адрес: {publicAddr}  (локальный: localhost:{port})"
-                : $"localhost:{port}  (порт {port})";
+            //
+            // Show the LOCAL address immediately — UPnP discovery runs
+            // in the background (HostSession.StartAsync fires it off as
+            // a fire-and-forget task so it doesn't block lobby entry on
+            // the 3-second SSDP timeout or the Windows firewall dialog).
+            // When UPnP resolves, the handler below refreshes ShareAddress
+            // with the public IP (so internet play is possible without a
+            // manual port forward). If UPnP fails, the local address stays.
+            ShareAddress = $"localhost:{port}  (порт {port})";
+            session.UpnpAddressResolved += publicAddr =>
+            {
+                // Fires on a background thread — marshal to UI thread.
+                Avalonia.Threading.Dispatcher.UIThread.Post(() =>
+                {
+                    if (string.IsNullOrEmpty(publicAddr)) return;
+                    ShareAddress = $"Публичный адрес: {publicAddr}  (локальный: localhost:{port})";
+                });
+            };
 
             // 5) Hand off to the GameViewModel. The shell constructs
             //    the VM with the save id; the VM pulls the session via

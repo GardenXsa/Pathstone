@@ -345,12 +345,36 @@ public sealed class HostSession
     /// </summary>
     public event Action<PartyStatus>? StatusChanged;
 
+    /// <summary>
+    /// Raised when UPnP discovery completes (issue #29). Carries the
+    /// resolved public IP:port if forwarding succeeded, or null if it
+    /// failed (no router, router doesn't support UPnP, or the Windows
+    /// firewall blocked the SSDP multicast — e.g. while the user was
+    /// still granting the firewall permission dialog).
+    ///
+    /// <para>
+    /// This event fires on a background thread. The host UI uses it to
+    /// refresh its <c>ShareAddress</c> once UPnP resolves, rather than
+    /// blocking lobby navigation on the 3-second SSDP timeout.
+    /// </para>
+    /// </summary>
+    public event Action<string?>? UpnpAddressResolved;
+
     // ─── Lifecycle ───────────────────────────────────────────────────
 
     /// <summary>
     /// Start the host server + load the save's existing log/meta (if
     /// applicable). Returns the actual port the server is listening on.
     /// </summary>
+    /// <remarks>
+    /// UPnP port forwarding is started in the background (fire-and-forget)
+    /// so this method returns as soon as the TCP listener is bound —
+    /// typically &lt;50ms. The 3-second SSDP discovery no longer delays
+    /// navigation to the lobby, and no longer blocks on the Windows
+    /// firewall permission dialog (which the user may still be reading).
+    /// When UPnP eventually resolves (or fails), the
+    /// <see cref="UpnpAddressResolved"/> event fires with the result.
+    /// </remarks>
     public async Task<int> StartAsync()
     {
         if (IsRunning) throw new InvalidOperationException("HostSession is already running.");
@@ -374,20 +398,30 @@ public sealed class HostSession
         var port = await _server.StartAsync().ConfigureAwait(false);
         IsRunning = true;
 
-        // Issue #29: attempt UPnP port forwarding (best-effort). If
-        // successful, UpnpPublicAddress is set and the host UI can show
-        // the public IP:port for internet play. If it fails (no router,
-        // router doesn't support UPnP), UpnpPublicAddress stays null and
-        // the host shows the local address (manual forwarding required).
-        try
+        // Issue #29: attempt UPnP port forwarding (best-effort) in the
+        // BACKGROUND. Previously this was awaited, which delayed lobby
+        // navigation by up to 3+ seconds (the SSDP discovery timeout)
+        // — and if the Windows firewall permission dialog was still on
+        // screen, the SSDP multicast would block/fail, making the user
+        // wait the full timeout before seeing the lobby. Now we fire it
+        // off and let the UpnpAddressResolved event notify the UI when
+        // the result is ready (success → public IP; failure → null,
+        // host falls back to the local address).
+        _ = Task.Run(async () =>
         {
-            var upnp = await UpnpForwarder.TryForwardAsync(port, port, "Pathstone", default).ConfigureAwait(false);
-            if (upnp is not null)
+            string? resolved = null;
+            try
             {
-                UpnpPublicAddress = upnp.PublicAddress;
+                var upnp = await UpnpForwarder.TryForwardAsync(port, port, "Pathstone", default).ConfigureAwait(false);
+                if (upnp is not null)
+                {
+                    UpnpPublicAddress = upnp.PublicAddress;
+                    resolved = upnp.PublicAddress;
+                }
             }
-        }
-        catch { /* best-effort — silent */ }
+            catch { /* best-effort — silent */ }
+            RaiseEventNullable(UpnpAddressResolved, resolved);
+        });
 
         return port;
     }
@@ -395,6 +429,7 @@ public sealed class HostSession
     /// <summary>
     /// Public IP:port from UPnP forwarding (issue #29). Null if UPnP
     /// failed (host shows local address; user must forward manually).
+    /// Set asynchronously — see <see cref="UpnpAddressResolved"/>.
     /// </summary>
     public string? UpnpPublicAddress { get; private set; }
 

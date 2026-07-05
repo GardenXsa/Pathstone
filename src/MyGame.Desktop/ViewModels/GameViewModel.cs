@@ -495,6 +495,12 @@ public partial class GameViewModel : ViewModelBase
         // changes (host → Playing). Used to refresh the lobby UI.
         session.MemberReady += OnMemberReady;
         session.StatusChanged += OnHostStatusChanged;
+        // UPnP address resolution fires asynchronously from
+        // HostSession.StartAsync's background task — by the time we get
+        // here the SSDP discovery is usually still in flight (3s timeout).
+        // Subscribe so the lobby's ShareAddress refreshes with the public
+        // IP once UPnP resolves (or stays at the local address if it fails).
+        session.UpnpAddressResolved += OnHostUpnpAddressResolved;
 
         // Pre-populate the members list with the host + anyone already
         // connected (no one yet at this point, but defensive).
@@ -2449,6 +2455,24 @@ public partial class GameViewModel : ViewModelBase
     /// </summary>
     private void OnHostStatusChanged(PartyStatus status) =>
         Dispatcher.UIThread.Post(RefreshIsLobby);
+
+    /// <summary>
+    /// Host-side: UPnP discovery (started as a fire-and-forget task in
+    /// <see cref="HostSession.StartAsync"/>) resolved. If it succeeded,
+    /// <paramref name="publicAddr"/> is the public IP:port the host can
+    /// share for internet play (no manual port forward needed); refresh
+    /// <see cref="ShareAddress"/> so the lobby shows it. If it failed
+    /// (null — no router, no UPnP support, or the Windows firewall
+    /// blocked the SSDP multicast), leave ShareAddress at the local
+    /// address already set in <see cref="InitHost"/>.
+    /// </summary>
+    private void OnHostUpnpAddressResolved(string? publicAddr) =>
+        Dispatcher.UIThread.Post(() =>
+        {
+            if (string.IsNullOrEmpty(publicAddr)) return;
+            if (HostSession is null) return;
+            ShareAddress = $"Публичный адрес: {publicAddr}  (локальный: localhost:{HostSession.Port})";
+        });
 
     /// <summary>
     /// Client-side: another member (or the host echoing back this
