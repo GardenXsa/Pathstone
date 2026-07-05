@@ -91,6 +91,7 @@ public partial class GameViewModel : ViewModelBase
 
     // ─── Single-player runtime state ─────────────────────────────────
     private GameMaster? _gm;
+    private MyGame.Core.Tooling.ReplayRecorder? _replayRecorder;
     private World? _world;
     private SaveMeta? _meta;
     private string? _saveId;
@@ -448,9 +449,10 @@ public partial class GameViewModel : ViewModelBase
 
         GameName = _meta?.Name ?? "Игра";
         CanSave = true;
-        // Restore session-tokens from the save so the top-bar counter
-        // survives a reload. Last-turn counter is reset (a fresh session
-        // has no "last turn" yet).
+        // Issue #85: initialize replay recorder for this save session.
+        var replayDir = System.IO.Path.Combine(
+            MyGame.Core.Profile.ProfileStore.DefaultProfileDirectory, "replays");
+        _replayRecorder = new MyGame.Core.Tooling.ReplayRecorder(replayDir, _saveId ?? "unknown");
         RestoreTokensFromMeta();
         // Reset the level-up baseline so a reloaded game doesn't toast a
         // false level-up on the next turn.
@@ -1257,6 +1259,19 @@ public partial class GameViewModel : ViewModelBase
         // Runs after RefreshFromWorld so the character panel already shows
         // the new level.
         CheckLevelUpAndToast();
+
+        // Issue #85: record this turn for replay. Appended after
+        // RefreshFromWorld so the world state snapshot includes all
+        // mutations from tool calls. Persist immediately.
+        if (_replayRecorder is not null && !string.IsNullOrEmpty(result.NarrativeText))
+        {
+            try
+            {
+                _replayRecorder.RecordTurn(_world.Turn, text, result.NarrativeText, _world);
+                _replayRecorder.Save();
+            }
+            catch { /* best-effort — don't crash on replay failure */ }
+        }
     }
 
     // ─── Streaming-narrative helpers ─────────────────────────────────

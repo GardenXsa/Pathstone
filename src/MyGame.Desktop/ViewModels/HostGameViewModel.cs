@@ -181,7 +181,9 @@ public partial class HostGameViewModel : ViewModelBase
             //    can see who's joined, share the address, and start the
             //    game on demand. The HostServer's default status is
             //    Lobby, so we don't need to set it explicitly here.
-            ShareAddress = $"localhost:{port}  (порт {port})";
+            ShareAddress = session.UpnpPublicAddress is { } publicAddr
+                ? $"Публичный адрес: {publicAddr}  (локальный: localhost:{port})"
+                : $"localhost:{port}  (порт {port})";
 
             // 5) Hand off to the GameViewModel. The shell constructs
             //    the VM with the save id; the VM pulls the session via

@@ -73,6 +73,31 @@ public partial class MainViewModel : ObservableObject
     }
 
     /// <summary>
+    /// Issue #54: set by the update checker when a newer GitHub release
+    /// exists. The main menu binds to this to show a notification banner
+    /// with a link to the release page. Null when no update available.
+    /// </summary>
+    public MyGame.Core.Tooling.UpdateInfo? UpdateAvailable
+    {
+        get => _updateAvailable;
+        set => SetProperty(ref _updateAvailable, value);
+    }
+    private MyGame.Core.Tooling.UpdateInfo? _updateAvailable;
+
+    /// <summary>
+    /// Forward the update info to the current main menu VM so it can
+    /// show the notification banner.
+    /// </summary>
+    public void SetUpdateAvailableOnMenu(MyGame.Core.Tooling.UpdateInfo? info)
+    {
+        UpdateAvailable = info;
+        if (CurrentView is MainMenuViewModel menu)
+        {
+            menu.SetUpdateAvailable(info);
+        }
+    }
+
+    /// <summary>
     /// The local player's nickname (snapshot at shell construction).
     /// Shown in the window header / menu chrome. Refreshed whenever we
     /// navigate back to the main menu.

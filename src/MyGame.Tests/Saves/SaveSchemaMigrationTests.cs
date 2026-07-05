@@ -32,7 +32,7 @@ public class SaveSchemaMigrationTests
         var dir = MakeTempDir();
         try
         {
-            var saveId = "save_migration_test_v1";
+            var saveId = SaveManager.NewSaveId();
             var saveDir = Path.Combine(dir, saveId);
             Directory.CreateDirectory(saveDir);
 
@@ -115,7 +115,7 @@ public class SaveSchemaMigrationTests
         var dir = MakeTempDir();
         try
         {
-            var saveId = "save_migration_preserve";
+            var saveId = SaveManager.NewSaveId();
             var saveDir = Path.Combine(dir, saveId);
             Directory.CreateDirectory(saveDir);
 

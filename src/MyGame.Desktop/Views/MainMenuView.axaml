@@ -37,6 +37,17 @@
             <TextBlock Text="{Binding ErrorMessage}" />
         </Border>
 
+        <!-- Issue #54: update notification banner. Bound to the parent
+             MainViewModel via RelativeSource. Uses simple IsVisible +
+             TextBlock. -->
+        <Border DockPanel.Dock="Top" Classes="InfoBox" Padding="10,6"
+                IsVisible="{Binding UpdateAvailableText, Converter={x:Static StringConverters.IsNotNullOrEmpty}}">
+            <StackPanel Orientation="Horizontal" Spacing="8">
+                <TextBlock Text="📥" VerticalAlignment="Center"/>
+                <TextBlock VerticalAlignment="Center" Text="{Binding UpdateAvailableText}" TextWrapping="Wrap"/>
+            </StackPanel>
+        </Border>
+
         <!-- Main content: centered menu + load panel -->
         <ScrollViewer HorizontalScrollBarVisibility="Disabled">
             <Grid RowDefinitions="*,Auto,*">

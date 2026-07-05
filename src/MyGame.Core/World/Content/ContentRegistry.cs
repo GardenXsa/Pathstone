@@ -115,6 +115,9 @@ public sealed class ContentPack
 
     /// <summary>Building templates.</summary>
     public List<BuildingTemplate> Buildings { get; set; } = new();
+
+    /// <summary>Crafting recipes (issue #65).</summary>
+    public List<CraftingRecipe> Recipes { get; set; } = new();
 }
 
 // ─── Registries ────────────────────────────────────────────────────────────
@@ -229,6 +232,7 @@ public sealed class ContentRegistry
         Items.RegisterAll(pack.Items);
         Npcs.RegisterAll(pack.Npcs);
         Buildings.RegisterAll(pack.Buildings);
+        Recipes.RegisterAll(pack.Recipes);
     }
 
     /// <summary>

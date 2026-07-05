@@ -3,6 +3,7 @@ using System.Text;
 using System.Text.Json;
 using MyGame.Core.AI.Prompts;
 using MyGame.Core.AI.Tools;
+using MyGame.Core.Logging;
 using MyGame.Core.World;
 using MyGame.Core.World.Entities;
 
@@ -291,6 +292,10 @@ public sealed class GameMaster
         {
             return new NarrativeResult { NarrativeText = string.Empty };
         }
+
+        // Issue #71: log the GM turn start.
+        try { GameLogger.Instance?.Info($"[GameMaster] Turn {_world.Turn + 1}: {actions.Count} action(s)"); }
+        catch { /* logger not initialized */ }
 
         var playerAction = actions.Count == 1
             ? actions[0]

@@ -4147,5 +4147,122 @@
       "enterable": true,
       "locked": true
     }
+  ],
+  "recipes": [
+    {
+      "id": "craft_health_potion",
+      "name": "Зелье лечения",
+      "inputs": {
+        "cns_health_potion": 1,
+        "tool_herbalism_kit": 1
+      },
+      "outputTemplateId": "cns_health_potion",
+      "outputQuantity": 2,
+      "requiredTool": "tool_herbalism_kit",
+      "description": "Создать 2 зелья лечения из трав."
+    },
+    {
+      "id": "craft_dagger",
+      "name": "Кинжал",
+      "inputs": {
+        "gear_iron_ingot": 1,
+        "tool_smithing_tools": 1
+      },
+      "outputTemplateId": "wpn_dagger",
+      "outputQuantity": 1,
+      "requiredTool": "tool_smithing_tools",
+      "description": "Выковать кинжал из железа."
+    },
+    {
+      "id": "craft_leather_armor",
+      "name": "Кожаная броня",
+      "inputs": {
+        "gear_leather_hide": 1,
+        "tool_leatherworking_tools": 1
+      },
+      "outputTemplateId": "arm_leather",
+      "outputQuantity": 1,
+      "requiredTool": "tool_leatherworking_tools",
+      "description": "Сшить кожаную броню."
+    },
+    {
+      "id": "craft_torch",
+      "name": "Факел",
+      "inputs": {
+        "gear_wood": 1,
+        "gear_oil_flask": 1
+      },
+      "outputTemplateId": "tool_torch",
+      "outputQuantity": 3,
+      "description": "Сделать 3 факела из дерева и масла."
+    },
+    {
+      "id": "craft_rations",
+      "name": "Сухпаёк",
+      "inputs": {
+        "gear_wood": 1,
+        "cns_ration": 1
+      },
+      "outputTemplateId": "cns_ration",
+      "outputQuantity": 3,
+      "description": "Приготовить 3 сухпайка."
+    },
+    {
+      "id": "craft_shortbow",
+      "name": "Короткий лук",
+      "inputs": {
+        "gear_wood": 2,
+        "gear_string": 1
+      },
+      "outputTemplateId": "wpn_shortbow",
+      "outputQuantity": 1,
+      "description": "Сделать короткий лук из дерева и тетивы."
+    },
+    {
+      "id": "craft_arrow",
+      "name": "Стрелы",
+      "inputs": {
+        "gear_wood": 1,
+        "gear_iron_ingot": 1
+      },
+      "outputTemplateId": "wpn_arrow",
+      "outputQuantity": 20,
+      "description": "Сделать 20 стрел."
+    },
+    {
+      "id": "craft_shield",
+      "name": "Щит",
+      "inputs": {
+        "gear_wood": 2,
+        "gear_iron_ingot": 1
+      },
+      "outputTemplateId": "arm_shield",
+      "outputQuantity": 1,
+      "description": "Сделать щит."
+    },
+    {
+      "id": "craft_antitoxin",
+      "name": "Противоядие",
+      "inputs": {
+        "cns_health_potion": 1,
+        "tool_herbalism_kit": 1
+      },
+      "outputTemplateId": "cns_antitoxin",
+      "outputQuantity": 1,
+      "requiredTool": "tool_herbalism_kit",
+      "description": "Создать противоядие."
+    },
+    {
+      "id": "craft_mace",
+      "name": "Булава",
+      "inputs": {
+        "gear_iron_ingot": 2,
+        "tool_smithing_tools": 1
+      },
+      "outputTemplateId": "wpn_mace",
+      "outputQuantity": 1,
+      "requiredTool": "tool_smithing_tools",
+      "description": "Выковать булаву."
+    }
   ]
 }

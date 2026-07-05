@@ -175,6 +175,24 @@ public partial class MainMenuViewModel : ViewModelBase
     [ObservableProperty] private bool _hasPendingResumeBuild;
 
     /// <summary>
+    /// Issue #54: update notification text. Set by the shell when
+    /// UpdateChecker finds a newer version. Bound to the banner in
+    /// MainMenuView. Null/empty = no update.
+    /// </summary>
+    [ObservableProperty] private string? _updateAvailableText;
+
+    /// <summary>
+    /// Called by the shell (MainViewModel) when the update check
+    /// completes. Sets the notification text.
+    /// </summary>
+    public void SetUpdateAvailable(MyGame.Core.Tooling.UpdateInfo? info)
+    {
+        UpdateAvailableText = info is not null
+            ? $"Доступна новая версия: {info.TagName}. Скачать: {info.ReleaseUrl}"
+            : null;
+    }
+
+    /// <summary>
     /// True for the first three sessions (issue #73). Drives small
     /// tooltip hints under the primary buttons (Новая игра / Создать
     /// мир / Хост игры). After the third session, the hints disappear.

@@ -4,6 +4,7 @@ using System.IO.Compression;
 using System.Text;
 using System.Text.Json;
 using MyGame.Core.Common;
+using MyGame.Core.Logging;
 using MyGame.Core.Profile;
 using MyGame.Core.World;
 using MyGame.Core.World.Content;
@@ -184,6 +185,8 @@ public sealed class SaveManager
         if (world is null) throw new ArgumentNullException(nameof(world));
 
         var saveId = NewSaveId();
+        try { GameLogger.Instance?.Info($"[SaveManager] CreateSave: {saveId} \"{name}\""); }
+        catch { }
         var now = DateTimeOffset.UtcNow;
 
         var meta = new SaveMeta
