@@ -447,11 +447,16 @@ public partial class GameViewModel : ViewModelBase
         try
         {
             // 1) Start-scene agent: atmospheric opening description.
+            // NO ConfigureAwait(false) — we stay on the UI thread so the
+            // post-await mutations of UI-bound properties (IsWaiting,
+            // CanSubmit, StatusText in the finally) don't throw Avalonia's
+            // "caller thread must be UI" exception. The AI calls are I/O
+            // bound; the UI thread is released during awaits anyway.
             var settings = _settingsStore.Load();
             var ai = new AiClient(settings.Ai);
             var prompts = ServiceHost.Resolve<PromptLoader>();
             var startScene = new StartSceneAgent(ai, _world, prompts);
-            var sceneResult = await startScene.RunAsync().ConfigureAwait(false);
+            var sceneResult = await startScene.RunAsync();
 
             if (sceneResult.Success && !string.IsNullOrWhiteSpace(sceneResult.SceneDescription))
             {
@@ -467,7 +472,7 @@ public partial class GameViewModel : ViewModelBase
             NarrativeResult? result = null;
             try
             {
-                result = await _gm.ProcessActionAsync(openingAction, progress).ConfigureAwait(false);
+                result = await _gm.ProcessActionAsync(openingAction, progress);
             }
             finally
             {
@@ -482,11 +487,16 @@ public partial class GameViewModel : ViewModelBase
                 AppendLog(LogEntry.Narrative(r.NarrativeText));
             }
 
+            // Accumulate token billing from the opening turn.
+            if (result is { } ok)
+                AccumulateTokens(ok.PromptTokens, ok.CompletionTokens, ok.TotalTokens);
+
             // Persist the opening so a reload skips this (Turn > 0 after
             // the GM turn, or the log is non-empty). Snapshot _log under
             // lock — matches the save pattern used elsewhere in this VM.
             if (_saveId is not null && _meta is not null && _world is not null)
             {
+                _world.Turn++;
                 PersistTokensToMeta();
                 LogEntry[] snapshot;
                 lock (_logLock) snapshot = _log.ToArray();
@@ -497,6 +507,10 @@ public partial class GameViewModel : ViewModelBase
                     catch (Exception ex) { System.Diagnostics.Trace.WriteLine($"[save] {ex.Message}"); }
                 });
             }
+            // Refresh all panels so the character/inventory/world panels
+            // reflect the start-scene agent's mutations (move_player,
+            // give_item, equip_player, spawn_npc).
+            RefreshFromWorld();
         }
         catch (Exception ex)
         {
