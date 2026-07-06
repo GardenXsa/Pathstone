@@ -1110,16 +1110,44 @@ public sealed class GameMaster
             }
         }
 
-        // Last player action — continuity hint pulled from the in-memory
-        // conversation history (the World itself doesn't store a log).
-        var lastUser = _history.LastOrDefault(m => m.Role == ChatRole.User);
-        if (lastUser?.Content is string la && !string.IsNullOrWhiteSpace(la))
+        // Recent events — the last N entries from the conversation history,
+        // tagged by role so the GM can trace who said/did what and when.
+        // This is the GM's "memory" of the recent game: player actions,
+        // GM narration, tool results. Without it the GM hallucinates
+        // context — confuses who said what, forgets NPC names, repeats
+        // descriptions. With it the GM stays consistent across turns.
+        // We skip the per-turn world-state user messages (they're long +
+        // would flood the block) and tool-result messages (the GM already
+        // saw them inline during the tool-call loop).
+        const int MaxRecentEntries = 12;
+        var recent = _history
+            .Where(m => m.Role is ChatRole.User or ChatRole.Assistant
+                        && !string.IsNullOrWhiteSpace(m.Content)
+                        // Skip the per-turn world-state refresh messages
+                        // (they start with "## ТЕКУЩЕЕ СОСТОЯНИЕ МИРА").
+                        && !(m.Content.StartsWith("## ТЕКУЩЕЕ СОСТОЯНИЕ МИРА")
+                             || m.Content.StartsWith("## Предыдущие события")))
+            .TakeLast(MaxRecentEntries)
+            .ToList();
+        if (recent.Count > 0)
         {
-            const int MaxLen = 240;
-            var trimmed = la.Length > MaxLen ? la.Substring(0, MaxLen) + "…" : la;
             sb.AppendLine();
-            sb.AppendLine("## Последнее действие игрока");
-            sb.AppendLine($"- {trimmed}");
+            sb.AppendLine("## Последние события (кто что делал/говорил)");
+            foreach (var m in recent)
+            {
+                var tag = m.Role switch
+                {
+                    ChatRole.User => "[action:Игрок]",
+                    ChatRole.Assistant => "[narration:GM]",
+                    _ => "[system]",
+                };
+                var text = m.Content ?? "";
+                // Trim long entries to keep the block readable.
+                const int MaxEntryLen = 200;
+                if (text.Length > MaxEntryLen)
+                    text = text.Substring(0, MaxEntryLen) + "…";
+                sb.AppendLine($"- {tag} {text}");
+            }
         }
 
         return sb.ToString();

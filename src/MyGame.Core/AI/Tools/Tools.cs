@@ -273,6 +273,9 @@ public sealed class ToolRegistry
         // to the GM mid-game for world expansion.
         Register(CreateLocationTool.Definition, CreateLocationTool.Handle(_world));
         Register(GiveCurrencyTool.Definition, GiveCurrencyTool.Handle(_world));
+        // Skill check (d20 + modifier vs DC) + end_turn (signal turn complete)
+        Register(SkillCheckTool.Definition, SkillCheckTool.Handle(_world));
+        Register(EndTurnTool.Definition, EndTurnTool.Handle(_world));
     }
 }
 
@@ -2709,5 +2712,114 @@ internal static class GiveCurrencyTool
         p.Inventory.Currency += amount;
         return ToolResult.Ok(string.Empty,
             $"Выдано {amount} золота (всего: {p.Inventory.Currency}).");
+    };
+}
+
+// ─── Skill check + end_turn tools ──────────────────────────────────────────
+
+/// <summary>
+/// Skill/ability check against a DC. Rolls d20 + ability modifier (+ proficiency
+/// bonus if the player is proficient in the named skill). Returns success/failure
+/// with the roll details so the GM can narrate the outcome. Port of the TS
+/// source's skill_check tool.
+/// </summary>
+internal static class SkillCheckTool
+{
+    public static ToolDefinition Definition { get; } = new()
+    {
+        Name = "skill_check",
+        Description = "Проверка навыка/характеристики против DC (d20 + модификатор). Возвращает успех/провал/крит. Используй для любых действий с шансом неудачи: взлом, скрытность, убеждение, поиск, и т.д.",
+        ParametersJson = """
+        {
+          "type": "object",
+          "properties": {
+            "ability": { "type": "string", "description": "Ключ характеристики (str/dex/con/int/per/cha)." },
+            "skill": { "type": "string", "description": "Название навыка (опционально, для лога: stealth, investigation, persuasion, ...)." },
+            "dc": { "type": "integer", "description": "Сложность: лёгкое=5-10, среднее=12-15, сложное=18-22, почти невозможное=25+." },
+            "advantage": { "type": "boolean", "description": "Преимущество (брось 2d20, возьми больший)." },
+            "disadvantage": { "type": "boolean", "description": "Помеха (брось 2d20, возьми меньший)." },
+            "bonus": { "type": "integer", "description": "Ситуативный плоский бонус." }
+          },
+          "required": ["ability", "dc"]
+        }
+        """,
+    };
+
+    public static ToolHandler Handle(MyGame.Core.World.World world) => async (args, ct) =>
+    {
+        var p = world.ActivePlayer ?? world.Players.FirstOrDefault();
+        if (p is null)
+            return ToolResult.Error(string.Empty, "В мире ещё нет игрока.");
+
+        var ability = args.TryGetProperty("ability", out var aEl) ? aEl.GetString() ?? "str" : "str";
+        var skill = args.TryGetProperty("skill", out var sEl) ? sEl.GetString() ?? "" : "";
+        var dc = args.TryGetProperty("dc", out var dcEl) && dcEl.TryGetInt32(out var d) ? d : 10;
+        var advantage = args.TryGetProperty("advantage", out var advEl) && advEl.GetBoolean();
+        var disadvantage = args.TryGetProperty("disadvantage", out var disEl) && disEl.GetBoolean();
+        var bonus = args.TryGetProperty("bonus", out var bEl) && bEl.TryGetInt32(out var b) ? b : 0;
+
+        // Attribute value (default 10 if not set).
+        var attrValue = p.Attributes.TryGetValue(ability, out var av) ? av : 10;
+
+        // D20 modifier: (attr - 10) / 2 (standard D&D 5e ability modifier).
+        var attrMod = (attrValue - 10) / 2;
+
+        // Proficiency bonus: +2 if the player is proficient in the named skill.
+        var proficient = !string.IsNullOrEmpty(skill)
+            && p.ProficientSkills is not null
+            && p.ProficientSkills.Any(s => string.Equals(s, skill, StringComparison.OrdinalIgnoreCase));
+        var profBonus = proficient ? 2 : 0;
+
+        var totalMod = attrMod + profBonus + bonus;
+
+        // Roll (with advantage/disadvantage).
+        var rng = world.Rng;
+        int roll1 = MyGame.Core.Rules.D20.Roll(rng, 20);
+        int roll2 = advantage || disadvantage ? MyGame.Core.Rules.D20.Roll(rng, 20) : roll1;
+        int roll = advantage ? Math.Max(roll1, roll2) : disadvantage ? Math.Min(roll1, roll2) : roll1;
+        int total = roll + totalMod;
+
+        bool critSuccess = roll == 20;
+        bool critFailure = roll == 1;
+        bool success = critSuccess ? true : critFailure ? false : total >= dc;
+
+        var outcome = critSuccess ? "КРИТИЧЕСКИЙ УСПЕХ"
+            : critFailure ? "КРИТИЧЕСКИЙ ПРОВАЛ"
+            : success ? "УСПЕХ"
+            : "ПРОВАЛ";
+
+        var skillLabel = string.IsNullOrEmpty(skill) ? ability.ToUpperInvariant() : skill;
+        var advLabel = advantage ? " (advantage)" : disadvantage ? " (disadvantage)" : "";
+
+        return ToolResult.Ok(string.Empty,
+            $"Проверка {skillLabel} (DC {dc}): d20={roll}{advLabel} + {totalMod} = {total}. {outcome}!" +
+            (proficient ? " (владение +2)" : ""));
+    };
+}
+
+/// <summary>
+/// Signal that the GM's turn is complete. In the C# port the tool-call loop
+/// terminates when the model stops calling tools — this tool is a no-op that
+/// gives the model an explicit "I'm done" action (matching the TS source's
+/// end_turn tool). The GM prompt instructs the model to call this at the end
+/// of every turn.
+/// </summary>
+internal static class EndTurnTool
+{
+    public static ToolDefinition Definition { get; } = new()
+    {
+        Name = "end_turn",
+        Description = "Завершить ход. ВЫЗЫВАЙ ОБЯЗАТЕЛЬНО в конце каждого ответа, после всей наррации и инструментов. Пока ты не вызвал end_turn, движок считает, что ход продолжается.",
+        ParametersJson = """
+        {
+          "type": "object",
+          "properties": {}
+        }
+        """,
+    };
+
+    public static ToolHandler Handle(MyGame.Core.World.World world) => async (args, ct) =>
+    {
+        return ToolResult.Ok(string.Empty, "Ход завершён.");
     };
 }
