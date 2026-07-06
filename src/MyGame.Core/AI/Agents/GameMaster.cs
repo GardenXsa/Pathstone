@@ -49,6 +49,13 @@ public sealed record NarrativeResult
 
     /// <summary>Error message when <see cref="Failed"/> is true.</summary>
     public string? Error { get; init; }
+
+    /// <summary>
+    /// The original exception that caused the failure, when available.
+    /// Carried so the UI can show a full diagnostic dialog (type + message
+    /// + stack trace + inner chain) instead of a bare one-liner.
+    /// </summary>
+    public Exception? Exception { get; init; }
 }
 
 /// <summary>
@@ -500,6 +507,7 @@ public sealed class GameMaster
                 ToolCalls = appliedCalls,
                 Failed = true,
                 Error = ex.Message,
+                Exception = ex,
             };
         }
     }

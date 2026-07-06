@@ -5,6 +5,7 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using Avalonia.Threading;
+using Avalonia.Input.Platform;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using MyGame.Core.AI;
@@ -241,6 +242,80 @@ public partial class GameViewModel : ViewModelBase
     /// and after the final NarrativeResult is appended to the Log.
     /// </summary>
     [ObservableProperty] private string _streamingNarrativeText = string.Empty;
+
+    // ─── Error dialog overlay ───────────────────────────────────────
+    // When an AI/turn error occurs, instead of a bare one-line error bar,
+    // we show a modal overlay with the FULL error log (exception type,
+    // message, stack trace, inner exceptions). The overlay is dismissible
+    // via a «Закрыть» button + a «Скопировать» button to copy the log to
+    // the clipboard for bug reports.
+    [ObservableProperty] private bool _isErrorVisible;
+    [ObservableProperty] private string _errorTitle = "Ошибка";
+    [ObservableProperty] private string _errorDetail = string.Empty;
+
+    /// <summary>
+    /// Show the error overlay with a full detailed log. Captures the
+    /// exception's type + message + stack trace + inner-exception chain
+    /// so the user (or a bug report) can see exactly what went wrong —
+    /// much more useful than a bare one-liner. The overlay replaces the
+    /// inline ErrorMessage bar for AI/turn errors.
+    /// </summary>
+    public void ShowErrorDialog(string title, Exception? ex)
+    {
+        var sb = new System.Text.StringBuilder();
+        if (ex is not null)
+        {
+            var depth = 0;
+            for (var e = ex; e is not null; e = e.InnerException, depth++)
+            {
+                if (depth > 0) sb.AppendLine().AppendLine($"--- Inner exception {depth} ---");
+                sb.AppendLine($"Тип: {e.GetType().FullName}");
+                sb.AppendLine($"Сообщение: {e.Message}");
+                if (!string.IsNullOrEmpty(e.StackTrace))
+                {
+                    sb.AppendLine("Стек:");
+                    sb.AppendLine(e.StackTrace);
+                }
+            }
+        }
+        else
+        {
+            sb.AppendLine("(исключение отсутствует — возможно, AI вернул пустой ответ).");
+        }
+        ErrorTitle = title;
+        ErrorDetail = sb.ToString();
+        IsErrorVisible = true;
+    }
+
+    /// <summary>Dismiss the error overlay.</summary>
+    [RelayCommand]
+    private void CloseErrorDialog()
+    {
+        IsErrorVisible = false;
+        ErrorDetail = string.Empty;
+    }
+
+    /// <summary>Copy the full error detail to the clipboard (best-effort).</summary>
+    [RelayCommand]
+    private async Task CopyErrorDetailAsync()
+    {
+        try
+        {
+            // Get the main window's TopLevel for clipboard access. The VM
+            // doesn't own a control reference, so we reach through the
+            // application lifetime — the standard pattern for VM-driven
+            // clipboard operations in Avalonia desktop apps.
+            if (Avalonia.Application.Current?.ApplicationLifetime
+                is Avalonia.Controls.ApplicationLifetimes.IClassicDesktopStyleApplicationLifetime { } dlt
+                && dlt.MainWindow is { } mw)
+            {
+                var clipboard = Avalonia.Controls.TopLevel.GetTopLevel(mw)?.Clipboard;
+                if (clipboard is not null && !string.IsNullOrEmpty(ErrorDetail))
+                    await clipboard.SetTextAsync(ErrorDetail);
+            }
+        }
+        catch { /* best-effort — don't crash on clipboard failure */ }
+    }
 
     /// <summary>
     /// Throttled streaming-narrative buffer. Deltas are appended here as
@@ -788,7 +863,8 @@ public partial class GameViewModel : ViewModelBase
         }
         catch (Exception ex)
         {
-            ErrorMessage = $"Действие не удалось: {ex.Message}";
+            AppendLog(LogEntry.System($"Действие не удалось: {ex.Message}"));
+            ShowErrorDialog("Ошибка действия", ex);
         }
         finally
         {
@@ -1459,7 +1535,11 @@ public partial class GameViewModel : ViewModelBase
                 _ => $"Ошибка ИИ: {err}"
             };
             AppendLog(LogEntry.System(friendly));
-            ErrorMessage = friendly;
+            // Show the full diagnostic dialog (exception type + message +
+            // stack trace + inner chain) so the user can see exactly what
+            // went wrong + copy it for a bug report. The friendly summary
+            // stays in the story feed; the dialog carries the full log.
+            ShowErrorDialog("Ошибка ответа ГМ", result.Exception ?? new System.Exception(result.Error ?? friendly));
             return;
         }
 

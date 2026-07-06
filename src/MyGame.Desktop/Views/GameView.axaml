@@ -757,5 +757,60 @@
                 </StackPanel>
             </Border>
         </Border>
+
+        <!-- Error dialog overlay. When an AI/turn error occurs, this modal
+             shows the FULL diagnostic log (exception type + message + stack
+             trace + inner-exception chain) instead of a bare one-liner.
+             Dismissible via «Закрыть»; «Скопировать» copies the log to the
+             clipboard for bug reports. -->
+        <Border Background="#E6000000"
+                IsVisible="{Binding IsErrorVisible}"
+                HorizontalAlignment="Stretch"
+                VerticalAlignment="Stretch"
+                ZIndex="60">
+            <Border HorizontalAlignment="Center" VerticalAlignment="Center"
+                    Background="{DynamicResource AppSurfaceBrush}"
+                    BorderBrush="{DynamicResource AppDangerBrush}"
+                    BorderThickness="2" CornerRadius="8"
+                    Padding="24,20" MinWidth="480" MaxWidth="720">
+                <StackPanel Spacing="12">
+                    <Grid ColumnDefinitions="*,Auto">
+                        <TextBlock Grid.Column="0" Text="{Binding ErrorTitle}"
+                                   FontSize="18" FontWeight="Bold"
+                                   Foreground="{DynamicResource AppDangerBrush}"/>
+                        <TextBlock Grid.Column="1" Text="⚠" FontSize="24"
+                                   Foreground="{DynamicResource AppDangerBrush}"/>
+                    </Grid>
+                    <Border Classes="Separator" Margin="0,2"/>
+                    <TextBlock Text="Подробный лог ошибки:"
+                               Classes="Muted Small"/>
+                    <!-- Scrollable log area — full exception dump (type +
+                         message + stack + inner chain). MaxHeight keeps the
+                         dialog on screen even for huge stack traces. -->
+                    <Border Background="#11000000"
+                            BorderBrush="{DynamicResource AppBorderBrush}"
+                            BorderThickness="1" CornerRadius="4"
+                            Padding="8,6" MaxHeight="360">
+                        <ScrollViewer HorizontalScrollBarVisibility="Auto"
+                                      VerticalScrollBarVisibility="Auto">
+                            <TextBlock Text="{Binding ErrorDetail}"
+                                       FontFamily="Cascadia Mono,Consolas,Menlo,monospace"
+                                       FontSize="11" LineHeight="15"
+                                       TextWrapping="NoWrap"/>
+                        </ScrollViewer>
+                    </Border>
+                    <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Right">
+                        <Button Content="📋 Скопировать"
+                                Command="{Binding CopyErrorDetailCommand}"
+                                Classes="SmallButton"
+                                ToolTip.Tip="Скопировать лог ошибки в буфер обмена"/>
+                        <Button Content="Закрыть"
+                                Command="{Binding CloseErrorDialogCommand}"
+                                Classes="SmallButton Primary"
+                                ToolTip.Tip="Закрыть окно ошибки"/>
+                    </StackPanel>
+                </StackPanel>
+            </Border>
+        </Border>
     </Grid>
 </UserControl>
