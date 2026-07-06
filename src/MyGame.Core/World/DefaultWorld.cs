@@ -184,27 +184,13 @@ public static class DefaultWorld
         world.SpawnNpcFromTemplate("npc_owl_bear_cub", deepCave.Id);
 
         // ─── New NPCs at the expanded locations ────────────────────────────
-        //
-        // Watchtower: a town guard (already spawned as the building's
-        // occupant above — the guard tower template lists npc_town_guard
-        // as an occupant). Find them and store the id for the quest giver
-        // field below. (The guard is at the tower location, not the
-        // village — the village's bld_guard_tower also spawned a guard,
-        // but we want the tower one for this quest.)
-        var towerGuard = world.Npcs.FirstOrDefault(n =>
-            n.LocationId == tower.Id && n.TemplateId == "npc_town_guard");
+        // World population only — NO pre-made quests. The GM issues quests
+        // dynamically during play based on the narrative, not the world
+        // builder. The TS original's defaultWorld also has no pre-baked
+        // quests; the GM's tool `update_quest` creates them at runtime.
 
-        // Lake: a wandering merchant by the water (the closest thing to
-        // a "hermit" the content pack offers — a lone traveler camped
-        // out by the lake). Gives the "Найти пропавшего караванщика"
-        // quest below.
-        var lakeHermit = world.SpawnNpcFromTemplate("npc_merchant_traveler", lake.Id);
-
-        // Crossroads: a second merchant (the merchant's colleague, asking
-        // passers-by if they've seen the missing caravan).
-        // — Actually to keep quest-giver discovery simple, the same lake
-        // hermit gives the caravan quest. No NPC here; the crossroads is
-        // a narrative anchor only.
+        // Lake: a wandering merchant by the water.
+        world.SpawnNpcFromTemplate("npc_merchant_traveler", lake.Id);
 
         // Farm: a bandit ambush.
         world.SpawnNpcFromTemplate("npc_bandit", farm.Id);
@@ -214,93 +200,13 @@ public static class DefaultWorld
         // location, suggests "the dead walk here too").
         world.SpawnNpcFromTemplate("npc_ghost", cemetery.Id);
 
-        // Old mine: goblins + an owlbear (a tougher monster for the
-        // "Зачистить шахту" quest target).
+        // Old mine: goblins + an owlbear.
         world.SpawnNpcFromTemplate("npc_goblin", oldMine.Id);
         world.SpawnNpcFromTemplate("npc_goblin", oldMine.Id);
         world.SpawnNpcFromTemplate("npc_owl_bear_cub", oldMine.Id);
 
         // Mountain pass: a wolf (mountain wolf).
         world.SpawnNpcFromTemplate("npc_wolf", pass.Id);
-
-        // ─── Quests ────────────────────────────────────────────────────────
-        //
-        // Existing: "Потерянный амулет" — given by the village elder.
-        // New: "Зачистить шахту" — given by the watchtower guard.
-        // New: "Найти пропавшего караванщика" — given by the lake hermit.
-
-        // Quest 1: Lost amulet (existing — keep).
-        var amuletItem = registries.Items.Get("qst_lost_amulet");
-        var quest = new Quest
-        {
-            Id = EntityId.NewId(),
-            Name = "Потерянный амулет",
-            Description = "Старейшина Олдрин просит найти фамильный амулет, украденный гоблинами из пещеры.",
-            GiverNpcId = world.Npcs.First(n => n.TemplateId == "npc_village_elder").Id,
-            Status = QuestStatus.Active,
-            Objectives = new()
-            {
-                new() { Id = "obj_find_amulet", Description = "Найти потерянный амулет в пещере гоблинов" },
-                new() { Id = "obj_return_amulet", Description = "Вернуть амулет старейшине Олдрину" },
-            },
-            Reward = new QuestReward { Currency = 50, Experience = 100, Items = amuletItem is null ? null : new() { amuletItem.Id } },
-        };
-        world.Quests.Add(quest);
-
-        // Quest 2: Clear the old mine — given by the watchtower guard.
-        // Only add the quest if the guard actually spawned (defensive —
-        // if bld_guard_tower didn't list npc_town_guard as an occupant,
-        // towerGuard would be null).
-        if (towerGuard is not null)
-        {
-            var mineQuest = new Quest
-            {
-                Id = EntityId.NewId(),
-                Name = "Зачистить шахту",
-                Description = "Страж с башни просит зачистить старую шахту к востоку от пещеры — гоблины и совомедведь сделали оттуда логово и угрожают тракту.",
-                GiverNpcId = towerGuard.Id,
-                Status = QuestStatus.Active,
-                Objectives = new()
-                {
-                    new() { Id = "obj_mine_kill_goblins", Description = "Уничтожить гоблинов в Старой шахте" },
-                    new() { Id = "obj_mine_kill_beast", Description = "Справиться с совомедведем в шахте" },
-                    new() { Id = "obj_mine_report", Description = "Доложить стражу на башне об успехе" },
-                },
-                Reward = new QuestReward
-                {
-                    Currency = 75,
-                    Experience = 150,
-                    Items = new() { "tre_gem_ruby" },
-                },
-            };
-            world.Quests.Add(mineQuest);
-        }
-
-        // Quest 3: Find the missing caravaneer — given by the lake hermit.
-        if (lakeHermit is not null)
-        {
-            var caravanQuest = new Quest
-            {
-                Id = EntityId.NewId(),
-                Name = "Найти пропавшего караванщика",
-                Description = "Странствующий торговец у лесного озера просит разузнать судьбу своего напарника — караван пропал по тракту на юг, и последним местом, где его видели, была Развилка.",
-                GiverNpcId = lakeHermit.Id,
-                Status = QuestStatus.Active,
-                Objectives = new()
-                {
-                    new() { Id = "obj_caravan_xroads", Description = "Осмотреть Развилку на следы каравана" },
-                    new() { Id = "obj_caravan_farm", Description = "Проверить Заброшенную ферму — возможно, разбойники причастны" },
-                    new() { Id = "obj_caravan_return", Description = "Вернуться к торговцу у озера с вестями" },
-                },
-                Reward = new QuestReward
-                {
-                    Currency = 60,
-                    Experience = 120,
-                    Items = new() { "misc_scroll_map" },
-                },
-            };
-            world.Quests.Add(caravanQuest);
-        }
 
         // ─── Pending player (placeholder, empty inventory) ───────────────
         // Per the TS original (createNewWorld + buildDefaultWorld): the
