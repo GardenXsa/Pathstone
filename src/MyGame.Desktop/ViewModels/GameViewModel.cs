@@ -1436,8 +1436,30 @@ public partial class GameViewModel : ViewModelBase
 
         if (result.Failed)
         {
-            AppendLog(LogEntry.System($"Ошибка ИИ: {result.Error ?? "неизвестная ошибка"}"));
-            ErrorMessage = result.Error ?? "Ошибка ИИ.";
+            var err = result.Error;
+            // Friendly AI-error message: surface the provider's error text
+            // (already extracted by AiClient) + a hint to check settings.
+            // 'Unknown provider error' means the AI endpoint returned an
+            // error response without a message field — usually a bad
+            // BaseUrl, wrong API key, or a model name the provider doesn't
+            // serve. Tell the user to check Настройки → AI.
+            var friendly = err switch
+            {
+                null => "Ошибка ИИ (без подробностей). Проверьте Настройки → AI (BaseUrl, API-ключ, модель).",
+                "Unknown provider error" or "Unknown provider error."
+                    => "AI-провайдер вернул ошибку без сообщения. Проверьте Настройки → AI: BaseUrl, API-ключ и модель должны быть корректны.",
+                _ when err.Contains("Unauthorized") || err.Contains("401")
+                    => "Неверный API-ключ. Откройте Настройки → AI и введите корректный ключ.",
+                _ when err.Contains("404")
+                    => "Модель не найдена. Проверьте имя модели в Настройки → AI.",
+                _ when err.Contains("429")
+                    => "Превышен лимит запросов (429). Подождите и попробуйте снова.",
+                _ when err.Contains("Network") || err.Contains("network")
+                    => "Сетевая ошибка. Проверьте подключение и BaseUrl в Настройки → AI.",
+                _ => $"Ошибка ИИ: {err}"
+            };
+            AppendLog(LogEntry.System(friendly));
+            ErrorMessage = friendly;
             return;
         }
 
