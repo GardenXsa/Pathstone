@@ -376,6 +376,7 @@ public partial class WorldBuildViewModel : ViewModelBase
 
             if (_result.Kind == WorldBuilderResultKind.Complete)
             {
+                MyGame.Desktop.Services.SoundService.Play(MyGame.Desktop.Services.SoundEffect.Fanfare);
                 // Persist the built world as a save, with the opening
                 // narration as the first log entry so the game screen
                 // shows it immediately.
@@ -466,6 +467,7 @@ public partial class WorldBuildViewModel : ViewModelBase
     [RelayCommand(CanExecute = nameof(CanPause))]
     private void Pause()
     {
+        MyGame.Desktop.Services.SoundService.Play(MyGame.Desktop.Services.SoundEffect.Click);
         if (_orchestrator is null) return;
         _prePauseStageLabel = StageLabel;
         _orchestrator.Pause();
@@ -486,6 +488,7 @@ public partial class WorldBuildViewModel : ViewModelBase
     [RelayCommand(CanExecute = nameof(CanResume))]
     private void Resume()
     {
+        MyGame.Desktop.Services.SoundService.Play(MyGame.Desktop.Services.SoundEffect.Click);
         if (_orchestrator is null) return;
         _orchestrator.Resume();
         IsPaused = false;

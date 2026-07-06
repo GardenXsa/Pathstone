@@ -31,14 +31,25 @@ public partial class GameView : UserControl
     private GameViewModel? _vm;
     private bool _autoScroll = true;
 
-    public GameView()
-    {
-        InitializeComponent();
-        DataContextChanged += OnDataContextChanged;
-        // Track scroll position so the user can scroll up without the
-        // view yanking them back down.
-        NarrativeScroll.ScrollChanged += OnScrollChanged;
-    }
+            public GameView()
+        {
+            InitializeComponent();
+            DataContextChanged += OnDataContextChanged;
+            // Track scroll position so the user can scroll up without the
+            // view yanking them back down.
+            NarrativeScroll.ScrollChanged += OnScrollChanged;
+            
+            // JUICE/IMPACT: Register global hover sound trigger for all interactive elements
+            this.AddHandler(InputElement.PointerEnterEvent, OnPointerEnterGlobal, RoutingStrategies.Bubble);
+        }
+
+        private void OnPointerEnterGlobal(object? sender, PointerEventArgs e)
+        {
+            if (e.Source is Button || e.Source is TabItem)
+            {
+                MyGame.Desktop.Services.SoundService.Play(MyGame.Desktop.Services.SoundEffect.Click);
+            }
+        }
 
     private void OnDataContextChanged(object? sender, System.EventArgs e)
     {
@@ -145,11 +156,8 @@ public partial class GameView : UserControl
         // other overlays being open.
         if (e.Key == Key.F1)
         {
-            HelpOverlay.IsVisible = !HelpOverlay.IsVisible;
-            // Opening the help overlay dismisses the leave-confirm
-            // overlay if it was open (the user is exploring shortcuts,
-            // not leaving).
-            if (HelpOverlay.IsVisible) LeaveConfirmOverlay.IsVisible = false;
+            HelpToggle.IsChecked = !HelpToggle.IsChecked;
+            if (HelpToggle.IsChecked == true) LeaveConfirmOverlay.IsVisible = false;
             e.Handled = true;
             return;
         }
@@ -157,11 +165,11 @@ public partial class GameView : UserControl
         // If the help overlay is open, only Esc/F1 close it (F1
         // handled above). Everything else is swallowed so the user
         // doesn't accidentally trigger commands while reading.
-        if (HelpOverlay.IsVisible)
+        if (HelpToggle.IsChecked == true)
         {
             if (e.Key == Key.Escape)
             {
-                HelpOverlay.IsVisible = false;
+                HelpToggle.IsChecked = false;
                 e.Handled = true;
             }
             return;
@@ -282,10 +290,15 @@ public partial class GameView : UserControl
     /// PointerPressed still fires on the backdrop only when the
     /// pointer is over the backdrop itself).
     /// </summary>
-    private void OnHelpOverlayClick(object? sender, PointerPressedEventArgs e)
+        private void OnHelpOverlayClick(object? sender, PointerPressedEventArgs e)
     {
-        HelpOverlay.IsVisible = false;
+        HelpToggle.IsChecked = false;
         e.Handled = true;
+    }
+
+    private void OnHelpButtonClick(object? sender, RoutedEventArgs e)
+    {
+        HelpToggle.IsChecked = false;
     }
 
     // ─── Leave-confirm overlay handlers (issue #51) ───────────────────

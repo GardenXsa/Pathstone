@@ -189,6 +189,13 @@ public partial class GameViewModel : ViewModelBase
     [ObservableProperty] private string? _combatDisplay;
     [ObservableProperty] private bool _isPlayerDead;
 
+    public bool IsCombatActive => CombatDisplay != null;
+
+    partial void OnCombatDisplayChanged(string? value)
+    {
+        OnPropertyChanged(nameof(IsCombatActive));
+    }
+
     // ─── Reconnect overlay state (issue #7) ────────────────────────────
     //
     // IsDisconnected: drives the reconnect overlay. True when the
@@ -242,6 +249,13 @@ public partial class GameViewModel : ViewModelBase
     /// and after the final NarrativeResult is appended to the Log.
     /// </summary>
     [ObservableProperty] private string _streamingNarrativeText = string.Empty;
+
+    public bool IsStreaming => !string.IsNullOrEmpty(StreamingNarrativeText);
+
+    partial void OnStreamingNarrativeTextChanged(string value)
+    {
+        OnPropertyChanged(nameof(IsStreaming));
+    }
 
     // ─── Error dialog overlay ───────────────────────────────────────
     // When an AI/turn error occurs, instead of a bare one-line error bar,
@@ -830,6 +844,7 @@ public partial class GameViewModel : ViewModelBase
     [RelayCommand(CanExecute = nameof(CanSubmitAction))]
     private async Task SubmitActionAsync()
     {
+        MyGame.Desktop.Services.SoundService.Play(MyGame.Desktop.Services.SoundEffect.Click);
         var text = (CurrentAction ?? string.Empty).Trim();
         if (string.IsNullOrEmpty(text)) return;
         CurrentAction = string.Empty;
@@ -886,6 +901,7 @@ public partial class GameViewModel : ViewModelBase
     [RelayCommand(CanExecute = nameof(CanSubmitAction))]
     private async Task QuickActionAsync(string key)
     {
+        MyGame.Desktop.Services.SoundService.Play(MyGame.Desktop.Services.SoundEffect.PageTurn);
         var text = key switch
         {
             "look"   => "Я осматриваюсь вокруг. Что я вижу?",
@@ -1863,6 +1879,7 @@ public partial class GameViewModel : ViewModelBase
     // anyway (CanSave=false implies read-only).
     private void OnInventoryAction(Panels.ItemAction action)
     {
+        MyGame.Desktop.Services.SoundService.Play(MyGame.Desktop.Services.SoundEffect.Select);
         if (_world is null) return;
         var player = _world.ActivePlayer ?? _world.Players.FirstOrDefault();
         if (player is null) return;
@@ -2120,6 +2137,7 @@ public partial class GameViewModel : ViewModelBase
     // GM tool flow runs on the host).
     private void OnQuestClaimRewards(EntityId questId)
     {
+        MyGame.Desktop.Services.SoundService.Play(MyGame.Desktop.Services.SoundEffect.Fanfare);
         if (_world is null) return;
         var quest = _world.GetQuest(questId);
         if (quest is null) return;
@@ -2229,6 +2247,7 @@ public partial class GameViewModel : ViewModelBase
     // new real exit to actually travel into the generated region.
     private void OnTravel(Panels.ExitRow exit)
     {
+        MyGame.Desktop.Services.SoundService.Play(MyGame.Desktop.Services.SoundEffect.PageTurn);
         if (_world is null) return;
         if (exit is null) return;
         if (exit.Locked)

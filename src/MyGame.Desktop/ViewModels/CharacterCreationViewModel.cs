@@ -107,6 +107,7 @@ public partial class CharacterCreationViewModel : ViewModelBase
         if (row is null) return;
         if (RemainingPoints <= 0) return;
         row.Value++;
+        MyGame.Desktop.Services.SoundService.Play(MyGame.Desktop.Services.SoundEffect.Click);
         RefreshPointBuyState();
     }
 
@@ -122,6 +123,7 @@ public partial class CharacterCreationViewModel : ViewModelBase
         if (row is null) return;
         if (row.Value <= 0) return;
         row.Value--;
+        MyGame.Desktop.Services.SoundService.Play(MyGame.Desktop.Services.SoundEffect.Click);
         RefreshPointBuyState();
     }
 
@@ -157,6 +159,7 @@ public partial class CharacterCreationViewModel : ViewModelBase
     [RelayCommand(CanExecute = nameof(CanCreate))]
     private async Task CreateAsync()
     {
+        MyGame.Desktop.Services.SoundService.Play(MyGame.Desktop.Services.SoundEffect.Chime);
         if (string.IsNullOrWhiteSpace(Name))
         {
             ErrorMessage = "Введите имя персонажа.";

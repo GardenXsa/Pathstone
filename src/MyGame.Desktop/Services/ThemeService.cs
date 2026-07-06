@@ -18,40 +18,36 @@ public static class ThemeService
 {
     private static readonly Dictionary<string, string> DarkPalette = new()
     {
-        // Warm candlelight palette — deep slate-charcoal + amber accent.
-        // Matches the TS source's mood (globals.css .dark): torchlight, not
-        // cold blue/indigo. Gives the app a fantasy-sourcebook feel.
-        ["AppBackground"] = "#1C1813",
-        ["AppSurface"]    = "#25201A",
-        ["AppSurfaceAlt"] = "#2E2A22",
-        ["AppBorder"]     = "#3D362C",
-        ["AppForeground"] = "#EBE5D8",
-        ["AppMuted"]      = "#A89B82",
-        ["AppDanger"]     = "#D4574B",
-        ["AppSuccess"]    = "#7BAE6B",
+        ["AppBackground"] = "#110E0C", // Deep obsidian shadow
+        ["AppSurface"]    = "#181411", // Weathered leather grimoire
+        ["AppSurfaceAlt"] = "#231E1B", // Dark parchment backing
+        ["AppBorder"]     = "#332A25", // Aged brass border
+        ["AppForeground"] = "#F4EFE6", // Soft creamy manuscript text
+        ["AppMuted"]      = "#938574", // Ancient ink dust
+        ["AppDanger"]     = "#E65C4F", // Alchemical blood crimson
+        ["AppSuccess"]    = "#5FB26B", // Forest leaf moss green
     };
 
     private static readonly Dictionary<string, string> LightPalette = new()
     {
-        ["AppBackground"] = "#FAFAFA",
-        ["AppSurface"]    = "#FFFFFF",
-        ["AppSurfaceAlt"] = "#F3F4F6",
-        ["AppBorder"]     = "#D1D5DB",
-        ["AppForeground"] = "#1F2937",
-        ["AppMuted"]      = "#6B7280",
-        ["AppDanger"]     = "#DC2626",
-        ["AppSuccess"]    = "#059669",
+        ["AppBackground"] = "#FAF6EE", // Warm aged papyrus
+        ["AppSurface"]    = "#FCFAF5", // Bleached parchment
+        ["AppSurfaceAlt"] = "#EFEAE0", // Shadowed paper folds
+        ["AppBorder"]     = "#D2C5B9", // Vintage leather bindings
+        ["AppForeground"] = "#1C1A17", // Charcoal charcoal ink
+        ["AppMuted"]      = "#7D7264", // Faded sepia text
+        ["AppDanger"]     = "#C23B22", // Searing cinnabar red
+        ["AppSuccess"]    = "#2A7B4C", // Rich pine needle green
     };
 
     private static readonly Dictionary<string, (string Accent, string AccentFg)> Accents = new(StringComparer.OrdinalIgnoreCase)
     {
-        // Amber is the default — matches the warm candlelight palette.
-        ["Amber"]   = ("#E8B85A", "#1C1813"),
-        ["Indigo"]  = ("#7C5CFF", "#FFFFFF"),
-        ["Emerald"] = ("#10B981", "#FFFFFF"),
-        ["Rose"]    = ("#F43F5E", "#FFFFFF"),
-        ["Cyan"]    = ("#06B6D4", "#FFFFFF"),
-        ["Violet"]  = ("#8B5CF6", "#FFFFFF"),
+        ["Amber"]   = ("#D97706", "#110E0C"), // Glowing warm torchlight
+        ["Indigo"]  = ("#6366F1", "#FFFFFF"), // Royal purple-blue
+        ["Emerald"] = ("#059669", "#FFFFFF"), // Deep emerald sage
+        ["Rose"]    = ("#E11D48", "#FFFFFF"), // Blood rose crimson
+        ["Cyan"]    = ("#0891B2", "#110E0C"), // Spectral cyan
+        ["Violet"]  = ("#7C3AED", "#FFFFFF"), // Eldritch violet
     };
 
     public static IReadOnlyList<string> AccentPresetNames { get; } =

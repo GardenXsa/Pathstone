@@ -309,6 +309,7 @@ public partial class SettingsViewModel : ViewModelBase
     [RelayCommand]
     private void SelectAccent(string? name)
     {
+        MyGame.Desktop.Services.SoundService.Play(MyGame.Desktop.Services.SoundEffect.Click);
         if (string.IsNullOrWhiteSpace(name)) return;
         AccentColor = name;
     }
@@ -418,6 +419,7 @@ public partial class SettingsViewModel : ViewModelBase
     [RelayCommand]
     private void ApplyPreset(AiPreset? preset)
     {
+        MyGame.Desktop.Services.SoundService.Play(MyGame.Desktop.Services.SoundEffect.Click);
         if (preset is null) return;
         BaseUrl = preset.BaseUrl;
         Model = preset.Model;
@@ -435,6 +437,7 @@ public partial class SettingsViewModel : ViewModelBase
     [RelayCommand]
     private async Task SaveAsync()
     {
+        MyGame.Desktop.Services.SoundService.Play(MyGame.Desktop.Services.SoundEffect.Chime);
         IsBusy = true;
         ErrorMessage = null;
         try
@@ -510,6 +513,7 @@ public partial class SettingsViewModel : ViewModelBase
     [RelayCommand]
     private void Cancel()
     {
+        MyGame.Desktop.Services.SoundService.Play(MyGame.Desktop.Services.SoundEffect.PageTurn);
         // Revert live-preview theme changes by re-applying the on-disk
         // settings. If the load fails, fall back to defaults so the UI
         // is at least in a known state.

@@ -1,815 +1,254 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
-             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
-             xmlns:vm="using:MyGame.Desktop.ViewModels"
-             xmlns:conv="using:MyGame.Desktop.Converters"
-             xmlns:panels="using:MyGame.Desktop.Views.Panels"
-             xmlns:core="using:MyGame.Core.Saves"
-             xmlns:mp="using:MyGame.Core.Multiplayer"
-             mc:Ignorable="d" d:DesignWidth="1280" d:DesignHeight="800"
+             xmlns:vm="clr-namespace:MyGame.Desktop.ViewModels"
+             xmlns:panels="clr-namespace:MyGame.Desktop.Views.Panels"
+             xmlns:controls="clr-namespace:MyGame.Desktop.Controls"
              x:Class="MyGame.Desktop.Views.GameView"
              x:DataType="vm:GameViewModel"
-             KeyDown="OnGlobalKeyDown">
+             x:CompileBindings="False">
+
+    <UserControl.Styles>
+        <Style Selector="ToggleButton">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderBrush" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="Width" Value="40" />
+            <Setter Property="Height" Value="40" />
+            <Setter Property="CornerRadius" Value="20" />
+            <Setter Property="HorizontalContentAlignment" Value="Center" />
+            <Setter Property="VerticalContentAlignment" Value="Center" />
+            <Setter Property="FontSize" Value="20" />
+            <Setter Property="Transitions">
+                <Transitions>
+                    <TransformOperationsTransition Property="RenderTransform" Duration="0:0:0.1" />
+                    <BrushTransition Property="Background" Duration="0:0:0.15" />
+                </Transitions>
+            </Setter>
+        </Style>
+        <Style Selector="ToggleButton:pointerover">
+            <Setter Property="Background" Value="#33D97706" />
+            <Setter Property="RenderTransform" Value="scale(1.1)" />
+        </Style>
+        <Style Selector="ToggleButton:checked">
+            <Setter Property="Background" Value="#66D97706" />
+            <Setter Property="Foreground" Value="{DynamicResource AppAccent}" />
+            <Setter Property="RenderTransform" Value="scale(1.05)" />
+        </Style>
+        <Style Selector="Button">
+            <Setter Property="Transitions">
+                <Transitions>
+                    <TransformOperationsTransition Property="RenderTransform" Duration="0:0:0.1" />
+                </Transitions>
+            </Setter>
+        </Style>
+        <Style Selector="Button:pointerover">
+            <Setter Property="RenderTransform" Value="scale(1.05)" />
+        </Style>
+    </UserControl.Styles>
 
     <Grid>
-        <DockPanel LastChildFill="True">
+        <!-- Background Texture Panel -->
+        <Panel Background="{DynamicResource AppBackground}" />
 
-        <!-- Top bar -->
-        <Border DockPanel.Dock="Top" Classes="TopBar">
-            <Grid ColumnDefinitions="Auto,*,Auto,Auto,Auto,Auto,Auto">
-                <TextBlock Grid.Column="0" Text="{Binding GameName}" Classes="AppTitle"
-                           VerticalAlignment="Center" Margin="0,0,12,0"/>
-                <TextBlock Grid.Column="1" Text="{Binding ShareAddress}" Classes="Muted Small"
-                           VerticalAlignment="Center" IsVisible="{Binding IsMultiplayer}"/>
-                <!-- COMBAT-DEATH (issue #88): combat indicator. Red text,
-                     only visible when CombatDisplay is non-empty. -->
-                <TextBlock Grid.Column="2" Text="{Binding CombatDisplay}"
-                           Foreground="{DynamicResource AppDangerBrush}"
-                           FontWeight="SemiBold" Classes="Small"
-                           VerticalAlignment="Center" Margin="12,0"
-                           IsVisible="{Binding CombatDisplay, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"/>
-                <TextBlock Grid.Column="3" Text="{Binding ClockDisplay}" Classes="Muted Small"
-                           VerticalAlignment="Center" Margin="12,0"
-                           FontFamily="Cascadia Mono,Consolas,Menlo,monospace"/>
-                <!-- Token billing widget (issue #6) — monospace, two
-                     TextBlocks in a horizontal StackPanel so each can
-                     collapse independently when its value is empty. -->
-                <StackPanel Grid.Column="4" Orientation="Horizontal" VerticalAlignment="Center"
-                            Margin="12,0" Spacing="8"
-                            ToolTip.Tip="Использование токенов AI за этот ход и сессию">
-                    <TextBlock Text="{Binding LastTurnTokensDisplay}" Classes="Muted Small"
-                               FontFamily="Cascadia Mono,Consolas,Menlo,monospace"
-                               IsVisible="{Binding LastTurnTokensDisplay, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"/>
-                    <TextBlock Text="{Binding SessionTokensDisplay}" Classes="Muted Small"
-                               FontFamily="Cascadia Mono,Consolas,Menlo,monospace"
-                               IsVisible="{Binding SessionTokensDisplay, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"/>
+        <!-- Multi-Drawer Asymmetric RPG Grid -->
+        <Grid ColumnDefinitions="Auto, Auto, Auto, *, Auto, Auto, Auto" Margin="8">
+            
+            <!-- LEFT UTILITY BAR: Icons for Character & Inventory (Column 0) -->
+            <Border Grid.Column="0" Width="52" Background="{DynamicResource AppBackground}" BorderBrush="{DynamicResource AppBorder}" BorderThickness="0,0,1,0" Padding="0,16" Margin="0,0,4,0">
+                <StackPanel Spacing="16" HorizontalAlignment="Center">
+                    <ToggleButton Name="CharacterToggle" Content="👤" ToolTip.Tip="Лист персонажа" IsChecked="True" />
+                    <ToggleButton Name="InventoryToggle" Content="🎒" ToolTip.Tip="Инвентарь и сумка" />
                 </StackPanel>
-                <Button Grid.Column="5" Content="💾 Сохранить" Command="{Binding SaveCommand}"
-                        Classes="SmallButton" Margin="0,0,6,0"
-                        IsVisible="{Binding CanSave}"
-                        ToolTip.Tip="Сохранить текущее состояние"/>
-                <Button Grid.Column="6" Content="Выйти" Command="{Binding LeaveGameCommand}"
-                        Classes="SmallButton Danger"
-                        ToolTip.Tip="Выйти из игры"/>
-            </Grid>
-        </Border>
-
-        <!-- Status bar (below top bar) -->
-        <Border DockPanel.Dock="Top" Classes="StatusBar">
-            <Grid ColumnDefinitions="*,Auto">
-                <TextBlock Grid.Column="0" Text="{Binding StatusText}" Classes="Muted Small"/>
-                <TextBlock Grid.Column="1" Text="⏳" IsVisible="{Binding IsWaiting}"
-                           Margin="6,0,0,0"/>
-            </Grid>
-        </Border>
-
-        <!-- Error bar -->
-        <Border DockPanel.Dock="Top" Classes="ErrorBar"
-                IsVisible="{Binding ErrorMessage, Converter={x:Static StringConverters.IsNotNullOrEmpty}}">
-            <TextBlock Text="{Binding ErrorMessage}" />
-        </Border>
-
-        <!-- 3-column body. Right column collapses to 0 width in single-player. -->
-        <Grid ColumnDefinitions="320,*,Auto">
-
-            <!-- LEFT column: members (multiplayer) OR tabbed panels (single-player) -->
-            <Border Grid.Column="0" Classes="SidePanel">
-                <DockPanel LastChildFill="True">
-                    <!-- Multiplayer: members list. Issue #77 — shows a
-                         ready-status indicator (✓ ready / ○ pending) next
-                         to each member. In-game, the indicator reflects
-                         the post-start Playing status (everyone shows ✓). -->
-                    <StackPanel DockPanel.Dock="Top" IsVisible="{Binding IsMultiplayer}">
-                        <TextBlock Text="Участники" Classes="SectionTitle" Margin="0,0,0,6"/>
-                        <ItemsControl ItemsSource="{Binding Members}">
-                            <ItemsControl.ItemTemplate>
-                                <DataTemplate DataType="mp:MemberInfo">
-                                    <Border Classes="MemberRow" Padding="6,4">
-                                        <Grid ColumnDefinitions="*,Auto">
-                                            <StackPanel Grid.Column="0" Spacing="1">
-                                                <TextBlock Text="{Binding Nickname}" FontWeight="SemiBold"/>
-                                                <TextBlock Text="{Binding Role}" Classes="Muted Small"/>
-                                            </StackPanel>
-                                            <!-- Ready-status indicator. ✓ for Ready, ○ for Pending. -->
-                                            <TextBlock Grid.Column="1" VerticalAlignment="Center"
-                                                       FontFamily="Cascadia Mono,Consolas,Menlo,monospace"
-                                                       FontSize="14"
-                                                       Foreground="{DynamicResource AppSuccessBrush}"
-                                                       Text="✓"
-                                                       ToolTip.Tip="Готов"
-                                                       IsVisible="{Binding Status, Converter={x:Static conv:MemberStatusToReadyVisibilityConverter.Instance}, ConverterParameter=Ready}"/>
-                                            <TextBlock Grid.Column="1" VerticalAlignment="Center"
-                                                       FontFamily="Cascadia Mono,Consolas,Menlo,monospace"
-                                                       FontSize="14"
-                                                       Foreground="{DynamicResource AppMutedBrush}"
-                                                       Text="○"
-                                                       ToolTip.Tip="Ожидание"
-                                                       IsVisible="{Binding Status, Converter={x:Static conv:MemberStatusToReadyVisibilityConverter.Instance}, ConverterParameter=Pending}"/>
-                                        </Grid>
-                                    </Border>
-                                </DataTemplate>
-                            </ItemsControl.ItemTemplate>
-                        </ItemsControl>
-                    </StackPanel>
-
-                    <!-- Single-player: tabbed side panels (Character / Inventory / Quests / World) -->
-                    <TabControl x:Name="SideTabs" IsVisible="{Binding !IsMultiplayer}" Padding="0">
-                        <TabItem Header="Персонаж" ToolTip.Tip="Лист персонажа">
-                            <panels:CharacterPanelView DataContext="{Binding CharacterPanel}"/>
-                        </TabItem>
-                        <TabItem Header="Сумка" ToolTip.Tip="Инвентарь и экипировка">
-                            <panels:InventoryPanelView DataContext="{Binding InventoryPanel}"/>
-                        </TabItem>
-                        <TabItem Header="Квесты" ToolTip.Tip="Журнал заданий">
-                            <panels:QuestPanelView DataContext="{Binding QuestPanel}"/>
-                        </TabItem>
-                        <TabItem Header="Мир" ToolTip.Tip="Карта мира и текущая локация">
-                            <panels:WorldPanelView DataContext="{Binding WorldPanel}"/>
-                        </TabItem>
-                    </TabControl>
-
-                    <!-- Bottom: chat panel (multiplayer only). Issue #77
-                         — stays visible in lobby mode (pre-game chat). -->
-                    <Border DockPanel.Dock="Bottom" Classes="ChatPanel"
-                            IsVisible="{Binding IsMultiplayer}" Margin="0,8,0,0">
-                        <DockPanel LastChildFill="True">
-                            <TextBlock DockPanel.Dock="Top" Text="Чат" Classes="SectionTitle" Margin="0,0,0,4"/>
-                            <Button DockPanel.Dock="Bottom" Content="Отправить" AutomationProperties.Name="Отправить сообщение в чат"
-                                    Command="{Binding SendChatCommand}" Classes="SmallButton"
-                                    Margin="0,4,0,0"
-                                    ToolTip.Tip="Отправить сообщение в чат"/>
-                            <TextBox DockPanel.Dock="Bottom" Text="{Binding ChatInput}"
-                                     PlaceholderText="Сообщение…"
-                                     Margin="0,4,0,0"
-                                     ToolTip.Tip="Сообщение участникам партии"/>
-                            <ScrollViewer HorizontalScrollBarVisibility="Disabled"
-                                          VerticalScrollBarVisibility="Auto">
-                                <ItemsControl ItemsSource="{Binding Chat}">
-                                    <ItemsControl.ItemTemplate>
-                                        <DataTemplate DataType="vm:ChatLine">
-                                            <StackPanel Margin="0,2">
-                                                <TextBlock>
-                                                    <Run Text="{Binding Author}" FontWeight="SemiBold"/>
-                                                    <Run Text=": " />
-                                                    <Run Text="{Binding Text}" />
-                                                </TextBlock>
-                                            </StackPanel>
-                                        </DataTemplate>
-                                    </ItemsControl.ItemTemplate>
-                                </ItemsControl>
-                            </ScrollViewer>
-                        </DockPanel>
-                    </Border>
-
-                    <!-- Spacer to fill remaining height -->
-                    <TextBlock Text="" />
-                </DockPanel>
             </Border>
 
-            <!-- CENTER column: lobby panel (issue #77) when IsLobby, OR
-                 the normal narrative log + input when !IsLobby. Both
-                 children overlap in the Grid; visibility binding toggles
-                 which is shown. -->
-            <Border Grid.Column="1" Classes="CenterPanel">
-                <Grid>
+            <!-- LEFT DRAWER 1: Character Panel (Column 1) -->
+            <Border Grid.Column="1" Width="320" Background="{DynamicResource AppSurface}" BorderBrush="{DynamicResource AppBorder}" BorderThickness="0,0,1,0" CornerRadius="4" IsVisible="{Binding #CharacterToggle.IsChecked}" Margin="0,0,8,0" ClipToBounds="True">
+                <Grid RowDefinitions="Auto, *">
+                    <Border Background="{DynamicResource AppSurfaceAlt}" Height="36" BorderBrush="{DynamicResource AppBorder}" BorderThickness="0,0,0,1">
+                        <TextBlock Text="Лист персонажа" VerticalAlignment="Center" HorizontalAlignment="Center" FontWeight="Bold" FontSize="12" Foreground="{DynamicResource AppForeground}" />
+                    </Border>
+                    <panels:CharacterPanelView Grid.Row="1" DataContext="{Binding CharacterPanel}" />
+                </Grid>
+            </Border>
 
-                    <!-- Lobby layout (issue #77). Visible only in
-                         multiplayer + when the party status is Lobby.
-                         Shows the party name, a copy-address button,
-                         party settings summary, the local ready toggle
-                         (clients only), and the Start Game button
-                         (host only, disabled until all non-spectator
-                         members are Ready). -->
-                    <ScrollViewer HorizontalScrollBarVisibility="Disabled"
-                                  VerticalScrollBarVisibility="Auto"
-                                  Padding="24,16"
-                                  IsVisible="{Binding IsLobby}">
-                        <StackPanel Spacing="14" MaxWidth="560" HorizontalAlignment="Center">
-                            <TextBlock Text="Лобби партии" Classes="ScreenTitle"
-                                       HorizontalAlignment="Center"/>
-                            <TextBlock Text="{Binding GameName}" FontSize="20"
-                                       FontWeight="SemiBold" HorizontalAlignment="Center"/>
+            <!-- LEFT DRAWER 2: Inventory Panel (Column 2) -->
+            <Border Grid.Column="2" Width="320" Background="{DynamicResource AppSurface}" BorderBrush="{DynamicResource AppBorder}" BorderThickness="0,0,1,0" CornerRadius="4" IsVisible="{Binding #InventoryToggle.IsChecked}" Margin="0,0,8,0" ClipToBounds="True">
+                <Grid RowDefinitions="Auto, *">
+                    <Border Background="{DynamicResource AppSurfaceAlt}" Height="36" BorderBrush="{DynamicResource AppBorder}" BorderThickness="0,0,0,1">
+                        <TextBlock Text="Сумка и снаряжение" VerticalAlignment="Center" HorizontalAlignment="Center" FontWeight="Bold" FontSize="12" Foreground="{DynamicResource AppForeground}" />
+                    </Border>
+                    <panels:InventoryPanelView Grid.Row="1" DataContext="{Binding InventoryPanel}" />
+                </Grid>
+            </Border>
 
-                            <!-- Share address with copy button (host shows the
-                                 listen address; clients show the host they
-                                 connected to). -->
-                            <Border Classes="InfoBox" Padding="10"
-                                    IsVisible="{Binding ShareAddress, Converter={x:Static StringConverters.IsNotNullOrEmpty}}">
-                                <Grid ColumnDefinitions="*,Auto">
-                                    <StackPanel Grid.Column="0" Spacing="2">
-                                        <TextBlock Text="Адрес для подключения:" Classes="Muted Small"/>
-                                        <TextBlock Text="{Binding ShareAddress}"
-                                                   FontFamily="Cascadia Mono,Consolas,Menlo,monospace"/>
-                                    </StackPanel>
-                                    <Button Grid.Column="1" Content="📋 Копировать"
-                                            Classes="TinyButton" VerticalAlignment="Center"
-                                            Click="OnCopyAddressClick"
-                                            ToolTip.Tip="Скопировать адрес в буфер обмена"/>
-                                </Grid>
-                            </Border>
-
-                            <!-- Party settings summary. Static labels
-                                 describing the host's configuration. The
-                                 MaxPlayers cap + turn model are set at
-                                 host-creation time on the HostGame screen;
-                                 we surface them here as a quick reminder.
-                                 Future: bind to live host settings when
-                                 they're exposed on the HostSession. -->
-                            <Border Classes="PanelSection" Padding="10">
-                                <StackPanel Spacing="4">
-                                    <TextBlock Text="Настройки партии" Classes="SectionTitle"/>
-                                    <TextBlock Text="Модель хода: батчинг действий (5 секунд)"
-                                               Classes="Muted Small"/>
-                                    <TextBlock Text="Видимость: локальная сеть (LAN)"
-                                               Classes="Muted Small"/>
-                                    <TextBlock Text="Хост управляет переходом в игру — дождитесь готовности всех участников."
-                                               Classes="Muted Small" TextWrapping="Wrap"/>
-                                </StackPanel>
-                            </Border>
-
-                            <!-- Members list with ready-status indicators.
-                                 Mirrors the left-column list but laid out
-                                 larger so the host can quickly scan who's
-                                 ready. -->
-                            <StackPanel Spacing="6">
-                                <TextBlock Text="Участники лобби" Classes="SectionTitle"/>
-                                <ItemsControl ItemsSource="{Binding Members}">
+            <!-- CENTER COLUMN: Game narrative terminal (Column 3) -->
+            <Grid Grid.Column="3" RowDefinitions="*, Auto" Margin="4,0">
+                <!-- Narrative viewport -->
+                <Border Grid.Row="0" Background="{DynamicResource AppSurface}" BorderBrush="{DynamicResource AppBorder}" BorderThickness="1" CornerRadius="8" ClipToBounds="True">
+                    <Grid RowDefinitions="Auto, *">
+                        <!-- Header bar -->
+                        <Border Background="{DynamicResource AppSurfaceAlt}" Height="40" BorderBrush="{DynamicResource AppBorder}" BorderThickness="0,0,0,1" Padding="16,0">
+                            <Grid ColumnDefinitions="*, Auto, Auto">
+                                <TextBlock Text="{Binding ClockDisplay}" VerticalAlignment="Center" FontWeight="SemiBold" Foreground="{DynamicResource AppForeground}" />
+                                <TextBlock Grid.Column="1" Text="{Binding SessionTokensDisplay}" Margin="12,0" VerticalAlignment="Center" Foreground="{DynamicResource AppMuted}" FontSize="11" />
+                                <TextBlock Grid.Column="2" Text="{Binding CombatDisplay}" Foreground="{DynamicResource AppDanger}" FontWeight="Bold" VerticalAlignment="Center" IsVisible="{Binding IsCombatActive}" />
+                            </Grid>
+                        </Border>
+                        
+                        <!-- Narrative Scroll -->
+                        <ScrollViewer Name="NarrativeScroll" Grid.Row="1" Padding="16">
+                            <StackPanel Spacing="14">
+                                <ItemsControl ItemsSource="{Binding Log}">
                                     <ItemsControl.ItemTemplate>
-                                        <DataTemplate DataType="mp:MemberInfo">
-                                            <Border Classes="MemberRow" Padding="8,5">
-                                                <Grid ColumnDefinitions="*,Auto,Auto">
-                                                    <StackPanel Grid.Column="0" Spacing="1">
-                                                        <TextBlock Text="{Binding Nickname}" FontWeight="SemiBold"/>
-                                                        <TextBlock Text="{Binding Role}" Classes="Muted Small"/>
-                                                    </StackPanel>
-                                                    <TextBlock Grid.Column="1" VerticalAlignment="Center"
-                                                               Margin="8,0"
-                                                               Classes="Muted Small"
-                                                               Text="готов"
-                                                               Foreground="{DynamicResource AppSuccessBrush}"
-                                                               IsVisible="{Binding Status, Converter={x:Static conv:MemberStatusToReadyVisibilityConverter.Instance}, ConverterParameter=Ready}"/>
-                                                    <TextBlock Grid.Column="1" VerticalAlignment="Center"
-                                                               Margin="8,0"
-                                                               Classes="Muted Small"
-                                                               Text="ожидание"
-                                                               IsVisible="{Binding Status, Converter={x:Static conv:MemberStatusToReadyVisibilityConverter.Instance}, ConverterParameter=Pending}"/>
-                                                    <TextBlock Grid.Column="2" VerticalAlignment="Center"
-                                                               FontFamily="Cascadia Mono,Consolas,Menlo,monospace"
-                                                               FontSize="18"
-                                                               Foreground="{DynamicResource AppSuccessBrush}"
-                                                               Text="✓"
-                                                               IsVisible="{Binding Status, Converter={x:Static conv:MemberStatusToReadyVisibilityConverter.Instance}, ConverterParameter=Ready}"/>
-                                                    <TextBlock Grid.Column="2" VerticalAlignment="Center"
-                                                               FontFamily="Cascadia Mono,Consolas,Menlo,monospace"
-                                                               FontSize="18"
-                                                               Foreground="{DynamicResource AppMutedBrush}"
-                                                               Text="○"
-                                                               IsVisible="{Binding Status, Converter={x:Static conv:MemberStatusToReadyVisibilityConverter.Instance}, ConverterParameter=Pending}"/>
-                                                </Grid>
+                                        <DataTemplate>
+                                            <Border CornerRadius="6" Padding="14,12" Margin="0,0,0,10" Background="{DynamicResource AppSurfaceAlt}" BorderBrush="{DynamicResource AppBorder}" BorderThickness="1">
+                                                <controls:MarkdownTextBlock Markdown="{Binding Text}" TextWrapping="Wrap" LineHeight="20" />
                                             </Border>
                                         </DataTemplate>
                                     </ItemsControl.ItemTemplate>
                                 </ItemsControl>
-                            </StackPanel>
-
-                            <!-- Lobby action buttons. Clients see the
-                                 Ready toggle; hosts see the Start Game
-                                 button. -->
-                            <StackPanel Spacing="8" Margin="0,8,0,0">
-                                <!-- Client: ready toggle -->
-                                <Button Content="✓ Готов"
-                                        Command="{Binding ToggleReadyCommand}"
-                                        Classes="MenuButton Primary"
-                                        HorizontalAlignment="Stretch"
-                                        IsVisible="{Binding IsClient}"
-                                        ToolTip.Tip="Отметиться готовым (или отменить готовность)"/>
-                                <TextBlock Text="Хост всегда готов и запускает игру."
-                                           Classes="Muted Small"
-                                           HorizontalAlignment="Center"
-                                           IsVisible="{Binding IsClient}"/>
-
-                                <!-- Host: start game -->
-                                <Button Content="▶ Начать игру"
-                                        Command="{Binding StartGameCommand}"
-                                        Classes="MenuButton Primary"
-                                        HorizontalAlignment="Stretch"
-                                        IsVisible="{Binding IsHost}"
-                                        ToolTip.Tip="Перевести партию в режим игры (все участники должны быть готовы)"/>
-                                <TextBlock Text="Доступно, когда все участники готовы."
-                                           Classes="Muted Small"
-                                           HorizontalAlignment="Center"
-                                           IsVisible="{Binding IsHost}"/>
-                            </StackPanel>
-
-                            <TextBlock Text="Чат доступен слева — общайтесь до старта."
-                                       Classes="Muted Small"
-                                       HorizontalAlignment="Center"
-                                       TextWrapping="Wrap"
-                                       TextAlignment="Center"/>
-                        </StackPanel>
-                    </ScrollViewer>
-
-                    <!-- Normal game layout: narrative log + action input.
-                         Hidden in lobby mode. -->
-                    <DockPanel LastChildFill="True"
-                               IsVisible="{Binding !IsLobby}">
-                        <!-- Input box at bottom — quick actions row + text field + send -->
-                        <Border DockPanel.Dock="Bottom" Classes="InputBar" Padding="8,6">
-                            <StackPanel Spacing="4">
-                                <!-- Quick actions (port of TS PlayerInput QUICK_ACTIONS).
-                                     One-tap canned exploration moves. -->
-                                <StackPanel Orientation="Horizontal" Spacing="4"
-                                            IsVisible="{Binding CanSubmit}">
-                                    <Button Content="👁 Осмотреться"
-                                            Command="{Binding QuickActionCommand}"
-                                            CommandParameter="look"
-                                            Classes="TinyButton"
-                                            IsEnabled="{Binding CanSubmit}"
-                                            ToolTip.Tip="Осмотреться вокруг"/>
-                                    <Button Content="🔍 Обыскать"
-                                            Command="{Binding QuickActionCommand}"
-                                            CommandParameter="search"
-                                            Classes="TinyButton"
-                                            IsEnabled="{Binding CanSubmit}"
-                                            ToolTip.Tip="Обыскать окрестности"/>
-                                    <Button Content="💤 Отдохнуть"
-                                            Command="{Binding QuickActionCommand}"
-                                            CommandParameter="rest"
-                                            Classes="TinyButton"
-                                            IsEnabled="{Binding CanSubmit}"
-                                            ToolTip.Tip="Отдохнуть"/>
-                                    <Button Content="🚶 Путешествовать"
-                                            Command="{Binding QuickActionCommand}"
-                                            CommandParameter="travel"
-                                            Classes="TinyButton"
-                                            IsEnabled="{Binding CanSubmit}"
-                                            ToolTip.Tip="Отправиться дальше"/>
-                                    <Button Content="💬 Поговорить"
-                                            Command="{Binding QuickActionCommand}"
-                                            CommandParameter="talk"
-                                            Classes="TinyButton"
-                                            IsEnabled="{Binding CanSubmit}"
-                                            ToolTip.Tip="Поговорить с тем, кто рядом"/>
-                                </StackPanel>
-                                <Grid ColumnDefinitions="*,Auto">
-                                    <TextBox Grid.Column="0" x:Name="ActionInput" Text="{Binding CurrentAction}" AutomationProperties.Name="Поле ввода действия игрока"
-                                             PlaceholderText="Опишите действие вашего персонажа…"
-                                             IsEnabled="{Binding CanSubmit}"
-                                             KeyDown="OnActionKeyDown"
-                                             ToolTip.Tip="Опишите действие вашего персонажа"/>
-                                    <Button Grid.Column="1" Content="Отправить" AutomationProperties.Name="Отправить действие игровому мастеру"
-                                            Command="{Binding SubmitActionCommand}"
-                                            Classes="SmallButton Primary"
-                                            Margin="6,0,0,0"
-                                            IsEnabled="{Binding CanSubmit}"
-                                            ToolTip.Tip="Отправить действие GM"/>
-                                </Grid>
-                            </StackPanel>
-                        </Border>
-
-                        <!-- Story feed — chat-style bubbles. Port of TS AgentFeed:
-                             - narrative (GM) → LEFT bubble with "ГМ" label
-                             - action (player) → RIGHT bubble, accent, italic
-                             - tool → LEFT compact mechanic card
-                             - system → HIDDEN (directorial/engine noise)
-                             Streaming text shows as a left GM bubble while the
-                             GM is actively generating a turn. -->
-                        <ScrollViewer x:Name="NarrativeScroll"
-                                      HorizontalScrollBarVisibility="Disabled"
-                                      VerticalScrollBarVisibility="Auto"
-                                      Padding="8">
-                            <StackPanel Spacing="4">
-                                <ItemsControl ItemsSource="{Binding Log}">
-                                    <ItemsControl.ItemTemplate>
-                                        <DataTemplate DataType="core:LogEntry">
-                                            <Panel Margin="0,2">
-
-                                                <!-- NARRATIVE (GM) — left bubble -->
-                                                <Border HorizontalAlignment="Left"
-                                                        MaxWidth="560"
-                                                        IsVisible="{Binding Kind, Converter={x:Static conv:StringEqualsConverter.Instance}, ConverterParameter=narrative}"
-                                                        CornerRadius="10,10,10,2"
-                                                        BorderBrush="{DynamicResource AppBorderBrush}"
-                                                        BorderThickness="1"
-                                                        Background="{DynamicResource AppSurfaceAltBrush}"
-                                                        Padding="10,6" Margin="0,1">
-                                                    <StackPanel Spacing="2">
-                                                        <TextBlock Text="ГМ" FontSize="10" FontWeight="SemiBold"
-                                                                   Foreground="{DynamicResource AppAccentBrush}"/>
-                                                        <TextBlock Text="{Binding Text}" TextWrapping="Wrap"
-                                                                   FontSize="13" LineHeight="18"/>
-                                                    </StackPanel>
-                                                </Border>
-
-                                                <!-- ACTION (player) — right bubble, accent, italic -->
-                                                <Border HorizontalAlignment="Right"
-                                                        MaxWidth="520"
-                                                        IsVisible="{Binding Kind, Converter={x:Static conv:StringEqualsConverter.Instance}, ConverterParameter=action}"
-                                                        CornerRadius="10,10,2,10"
-                                                        Background="{DynamicResource AppAccentBrush}"
-                                                        BorderThickness="0"
-                                                        Padding="10,6" Margin="0,1">
-                                                    <TextBlock Text="{Binding Text}" TextWrapping="Wrap"
-                                                               Foreground="{DynamicResource AppAccentFgBrush}"
-                                                               FontStyle="Italic" FontSize="13" LineHeight="18"/>
-                                                </Border>
-
-                                                <!-- TOOL — left compact mechanic card -->
-                                                <Border HorizontalAlignment="Left"
-                                                        MaxWidth="500"
-                                                        IsVisible="{Binding Kind, Converter={x:Static conv:StringEqualsConverter.Instance}, ConverterParameter=tool}"
-                                                        CornerRadius="4"
-                                                        BorderBrush="{DynamicResource AppBorderBrush}"
-                                                        BorderThickness="1,1,1,1"
-                                                        Background="{DynamicResource AppSurfaceBrush}"
-                                                        Padding="8,4" Margin="0,1">
-                                                    <StackPanel Spacing="1">
-                                                        <TextBlock Text="🔧 инструмент" FontSize="10"
-                                                                   Foreground="{DynamicResource AppMutedBrush}"
-                                                                   FontFamily="Cascadia Mono,Consolas,Menlo,monospace"/>
-                                                        <TextBlock Text="{Binding Text}" TextWrapping="Wrap"
-                                                                   FontSize="11" LineHeight="15"
-                                                                   FontFamily="Cascadia Mono,Consolas,Menlo,monospace"
-                                                                   Foreground="{DynamicResource AppMutedBrush}"/>
-                                                    </StackPanel>
-                                                </Border>
-
-                                                <!-- SYSTEM → hidden (directorial / engine noise) -->
-                                            </Panel>
-                                        </DataTemplate>
-                                    </ItemsControl.ItemTemplate>
-                                </ItemsControl>
-                                <!-- Live-streaming narrative text — left GM bubble
-                                     while the GM is actively generating a turn. -->
-                                <Border HorizontalAlignment="Left"
-                                        MaxWidth="560"
-                                        CornerRadius="10,10,10,2"
-                                        BorderBrush="{DynamicResource AppAccentBrush}"
-                                        BorderThickness="1"
-                                        Background="{DynamicResource AppSurfaceAltBrush}"
-                                        Padding="10,6" Margin="0,1"
-                                        IsVisible="{Binding StreamingNarrativeText, Converter={x:Static StringConverters.IsNotNullOrEmpty}}">
-                                    <StackPanel Spacing="2">
-                                        <TextBlock Text="ГМ пишет…" FontSize="10" FontWeight="SemiBold"
-                                                   Foreground="{DynamicResource AppAccentBrush}"/>
-                                        <TextBlock Text="{Binding StreamingNarrativeText}" TextWrapping="Wrap"
-                                                   FontSize="13" LineHeight="18"/>
-                                    </StackPanel>
+                                
+                                <Border CornerRadius="6" Padding="14,12" Background="{DynamicResource AppSurfaceAlt}" BorderBrush="{DynamicResource AppAccent}" BorderThickness="1" IsVisible="{Binding IsStreaming}">
+                                    <controls:MarkdownTextBlock Markdown="{Binding StreamingNarrativeText}" TextWrapping="Wrap" LineHeight="20" />
                                 </Border>
                             </StackPanel>
                         </ScrollViewer>
-                    </DockPanel>
+
+                        <!-- GLOWING MEDIEVAL GM THINKING OVERLAY -->
+                        <Border Grid.Row="1" Background="#EA110E0C" IsVisible="{Binding IsWaiting}">
+                            <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center" Spacing="20">
+                                <TextBlock Text="🔮" FontSize="48" HorizontalAlignment="Center" />
+                                <StackPanel Spacing="8">
+                                    <TextBlock Text="Связующие нити судьбы плетутся..." HorizontalAlignment="Center" FontSize="15" FontWeight="Bold" Foreground="{DynamicResource AppAccent}" />
+                                    <TextBlock Text="{Binding StatusText}" HorizontalAlignment="Center" FontSize="11" Foreground="{DynamicResource AppMuted}" />
+                                </StackPanel>
+                                <ProgressBar IsIndeterminate="True" Width="200" Height="3" Foreground="{DynamicResource AppAccent}" Background="Transparent" HorizontalAlignment="Center" />
+                            </StackPanel>
+                        </Border>
+                    </Grid>
+                </Border>
+
+                <!-- FIXED DOCKED TERMINAL -->
+                <Border Grid.Row="1" Background="{DynamicResource AppSurface}" BorderBrush="{DynamicResource AppBorder}" BorderThickness="1" CornerRadius="8" Margin="0,12,0,0" Padding="14">
+                    <Grid RowDefinitions="Auto, Auto">
+                        <!-- Quick Actions -->
+                        <StackPanel Orientation="Horizontal" Spacing="6" Margin="0,0,0,10">
+                            <Button Content="👁 Осмотреться" Command="{Binding QuickActionCommand}" CommandParameter="look" FontSize="11" Padding="10,5" />
+                            <Button Content="🔍 Обыскать" Command="{Binding QuickActionCommand}" CommandParameter="search" FontSize="11" Padding="10,5" />
+                            <Button Content="💤 Отдохнуть" Command="{Binding QuickActionCommand}" CommandParameter="rest" FontSize="11" Padding="10,5" />
+                            <Button Content="🚪 Путь" Command="{Binding QuickActionCommand}" CommandParameter="travel" FontSize="11" Padding="10,5" />
+                            <Button Content="🗣 Говорить" Command="{Binding QuickActionCommand}" CommandParameter="talk" FontSize="11" Padding="10,5" />
+                        </StackPanel>
+                        
+                        <!-- Main Terminal Text Input -->
+                        <Grid Grid.Row="1" ColumnDefinitions="*, Auto">
+                            <TextBox Name="ActionInput" 
+                                     Text="{Binding CurrentAction, Mode=TwoWay}" 
+                                     PlaceholderText="Опишите ваше следующее действие... (Shift+Enter для переноса)" 
+                                     AcceptsReturn="True" 
+                                     TextWrapping="Wrap" 
+                                     MaxHeight="100" 
+                                     MinHeight="40" 
+                                     VerticalContentAlignment="Center"
+                                     KeyDown="OnActionKeyDown"
+                                     BorderBrush="{DynamicResource AppBorder}" />
+                            <Button Grid.Column="1" 
+                                    Content="Отправить" 
+                                    Command="{Binding SubmitActionCommand}" 
+                                    Margin="10,0,0,0" 
+                                    VerticalAlignment="Stretch" 
+                                    MinWidth="100" 
+                                    HorizontalContentAlignment="Center"
+                                    VerticalContentAlignment="Center" />
+                        </Grid>
+                    </Grid>
+                </Border>
+            </Grid>
+
+            <!-- RIGHT DRAWER 1: Quest Log (Column 4) -->
+            <Border Grid.Column="4" Width="320" Background="{DynamicResource AppSurface}" BorderBrush="{DynamicResource AppBorder}" BorderThickness="1,0,0,0" CornerRadius="4" IsVisible="{Binding #QuestsToggle.IsChecked}" Margin="8,0,0,0" ClipToBounds="True">
+                <Grid RowDefinitions="Auto, *">
+                    <Border Background="{DynamicResource AppSurfaceAlt}" Height="36" BorderBrush="{DynamicResource AppBorder}" BorderThickness="0,0,0,1">
+                        <TextBlock Text="Активные Квесты" VerticalAlignment="Center" HorizontalAlignment="Center" FontWeight="Bold" FontSize="12" Foreground="{DynamicResource AppForeground}" />
+                    </Border>
+                    <panels:QuestPanelView Grid.Row="1" DataContext="{Binding QuestPanel}" />
                 </Grid>
             </Border>
 
-            <!-- RIGHT column: multiplayer-only pending-actions queue.
-                 Hidden in single-player AND in lobby mode (no actions
-                 queued yet — the game hasn't started). -->
-            <Border Grid.Column="2" Classes="SidePanel" Width="260"
-                    IsVisible="{Binding IsMultiplayer}">
-                <DockPanel LastChildFill="True">
-                    <!-- Multiplayer: pending actions -->
-                    <StackPanel DockPanel.Dock="Top">
-                        <TextBlock Text="Очередь действий" Classes="SectionTitle" Margin="0,0,0,6"/>
-                        <ItemsControl ItemsSource="{Binding PendingActions}">
-                            <ItemsControl.ItemTemplate>
-                                <DataTemplate DataType="mp:PlayerAction">
-                                    <Border Classes="ActionRow" Padding="6,4">
-                                        <StackPanel Spacing="1">
-                                            <TextBlock Text="{Binding PlayerNickname}" FontWeight="SemiBold"/>
-                                            <TextBlock Text="{Binding Text}" TextWrapping="Wrap"
-                                                       Classes="Small Muted"/>
-                                        </StackPanel>
-                                    </Border>
-                                </DataTemplate>
-                            </ItemsControl.ItemTemplate>
-                        </ItemsControl>
-                        <TextBlock Text="(пусто)" Classes="Muted Small" Margin="0,4,0,0"
-                                   IsVisible="{Binding !PendingActions.Count}"/>
-                    </StackPanel>
-
-                    <TextBlock Text="" />
-                </DockPanel>
-            </Border>
-
-        </Grid>
-    </DockPanel>
-
-        <!-- COMBAT-DEATH (issue #63): death overlay. Covers the game
-             screen with a semi-opaque panel showing the death message
-             + two options: reload the last save (loses progress since
-             last save) or leave to the main menu (without saving the
-             dead state). Only visible when IsPlayerDead = true. -->
-        <Border Background="#CC000000"
-                IsVisible="{Binding IsPlayerDead}"
-                HorizontalAlignment="Stretch"
-                VerticalAlignment="Stretch"
-                ZIndex="100">
-            <Border HorizontalAlignment="Center" VerticalAlignment="Center"
-                    Background="{DynamicResource AppSurfaceBrush}"
-                    BorderBrush="{DynamicResource AppDangerBrush}"
-                    BorderThickness="2" CornerRadius="8"
-                    Padding="40,30" MinWidth="380" MaxWidth="560">
-                <StackPanel Spacing="14" HorizontalAlignment="Center">
-                    <TextBlock Text="💀" FontSize="48" HorizontalAlignment="Center"/>
-                    <TextBlock Text="Ваш персонаж погиб."
-                               FontSize="22" FontWeight="Bold"
-                               HorizontalAlignment="Center"
-                               Foreground="{DynamicResource AppDangerBrush}"/>
-                    <TextBlock Text="Путь окончен. Выберите, что делать дальше."
-                               Classes="Muted Small"
-                               HorizontalAlignment="Center" TextWrapping="Wrap"
-                               TextAlignment="Center"/>
-                    <Border Classes="Separator" Margin="0,4"/>
-                    <Button Content="↺ Загрузить последнее сохранение"
-                            Command="{Binding ReloadLastSaveCommand}"
-                            Classes="MenuButton Primary"
-                            HorizontalAlignment="Stretch"
-                            ToolTip.Tip="Перезагрузить текущее сохранение (прогресс после последнего сохранения будет потерян)"/>
-                    <Button Content="🚪 Выйти в меню"
-                            Command="{Binding LeaveToMenuCommand}"
-                            Classes="MenuButton"
-                            HorizontalAlignment="Stretch"
-                            ToolTip.Tip="Выйти в главное меню без сохранения текущего состояния"/>
-                </StackPanel>
-            </Border>
-        </Border>
-
-        <!-- RECONNECT (issue #7): disconnect overlay. Covers the game
-             screen with a semi-opaque panel when the client WebSocket
-             drops unexpectedly (network failure, host shutdown). Two
-             variants share the overlay:
-
-             1) Default (ReconnectFailed = false): shows the disconnect
-                reason + a "Переподключиться" button (calls
-                ReconnectCommand, retries 3x with 2s backoff) + a
-                "Выйти в меню" button (calls LeaveToMenuCommand).
-             2) Failed (ReconnectFailed = true): all 3 reconnect
-                attempts failed; switches to a "Не удалось
-                переподключиться" message with only the exit button.
-
-             Suppressed entirely when IsDisconnected = false (normal
-             play, intentional leave, or kick — the Kicked event
-             surfaces its own inline error via OnClientKicked). -->
-        <Border Background="#CC000000"
-                IsVisible="{Binding IsDisconnected}"
-                HorizontalAlignment="Stretch"
-                VerticalAlignment="Stretch"
-                ZIndex="100">
-            <Border HorizontalAlignment="Center" VerticalAlignment="Center"
-                    Background="{DynamicResource AppSurfaceBrush}"
-                    BorderBrush="{DynamicResource AppDangerBrush}"
-                    BorderThickness="2" CornerRadius="8"
-                    Padding="40,30" MinWidth="380" MaxWidth="560">
-                <StackPanel Spacing="14" HorizontalAlignment="Center">
-                    <TextBlock Text="📡" FontSize="48" HorizontalAlignment="Center"/>
-                    <!-- Default state: "Соединение потеряно" -->
-                    <TextBlock Text="Соединение потеряно."
-                               FontSize="22" FontWeight="Bold"
-                               HorizontalAlignment="Center"
-                               Foreground="{DynamicResource AppDangerBrush}"
-                               IsVisible="{Binding !ReconnectFailed}"/>
-                    <TextBlock Text="{Binding DisconnectReason, StringFormat='Причина: {0}'}"
-                               Classes="Muted Small"
-                               HorizontalAlignment="Center" TextWrapping="Wrap"
-                               TextAlignment="Center"
-                               IsVisible="{Binding !ReconnectFailed}"/>
-                    <!-- Failed state: "Не удалось переподключиться" -->
-                    <TextBlock Text="Не удалось переподключиться."
-                               FontSize="22" FontWeight="Bold"
-                               HorizontalAlignment="Center"
-                               Foreground="{DynamicResource AppDangerBrush}"
-                               IsVisible="{Binding ReconnectFailed}"/>
-                    <TextBlock Text="Сервер недоступен. Проверьте соединение и попробуйте позже."
-                               Classes="Muted Small"
-                               HorizontalAlignment="Center" TextWrapping="Wrap"
-                               TextAlignment="Center"
-                               IsVisible="{Binding ReconnectFailed}"/>
-                    <Border Classes="Separator" Margin="0,4"/>
-                    <!-- Reconnect button — only in default state -->
-                    <Button Content="↺ Переподключиться"
-                            Command="{Binding ReconnectCommand}"
-                            Classes="MenuButton Primary"
-                            HorizontalAlignment="Stretch"
-                            IsVisible="{Binding !ReconnectFailed}"
-                            ToolTip.Tip="Переподключиться к хосту (3 попытки с задержкой 2 с)"/>
-                    <Button Content="🚪 Выйти в меню"
-                            Command="{Binding LeaveToMenuCommand}"
-                            Classes="MenuButton"
-                            HorizontalAlignment="Stretch"
-                            ToolTip.Tip="Выйти в главное меню"/>
-                    <!-- Issue #28: save the last known world state locally
-                         so the player can continue solo. Only shown when
-                         reconnection has failed AND the world hasn't been
-                         saved yet. -->
-                    <Button Content="💾 Сохранить мир локально"
-                            Command="{Binding SaveWorldLocallyCommand}"
-                            Classes="MenuButton Primary"
-                            HorizontalAlignment="Stretch"
-                            IsVisible="{Binding ReconnectFailed}"
-                            IsEnabled="{Binding !HasSavedWorldLocally}"
-                            ToolTip.Tip="Сохранить последнее известное состояние мира как одиночное сохранение"/>
-                </StackPanel>
-            </Border>
-        </Border>
-
-        <!-- REGION GENERATION OVERLAY (issue #20 — chunked generation).
-             Shown while the orchestrator generates a cold region on
-             demand (after the player clicks a phantom exit). Non-modal:
-             the user can't act while it's up, but it disappears
-             automatically on completion. ZIndex 90 keeps it below the
-             death/reconnect modal overlays (ZIndex 100). -->
-        <Border Background="#B0000000"
-                IsVisible="{Binding IsRegionGenerating}"
-                HorizontalAlignment="Stretch"
-                VerticalAlignment="Stretch"
-                ZIndex="90">
-            <Border HorizontalAlignment="Center" VerticalAlignment="Center"
-                    Background="{DynamicResource AppSurfaceBrush}"
-                    BorderBrush="{DynamicResource AppAccentBrush}"
-                    BorderThickness="2" CornerRadius="8"
-                    Padding="40,30" MinWidth="380" MaxWidth="560">
-                <StackPanel Spacing="14" HorizontalAlignment="Center">
-                    <TextBlock Text="🌍" FontSize="40" HorizontalAlignment="Center"/>
-                    <TextBlock Text="Генерация региона…"
-                               FontSize="20" FontWeight="Bold"
-                               HorizontalAlignment="Center"
-                               Foreground="{DynamicResource AppAccentBrush}"/>
-                    <TextBlock Text="{Binding RegionGenerationStatus}"
-                               Classes="Muted"
-                               HorizontalAlignment="Center" TextWrapping="Wrap"
-                               TextAlignment="Center"/>
-                    <ProgressBar IsIndeterminate="True" Height="6" Width="240"/>
-                    <TextBlock Text="AI достраивает регион — это займёт 20-60 секунд. Не закрывайте приложение."
-                               Classes="Muted Small"
-                               HorizontalAlignment="Center" TextWrapping="Wrap"
-                               TextAlignment="Center"/>
-                </StackPanel>
-            </Border>
-        </Border>
-
-        <!-- KEYBOARD-SHORTCUTS (issue #51): F1 help overlay. Lists all
-             shortcuts. Toggled via OnGlobalKeyDown (F1 or Esc).
-             Click anywhere on the dim backdrop to dismiss. ZIndex 50
-             keeps it above the main DockPanel but below the
-             death/reconnect modal overlays (ZIndex 100) so those
-             stay interactive when both happen to be visible. -->
-        <Border x:Name="HelpOverlay"
-                Background="#CC000000"
-                IsVisible="False"
-                HorizontalAlignment="Stretch"
-                VerticalAlignment="Stretch"
-                ZIndex="50"
-                PointerPressed="OnHelpOverlayClick">
-            <Border HorizontalAlignment="Center" VerticalAlignment="Center"
-                    Background="{DynamicResource AppSurfaceBrush}"
-                    BorderBrush="{DynamicResource AppBorderBrush}"
-                    BorderThickness="1" CornerRadius="8"
-                    Padding="32,24" MinWidth="460" MaxWidth="620">
-                <StackPanel Spacing="12">
-                    <TextBlock Text="⌨ Горячие клавиши" FontSize="20" FontWeight="Bold"
-                               HorizontalAlignment="Center"/>
-                    <Border Classes="Separator" Margin="0,4"/>
-                    <StackPanel Spacing="5">
-                        <Grid ColumnDefinitions="140,*">
-                            <TextBlock Grid.Column="0" Text="Enter" FontWeight="SemiBold"
-                                       FontFamily="Cascadia Mono,Consolas,Menlo,monospace"/>
-                            <TextBlock Grid.Column="1" Text="Отправить действие"/>
-                        </Grid>
-                        <Grid ColumnDefinitions="140,*">
-                            <TextBlock Grid.Column="0" Text="Ctrl+Enter" FontWeight="SemiBold"
-                                       FontFamily="Cascadia Mono,Consolas,Menlo,monospace"/>
-                            <TextBlock Grid.Column="1" Text="Отправить + вернуть фокус на ввод (быстрый темп)"/>
-                        </Grid>
-                        <Grid ColumnDefinitions="140,*">
-                            <TextBlock Grid.Column="0" Text="Esc" FontWeight="SemiBold"
-                                       FontFamily="Cascadia Mono,Consolas,Menlo,monospace"/>
-                            <TextBlock Grid.Column="1" Text="Очистить ввод"/>
-                        </Grid>
-                        <Grid ColumnDefinitions="140,*">
-                            <TextBlock Grid.Column="0" Text="Ctrl+S" FontWeight="SemiBold"
-                                       FontFamily="Cascadia Mono,Consolas,Menlo,monospace"/>
-                            <TextBlock Grid.Column="1" Text="Сохранить игру"/>
-                        </Grid>
-                        <Grid ColumnDefinitions="140,*">
-                            <TextBlock Grid.Column="0" Text="Ctrl+L" FontWeight="SemiBold"
-                                       FontFamily="Cascadia Mono,Consolas,Menlo,monospace"/>
-                            <TextBlock Grid.Column="1" Text="Выйти из игры (с подтверждением)"/>
-                        </Grid>
-                        <Grid ColumnDefinitions="140,*">
-                            <TextBlock Grid.Column="0" Text="1, 2, 3, 4" FontWeight="SemiBold"
-                                       FontFamily="Cascadia Mono,Consolas,Menlo,monospace"/>
-                            <TextBlock Grid.Column="1" Text="Переключить панели (Персонаж / Сумка / Квесты / Мир)"/>
-                        </Grid>
-                        <Grid ColumnDefinitions="140,*">
-                            <TextBlock Grid.Column="0" Text="F1" FontWeight="SemiBold"
-                                       FontFamily="Cascadia Mono,Consolas,Menlo,monospace"/>
-                            <TextBlock Grid.Column="1" Text="Эта подсказка"/>
-                        </Grid>
-                    </StackPanel>
-                    <Border Classes="Separator" Margin="0,4"/>
-                    <TextBlock Text="Нажмите F1 или Esc, чтобы закрыть. Цифры 1–4 не работают, когда фокус в поле ввода."
-                               Classes="Muted Small" TextWrapping="Wrap" TextAlignment="Center"/>
-                </StackPanel>
-            </Border>
-        </Border>
-
-        <!-- KEYBOARD-SHORTCUTS (issue #51): Ctrl+L confirm overlay.
-             Asks the user to confirm leaving the game. "Выйти" calls
-             LeaveGameCommand directly; "Отмена" hides the overlay.
-             Esc also cancels, Enter confirms (handled in
-             OnGlobalKeyDown). ZIndex 51 — one above the help overlay
-             so the user can dismiss the help overlay first if both
-             happen to be visible. -->
-        <Border x:Name="LeaveConfirmOverlay"
-                Background="#CC000000"
-                IsVisible="False"
-                HorizontalAlignment="Stretch"
-                VerticalAlignment="Stretch"
-                ZIndex="51"
-                PointerPressed="OnLeaveConfirmOverlayClick">
-            <Border HorizontalAlignment="Center" VerticalAlignment="Center"
-                    Background="{DynamicResource AppSurfaceBrush}"
-                    BorderBrush="{DynamicResource AppDangerBrush}"
-                    BorderThickness="2" CornerRadius="8"
-                    Padding="40,30" MinWidth="380" MaxWidth="560">
-                <StackPanel Spacing="14" HorizontalAlignment="Center">
-                    <TextBlock Text="🚪" FontSize="48" HorizontalAlignment="Center"/>
-                    <TextBlock Text="Выйти из игры?"
-                               FontSize="22" FontWeight="Bold"
-                               HorizontalAlignment="Center"
-                               Foreground="{DynamicResource AppDangerBrush}"/>
-                    <TextBlock Text="Несохранённый прогресс может быть потерян. Перед выходом рекомендуется сохранить (Ctrl+S)."
-                               Classes="Muted Small"
-                               HorizontalAlignment="Center" TextWrapping="Wrap"
-                               TextAlignment="Center"/>
-                    <Border Classes="Separator" Margin="0,4"/>
-                    <Button Content="Выйти" Command="{Binding LeaveGameCommand}"
-                            Classes="MenuButton Primary"
-                            HorizontalAlignment="Stretch"
-                            Click="OnLeaveConfirmAccept"
-                            ToolTip.Tip="Выйти из игры"/>
-                    <Button Content="Отмена" Classes="MenuButton"
-                            HorizontalAlignment="Stretch"
-                            Click="OnLeaveConfirmCancel"
-                            ToolTip.Tip="Остаться в игре"/>
-                </StackPanel>
-            </Border>
-        </Border>
-
-        <!-- Error dialog overlay. When an AI/turn error occurs, this modal
-             shows the FULL diagnostic log (exception type + message + stack
-             trace + inner-exception chain) instead of a bare one-liner.
-             Dismissible via «Закрыть»; «Скопировать» copies the log to the
-             clipboard for bug reports. -->
-        <Border Background="#E6000000"
-                IsVisible="{Binding IsErrorVisible}"
-                HorizontalAlignment="Stretch"
-                VerticalAlignment="Stretch"
-                ZIndex="60">
-            <Border HorizontalAlignment="Center" VerticalAlignment="Center"
-                    Background="{DynamicResource AppSurfaceBrush}"
-                    BorderBrush="{DynamicResource AppDangerBrush}"
-                    BorderThickness="2" CornerRadius="8"
-                    Padding="24,20" MinWidth="480" MaxWidth="720">
-                <StackPanel Spacing="12">
-                    <Grid ColumnDefinitions="*,Auto">
-                        <TextBlock Grid.Column="0" Text="{Binding ErrorTitle}"
-                                   FontSize="18" FontWeight="Bold"
-                                   Foreground="{DynamicResource AppDangerBrush}"/>
-                        <TextBlock Grid.Column="1" Text="⚠" FontSize="24"
-                                   Foreground="{DynamicResource AppDangerBrush}"/>
-                    </Grid>
-                    <Border Classes="Separator" Margin="0,2"/>
-                    <TextBlock Text="Подробный лог ошибки:"
-                               Classes="Muted Small"/>
-                    <!-- Scrollable log area — full exception dump (type +
-                         message + stack + inner chain). MaxHeight keeps the
-                         dialog on screen even for huge stack traces. -->
-                    <Border Background="#11000000"
-                            BorderBrush="{DynamicResource AppBorderBrush}"
-                            BorderThickness="1" CornerRadius="4"
-                            Padding="8,6" MaxHeight="360">
-                        <ScrollViewer HorizontalScrollBarVisibility="Auto"
-                                      VerticalScrollBarVisibility="Auto">
-                            <TextBlock Text="{Binding ErrorDetail}"
-                                       FontFamily="Cascadia Mono,Consolas,Menlo,monospace"
-                                       FontSize="11" LineHeight="15"
-                                       TextWrapping="NoWrap"/>
-                        </ScrollViewer>
+            <!-- RIGHT DRAWER 2: World Map (Column 5) -->
+            <Border Grid.Column="5" Width="320" Background="{DynamicResource AppSurface}" BorderBrush="{DynamicResource AppBorder}" BorderThickness="1,0,0,0" CornerRadius="4" IsVisible="{Binding #WorldToggle.IsChecked}" Margin="8,0,0,0" ClipToBounds="True">
+                <Grid RowDefinitions="Auto, *">
+                    <Border Background="{DynamicResource AppSurfaceAlt}" Height="36" BorderBrush="{DynamicResource AppBorder}" BorderThickness="0,0,0,1">
+                        <TextBlock Text="Карта и Окружение" VerticalAlignment="Center" HorizontalAlignment="Center" FontWeight="Bold" FontSize="12" Foreground="{DynamicResource AppForeground}" />
                     </Border>
-                    <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Right">
-                        <Button Content="📋 Скопировать"
-                                Command="{Binding CopyErrorDetailCommand}"
-                                Classes="SmallButton"
-                                ToolTip.Tip="Скопировать лог ошибки в буфер обмена"/>
-                        <Button Content="Закрыть"
-                                Command="{Binding CloseErrorDialogCommand}"
-                                Classes="SmallButton Primary"
-                                ToolTip.Tip="Закрыть окно ошибки"/>
-                    </StackPanel>
+                    <panels:WorldPanelView Grid.Row="1" DataContext="{Binding WorldPanel}" />
+                </Grid>
+            </Border>
+
+            <!-- RIGHT UTILITY BAR: Icons for Quests, World Map & Help (Column 6) -->
+            <Border Grid.Column="6" Width="52" Background="{DynamicResource AppBackground}" BorderBrush="{DynamicResource AppBorder}" BorderThickness="1,0,0,0" Padding="0,16" Margin="4,0,0,0">
+                <StackPanel Spacing="16" HorizontalAlignment="Center">
+                    <ToggleButton Name="QuestsToggle" Content="📜" ToolTip.Tip="Журнал заданий" IsChecked="True" />
+                    <ToggleButton Name="WorldToggle" Content="🗺️" ToolTip.Tip="Исследование мира" />
+                    <ToggleButton Name="HelpToggle" Content="❓" ToolTip.Tip="Справка (F1)" />
                 </StackPanel>
+            </Border>
+        </Grid>
+
+        <!-- HELP / SHORTCUTS MENU OVERLAY (F1) -->
+        <Border Name="HelpOverlay" 
+                Background="#D0000000" 
+                IsVisible="{Binding #HelpToggle.IsChecked}" 
+                Grid.ColumnSpan="7" 
+                PointerPressed="OnHelpOverlayClick">
+            <Border Background="{DynamicResource AppSurface}" 
+                    BorderBrush="{DynamicResource AppBorder}" 
+                    BorderThickness="1" 
+                    CornerRadius="8" 
+                    Width="420" 
+                    Height="300" 
+                    VerticalAlignment="Center" 
+                    HorizontalAlignment="Center" 
+                    Padding="24">
+                <Grid RowDefinitions="Auto, *, Auto">
+                    <TextBlock Text="Горячие клавиши" FontSize="16" FontWeight="Bold" Foreground="{DynamicResource AppForeground}" Margin="0,0,0,16" />
+                    <ScrollViewer Grid.Row="1">
+                        <StackPanel Spacing="10">
+                            <TextBlock Text="F1 — Показать / скрыть справку" Foreground="{DynamicResource AppForeground}" />
+                            <TextBlock Text="Esc — Очистить поле ввода" Foreground="{DynamicResource AppForeground}" />
+                            <TextBlock Text="Ctrl + S — Сохранить игру" Foreground="{DynamicResource AppForeground}" />
+                            <TextBlock Text="Ctrl + L — Выйти в главное меню" Foreground="{DynamicResource AppForeground}" />
+                            <TextBlock Text="Ctrl + Enter — Отправить ход и сфокусировать ввод" Foreground="{DynamicResource AppForeground}" />
+                            <TextBlock Text="1, 2, 3, 4 — Переключить вкладки боковой панели" Foreground="{DynamicResource AppForeground}" />
+                        </StackPanel>
+                    </ScrollViewer>
+                    <Button Grid.Row="2" Content="Закрыть" Click="OnHelpButtonClick" HorizontalAlignment="Right" Margin="0,16,0,0" />
+                </Grid>
+            </Border>
+        </Border>
+
+        <!-- LEAVE CONFIRMATION WINDOW OVERLAY -->
+        <Border Name="LeaveConfirmOverlay" 
+                Background="#D0000000" 
+                IsVisible="False" 
+                Grid.ColumnSpan="7" 
+                PointerPressed="OnLeaveConfirmOverlayClick">
+            <Border Background="{DynamicResource AppSurface}" 
+                    BorderBrush="{DynamicResource AppBorder}" 
+                    BorderThickness="1" 
+                    CornerRadius="8" 
+                    Width="340" 
+                    Height="180" 
+                    VerticalAlignment="Center" 
+                    HorizontalAlignment="Center" 
+                    Padding="24">
+                <Grid RowDefinitions="*, Auto">
+                    <TextBlock Text="Вы действительно хотите выйти из игры? Несохраненный прогресс будет утерян." TextWrapping="Wrap" HorizontalAlignment="Center" VerticalAlignment="Center" LineHeight="18" />
+                    <StackPanel Grid.Row="1" Orientation="Horizontal" Spacing="12" HorizontalAlignment="Right" Margin="0,16,0,0">
+                        <Button Content="Да" Click="OnLeaveConfirmAccept" Background="{DynamicResource AppDanger}" />
+                        <Button Content="Отмена" Click="OnLeaveConfirmCancel" />
+                    </StackPanel>
+                </Grid>
             </Border>
         </Border>
     </Grid>

@@ -63,6 +63,166 @@
         "src/MyGame.Desktop/ViewModels/GameViewModel.cs"
       ],
       "summary": "written_count=3"
+    },
+    {
+      "fingerprint": "baf4a1584e6a00d342ca2ac8083414db70f82d9c4a2c6223afe894bcb8972bbf",
+      "patch_name": "Atmospheric UI and Sound System Overhaul",
+      "applied_at": "2026-07-06T16:03:16",
+      "files": [
+        "src/MyGame.Desktop/Services/SoundService.cs",
+        "src/MyGame.Desktop/Services/ThemeService.cs",
+        "src/MyGame.Desktop/ViewModels/CharacterCreationViewModel.cs",
+        "src/MyGame.Desktop/ViewModels/GameViewModel.cs",
+        "src/MyGame.Desktop/ViewModels/MainMenuViewModel.cs",
+        "src/MyGame.Desktop/ViewModels/SettingsViewModel.cs",
+        "src/MyGame.Desktop/ViewModels/WorldBriefViewModel.cs",
+        "src/MyGame.Desktop/ViewModels/WorldBuildViewModel.cs"
+      ],
+      "summary": "written_count=8"
+    },
+    {
+      "fingerprint": "75ca7b2610972a4268c156d7b34a005da5df95e9f85c557be4b77f4ef3ea51c0",
+      "patch_name": "Fix WorldBriefViewModel Preset Braces Syntax",
+      "applied_at": "2026-07-06T16:04:52",
+      "files": [
+        "src/MyGame.Desktop/ViewModels/WorldBriefViewModel.cs"
+      ],
+      "summary": "written_count=1"
+    },
+    {
+      "fingerprint": "8110a082d4f6aeb8a1e939d9d56dce737ea9afb7df867d1afb480d79e83d25e6",
+      "patch_name": "Rewrite SoundService using winmm.dll PInvoke",
+      "applied_at": "2026-07-06T16:06:05",
+      "files": [
+        "src/MyGame.Desktop/Services/SoundService.cs"
+      ],
+      "summary": "written_count=1"
+    },
+    {
+      "fingerprint": "b70ec40b527108f785ef62b4a107d6cfb5077efd6002ed97077c844e611adde8",
+      "patch_name": "Game Screen Layout Redesign and Native Markdown Support",
+      "applied_at": "2026-07-06T16:11:29",
+      "files": [
+        "src/MyGame.Desktop/Controls/MarkdownTextBlock.cs",
+        "src/MyGame.Desktop/Services/MarkdownRenderer.cs",
+        "src/MyGame.Desktop/Views/GameView.axaml"
+      ],
+      "summary": "written_count=3"
+    },
+    {
+      "fingerprint": "760e4ef1cd958795b2f0c37abefa282f7bb41f6b4756526e882044573ce65c73",
+      "patch_name": "Disable Compiled Bindings in GameView XAML to Fix NameGenerator",
+      "applied_at": "2026-07-06T16:13:51",
+      "files": [
+        "src/MyGame.Desktop/Views/GameView.axaml"
+      ],
+      "summary": "written_count=1"
+    },
+    {
+      "fingerprint": "60e9ff7d0c83b5d0c47acc36b928b1c1066bee137e53c38fef14372a31660fec",
+      "patch_name": "Fix Event Signature Mismatch and Rebuild XAML",
+      "applied_at": "2026-07-06T16:16:07",
+      "files": [
+        "src/MyGame.Desktop/Views/GameView.axaml",
+        "src/MyGame.Desktop/Views/GameView.axaml.cs"
+      ],
+      "summary": "written_count=2"
+    },
+    {
+      "fingerprint": "2cad81cf989da52be6a43864ae6daf4d1856095bb9b1209404ce5b7836685f3d",
+      "patch_name": "Fix XAML Syntax Escape Errors",
+      "applied_at": "2026-07-06T16:21:25",
+      "files": [
+        "src/MyGame.Desktop/Views/GameView.axaml"
+      ],
+      "summary": "written_count=1"
+    },
+    {
+      "fingerprint": "c6e2e8273300f3de34c17712d7cbaf881eb80e93166a7f3880000fa84eabc335",
+      "patch_name": "Introduce Boolean Helper Properties to ViewModel for Safe XAML Binding",
+      "applied_at": "2026-07-06T16:22:56",
+      "files": [
+        "src/MyGame.Desktop/ViewModels/GameViewModel.cs",
+        "src/MyGame.Desktop/Views/GameView.axaml"
+      ],
+      "summary": "written_count=2"
+    },
+    {
+      "fingerprint": "b4d7eb7792fe733929a5b1e45e86c6f87b1de431d4b6cdc93025c99480d6f4ca",
+      "patch_name": "Resolve Final XAML Compiler Issue with IsStreaming Binding",
+      "applied_at": "2026-07-06T17:58:36",
+      "files": [
+        "src/MyGame.Desktop/Services/MarkdownRenderer.cs",
+        "src/MyGame.Desktop/Views/GameView.axaml"
+      ],
+      "summary": "written_count=2"
+    },
+    {
+      "fingerprint": "38893c8dfb2a00a3187fa9a6974f34779660062d55353e52936c353fe4f338b2",
+      "patch_name": "Fix XAML Schema Namespace Typo",
+      "applied_at": "2026-07-06T18:01:44",
+      "files": [
+        "src/MyGame.Desktop/Views/GameView.axaml"
+      ],
+      "summary": "written_count=1"
+    },
+    {
+      "fingerprint": "48232631248800c05dcf7feb0b5afa1ffe43b0e1ad72339f16e5ece1275b7e14",
+      "patch_name": "Eliminate All Compiler Warnings for Zero-Warning Build",
+      "applied_at": "2026-07-06T18:02:46",
+      "files": [
+        "src/MyGame.Desktop/Services/MarkdownRenderer.cs",
+        "src/MyGame.Desktop/Views/GameView.axaml"
+      ],
+      "summary": "written_count=2"
+    },
+    {
+      "fingerprint": "487254e8904c36f7f35fca2ea355ffe00283b7c123984f09eaad265f8789e019",
+      "patch_name": "Fix Remaining Nullable Reference Type Warning",
+      "applied_at": "2026-07-06T18:05:28",
+      "files": [
+        "src/MyGame.Desktop/Services/MarkdownRenderer.cs"
+      ],
+      "summary": "written_count=1"
+    },
+    {
+      "fingerprint": "6520afe6283c34e8d64ba488fa4274dd4f24ccaac9824361e34c65ae8f500601",
+      "patch_name": "Fix Side Panel DataContexts and Native Text Rendering Lifecycle",
+      "applied_at": "2026-07-06T18:06:55",
+      "files": [
+        "src/MyGame.Desktop/Controls/MarkdownTextBlock.cs",
+        "src/MyGame.Desktop/Services/MarkdownRenderer.cs",
+        "src/MyGame.Desktop/Views/GameView.axaml"
+      ],
+      "summary": "written_count=3"
+    },
+    {
+      "fingerprint": "48bad76932351e05659d0996d8a2249f4a8b4a63dcc9dbec29b99dcdd887c690",
+      "patch_name": "Premium RPG UI Overhaul with Asymmetric Drawers and Audio Feedback",
+      "applied_at": "2026-07-06T18:11:41",
+      "files": [
+        "src/MyGame.Desktop/Views/GameView.axaml",
+        "src/MyGame.Desktop/Views/GameView.axaml.cs"
+      ],
+      "summary": "written_count=2"
+    },
+    {
+      "fingerprint": "665617fb66883b797148db54341d02f24998bd55695f405478b4b98480958b15",
+      "patch_name": "Remove Redundant Closing Brace in GameView CodeBehind",
+      "applied_at": "2026-07-06T18:15:33",
+      "files": [
+        "src/MyGame.Desktop/Views/GameView.axaml.cs"
+      ],
+      "summary": "written_count=1"
+    },
+    {
+      "fingerprint": "d4aaf3b2fe8b903ed8969c84a68e3b872f291f07f9a9b7e3fccc06b82bbe2bc1",
+      "patch_name": "Resolve Compile-Time CodeBehind Event Variables",
+      "applied_at": "2026-07-06T18:48:45",
+      "files": [
+        "src/MyGame.Desktop/Views/GameView.axaml.cs"
+      ],
+      "summary": "written_count=1"
     }
   ]
 }

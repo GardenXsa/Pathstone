@@ -136,24 +136,33 @@ public partial class WorldBriefViewModel : ViewModelBase
     public ObservableCollection<PetDelegationViewModel> Delegations { get; } = new();
 
     [RelayCommand]
-    private void UsePresetDarkFantasy() =>
+    private void UsePresetDarkFantasy()
+    {
+        MyGame.Desktop.Services.SoundService.Play(MyGame.Desktop.Services.SoundEffect.PageTurn);
         Brief = "Тёмное фэнтези. Изолированная долина, отрезанная от большого мира войной и зимой. " +
                 "Деревня у тракта, окружённая лесом, в котором завелось что-то голодное. " +
                 "Старый культ пытается возродить погребённого бога. " +
                 "Магия редкая и пугает; сталь надёжнее. Тон — мрачный, паранойя, мало надежды.";
+    }
 
     [RelayCommand]
-    private void UsePresetCyberpunk() =>
+    private void UsePresetCyberpunk()
+    {
+        MyGame.Desktop.Services.SoundService.Play(MyGame.Desktop.Services.SoundEffect.PageTurn);
         Brief = "Киберпанк. Неоновый район мегаполиса, зажатый между корп-башнями и трущобами. " +
                 "Дождь, рекламные голограммы, чёрный рынок имплантов. " +
                 "Фиксер собирает команду для ограбления конвоя. " +
                 "Тон — паранойя, неон, влажный асфальт, короткие рубленые фразы.";
+    }
 
     [RelayCommand]
-    private void UsePresetPostapoc() =>
+    private void UsePresetPostapoc()
+    {
+        MyGame.Desktop.Services.SoundService.Play(MyGame.Desktop.Services.SoundEffect.PageTurn);
         Brief = "Постапокалипсис. Бункер под руинами старого города, 80 лет после ядерной войны. " +
                 "Жители никогда не выходили наружу. Запасы еды кончаются. " +
-                "Разведчики пропадают. Тон — пыль, ржавчина, тишина, одиночество, страх перед外面的世界.";
+                "Разведчики пропадают. Тон — пыль, ржавчина, тишина, одиночество, страх передвека.";
+    }
 
     /// <summary>
     /// Add a blank delegation row to the editable list (issue #22).
@@ -187,6 +196,7 @@ public partial class WorldBriefViewModel : ViewModelBase
     [RelayCommand]
     private void Build()
     {
+        MyGame.Desktop.Services.SoundService.Play(MyGame.Desktop.Services.SoundEffect.Select);
         // Empty brief is fine — the planner prompt has a default branch.
         // Filter the editable delegations to non-empty tasks; pass null
         // when the user hasn't opted in (so the orchestrator skips the

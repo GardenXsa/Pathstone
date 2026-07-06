@@ -362,6 +362,7 @@ public partial class MainMenuViewModel : ViewModelBase
     [RelayCommand(CanExecute = nameof(CanNavigate))]
     private async Task NewGameAsync()
     {
+        MyGame.Desktop.Services.SoundService.Play(MyGame.Desktop.Services.SoundEffect.Click);
         IsBusy = true;
         ErrorMessage = null;
         try
@@ -416,7 +417,7 @@ public partial class MainMenuViewModel : ViewModelBase
     /// nickname is edited inline on the main menu).
     /// </summary>
     [RelayCommand(CanExecute = nameof(CanNavigate))]
-    private void OpenSettings() => _shell.NavigateToSettings();
+    private void OpenSettings() { MyGame.Desktop.Services.SoundService.Play(MyGame.Desktop.Services.SoundEffect.PageTurn); _shell.NavigateToSettings(); }
 
     // ─── Resume-pending-build commands (issue #19) ──────────────────
 
@@ -483,6 +484,7 @@ public partial class MainMenuViewModel : ViewModelBase
             _profileStore.Rename(trimmed);
             Nickname = trimmed; // normalize (trim)
             NicknameError = null;
+            MyGame.Desktop.Services.SoundService.Play(MyGame.Desktop.Services.SoundEffect.Chime);
         }
         catch (Exception ex)
         {
@@ -496,6 +498,7 @@ public partial class MainMenuViewModel : ViewModelBase
     [RelayCommand(CanExecute = nameof(CanNavigate))]
     private void ToggleLoad()
     {
+        MyGame.Desktop.Services.SoundService.Play(MyGame.Desktop.Services.SoundEffect.PageTurn);
         if (SavesLoaded)
         {
             SavesLoaded = false;
@@ -611,6 +614,7 @@ public partial class MainMenuViewModel : ViewModelBase
     [RelayCommand]
     private void ConfirmDeleteSelected()
     {
+        MyGame.Desktop.Services.SoundService.Play(MyGame.Desktop.Services.SoundEffect.Click);
         IsDeleteConfirmVisible = false;
         var selected = _allSaves.Where(s => s.IsSelected).ToList();
         if (selected.Count == 0) return;
