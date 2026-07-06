@@ -467,7 +467,7 @@ public sealed class GameMaster
 
             return new NarrativeResult
             {
-                NarrativeText = narration.ToString(),
+                NarrativeText = StripTimeAdvance(narration.ToString()),
                 PromptTokens = promptTokens,
                 CompletionTokens = completionTokens,
                 TotalTokens = totalTokens,
@@ -491,7 +491,7 @@ public sealed class GameMaster
 
             return new NarrativeResult
             {
-                NarrativeText = narration.ToString(),
+                NarrativeText = StripTimeAdvance(narration.ToString()),
                 PromptTokens = promptTokens,
                 CompletionTokens = completionTokens,
                 TotalTokens = totalTokens,
@@ -1189,4 +1189,82 @@ public sealed class GameMaster
         "clear" => "без механического эффекта",
         _ => "без механического эффекта",
     };
+
+    /// <summary>
+    /// Strip <c>{{time:+Xm}}</c> / <c>{{time:+Xh Ym}}</c> hidden blocks
+    /// from the GM's narrative text and advance the world clock by the
+    /// specified duration. The system prompt (system.md) instructs the GM
+    /// to embed these blocks in its narration to signal elapsed in-world
+    /// time per turn; the engine parses them out so the player never sees
+    /// the raw <c>{{time:...}}</c> markup, and the world clock stays in
+    /// sync with the narrative pacing.
+    ///
+    /// <para>
+    /// Format: <c>{{time:+&lt;number&gt;&lt;unit&gt;}}</c> where unit is
+    /// <c>m</c> (minutes), <c>h</c> (hours), or <c>s</c> (seconds).
+    /// Combinations like <c>{{time:+1h30m}}</c> are supported. Multiple
+    /// blocks in one narration are summed. Malformed blocks are left
+    /// untouched in the text (so a model error is visible to the player
+    /// rather than silently eaten).
+    /// </para>
+    /// </summary>
+    private string StripTimeAdvance(string narration)
+    {
+        if (string.IsNullOrEmpty(narration)) return narration;
+
+        var regex = new System.Text.RegularExpressions.Regex(
+            @"\{\{time:\s*\+([\dhms]+)\}\}",
+            System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+
+        int totalMinutes = 0;
+        bool anyMatch = false;
+        string cleaned = regex.Replace(narration, match =>
+        {
+            anyMatch = true;
+            var body = match.Groups[1].Value;
+            totalMinutes += ParseTimeDuration(body);
+            return ""; // strip the block from the visible narration
+        });
+
+        if (anyMatch && totalMinutes > 0)
+        {
+            try { _world.Clock = _world.Clock.Advance(totalMinutes); }
+            catch (Exception ex) { System.Diagnostics.Trace.WriteLine($"[GameMaster] clock advance failed: {ex.Message}"); }
+        }
+
+        return cleaned;
+    }
+
+    /// <summary>
+    /// Parse a duration body like <c>1h30m</c> or <c>15m</c> or
+    /// <c>2h</c> into total minutes. Returns 0 on malformed input.
+    /// </summary>
+    private static int ParseTimeDuration(string body)
+    {
+        int total = 0;
+        int num = 0;
+        bool hasNum = false;
+        foreach (var ch in body)
+        {
+            if (char.IsDigit(ch))
+            {
+                num = num * 10 + (ch - '0');
+                hasNum = true;
+            }
+            else
+            {
+                if (!hasNum) return 0; // malformed — no number before unit
+                total += ch switch
+                {
+                    'h' or 'H' => num * 60,
+                    'm' or 'M' => num,
+                    's' or 'S' => num <= 0 ? 0 : 1, // seconds → round up to 1 min minimum
+                    _ => 0,
+                };
+                num = 0;
+                hasNum = false;
+            }
+        }
+        return total;
+    }
 }

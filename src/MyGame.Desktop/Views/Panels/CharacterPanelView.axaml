@@ -10,19 +10,15 @@
     <ScrollViewer HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto">
         <StackPanel Spacing="12" Margin="12">
 
-            <!-- Identity -->
+            <!-- Identity + Vital resource (HP) headline -->
             <Border Classes="PanelSection PanelRoot">
                 <StackPanel Spacing="3">
                     <Grid ColumnDefinitions="*,Auto">
                         <TextBlock Grid.Column="0" Text="{Binding Name}" FontWeight="SemiBold" FontSize="16"/>
-                        <!-- Export this character as a portable .pathstone-char
-                             sheet (issue #62). The CharacterPanelVM raises
-                             ExportRequested; the GameViewModel handles the
-                             actual CharacterSheetStore.Export call. -->
                         <Button Grid.Column="1" Content="Экспорт"
                                 Command="{Binding ExportCommand}"
                                 Classes="TinyButton"
-                                ToolTip.Tip="Экспортировать персонажа в файл (BG3-style перенос между играми)"/>
+                                ToolTip.Tip="Экспортировать персонажа в файл"/>
                     </Grid>
                     <TextBlock Classes="Muted Small">
                         <Run Text="{Binding Race}"/>
@@ -31,6 +27,34 @@
                         <Run Text=" · ур. "/>
                         <Run Text="{Binding Level}"/>
                     </TextBlock>
+
+                    <!-- Vital resource (HP) — prominent headline stat with
+                         progress bar + value/max. Standard RPG UX: health is
+                         a HEADLINE stat, never hidden inside a "Resources"
+                         sub-section. Colour by percent: green > 50%, amber
+                         > 25%, red otherwise. -->
+                    <Border Classes="VitalBar" Padding="8,6" Margin="0,4,0,2"
+                            IsVisible="{Binding HasVitalResource}"
+                            BorderBrush="{DynamicResource AppBorderBrush}"
+                            BorderThickness="1" CornerRadius="6"
+                            Background="{DynamicResource AppSurfaceBrush}">
+                        <StackPanel Spacing="4">
+                            <Grid ColumnDefinitions="*,Auto">
+                                <TextBlock Grid.Column="0" Text="{Binding VitalResourceName}"
+                                           FontWeight="SemiBold" FontSize="14"/>
+                                <TextBlock Grid.Column="1" TextAlignment="Right"
+                                           FontFamily="Cascadia Mono,Consolas,Menlo,monospace"
+                                           FontWeight="Bold" FontSize="14">
+                                    <Run Text="{Binding VitalResourceValue}"/>
+                                    <Run Text=" / "/>
+                                    <Run Text="{Binding VitalResourceMax}"/>
+                                </TextBlock>
+                            </Grid>
+                            <ProgressBar Value="{Binding VitalResourcePercent}" Maximum="100" Height="8"
+                                         CornerRadius="4"/>
+                        </StackPanel>
+                    </Border>
+
                     <!-- XP / progression -->
                     <StackPanel Spacing="2" Margin="0,2">
                         <Grid ColumnDefinitions="*,Auto">
@@ -44,11 +68,8 @@
                         </Grid>
                         <ProgressBar Value="{Binding XpProgress}" Maximum="100" Height="4"/>
                     </StackPanel>
-                    <TextBlock Classes="Muted Small" Text="{Binding Background}" TextWrapping="Wrap"/>
-                    <TextBlock Classes="Muted Small">
-                        <Run Text="Скорость: "/>
-                        <Run Text="{Binding Speed}"/>
-                    </TextBlock>
+                    <TextBlock Classes="Muted Small" Text="{Binding Background}" TextWrapping="Wrap"
+                               IsVisible="{Binding Background, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"/>
                     <!-- Inline export status (success / error). Hidden when null. -->
                     <Border Background="#1A2530" BorderBrush="#3B82F6" BorderThickness="1"
                             CornerRadius="3" Padding="6,3" Margin="0,4,0,0"
@@ -58,7 +79,7 @@
                 </StackPanel>
             </Border>
 
-            <!-- Attributes -->
+            <!-- Attributes (СИЛ/ЛОВ/ТЕЛ/ИНТ/ВСП/ХАР) -->
             <Border Classes="PanelSection" IsVisible="{Binding HasAttributes}">
                 <StackPanel Spacing="4">
                     <TextBlock Text="Характеристики" Classes="SectionTitle"
@@ -77,19 +98,28 @@
                 </StackPanel>
             </Border>
 
-            <!-- Resources -->
+            <!-- Secondary (non-vital) resources — mana, sanity, shield, etc.
+                 Hidden entirely when there are none (DefaultDnd has only hp,
+                 which is shown as the headline VitalBar above). -->
             <Border Classes="PanelSection" IsVisible="{Binding HasResources}">
                 <StackPanel Spacing="4">
                     <TextBlock Text="Ресурсы" Classes="SectionTitle"
-                               ToolTip.Tip="Здоровье, мана и другие ресурсы"/>
+                               ToolTip.Tip="Прочие ресурсы (мана, рассудок, щит и т.д.)"/>
                     <ItemsControl ItemsSource="{Binding Resources}">
                         <ItemsControl.ItemTemplate>
                             <DataTemplate DataType="vm:ResourceRow">
-                                <Grid ColumnDefinitions="*,Auto" Margin="0,1">
-                                    <TextBlock Grid.Column="0" Text="{Binding Name}" Classes="Small"/>
-                                    <TextBlock Grid.Column="1" Text="{Binding Value}" Classes="Small"
-                                               FontFamily="Cascadia Mono,Consolas,Menlo,monospace"/>
-                                </Grid>
+                                <StackPanel Margin="0,2" Spacing="2">
+                                    <Grid ColumnDefinitions="*,Auto">
+                                        <TextBlock Grid.Column="0" Text="{Binding Name}" Classes="Small"/>
+                                        <TextBlock Grid.Column="1" Classes="Small"
+                                                   FontFamily="Cascadia Mono,Consolas,Menlo,monospace">
+                                            <Run Text="{Binding Value}"/>
+                                            <Run Text="/"/>
+                                            <Run Text="{Binding Max}"/>
+                                        </TextBlock>
+                                    </Grid>
+                                    <ProgressBar Value="{Binding Value}" Maximum="{Binding Max}" Height="3"/>
+                                </StackPanel>
                             </DataTemplate>
                         </ItemsControl.ItemTemplate>
                     </ItemsControl>
@@ -141,25 +171,6 @@
                             </DataTemplate>
                         </ItemsControl.ItemTemplate>
                     </ItemsControl>
-                </StackPanel>
-            </Border>
-
-            <!-- Skills -->
-            <Border Classes="PanelSection" IsVisible="{Binding HasSkills}">
-                <StackPanel Spacing="4">
-                    <TextBlock Text="Владения" Classes="SectionTitle"
-                               ToolTip.Tip="Навыки и владения персонажа"/>
-                    <WrapPanel>
-                        <ItemsControl ItemsSource="{Binding ProficientSkills}">
-                            <ItemsControl.ItemTemplate>
-                                <DataTemplate DataType="x:String">
-                                    <Border Classes="Chip" Padding="6,2" Margin="0,0,4,4">
-                                        <TextBlock Text="{Binding}" Classes="Small"/>
-                                    </Border>
-                                </DataTemplate>
-                            </ItemsControl.ItemTemplate>
-                        </ItemsControl>
-                    </WrapPanel>
                 </StackPanel>
             </Border>
 
