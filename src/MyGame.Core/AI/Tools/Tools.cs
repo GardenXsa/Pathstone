@@ -268,6 +268,11 @@ public sealed class ToolRegistry
 
         // Procedural dungeon generation (issue #38)
         Register(GenerateDungeonTool.Definition, GenerateDungeonTool.Handle(_world));
+        // Start-scene / world-setup tools — used by StartSceneAgent to create
+        // role-appropriate locations + grant starting currency. Also available
+        // to the GM mid-game for world expansion.
+        Register(CreateLocationTool.Definition, CreateLocationTool.Handle(_world));
+        Register(GiveCurrencyTool.Definition, GiveCurrencyTool.Handle(_world));
     }
 }
 
@@ -644,7 +649,8 @@ internal static class GiveItemTool
 
         var item = EntityFactory.InstantiateItem(tpl, qty);
         p.Inventory.Items.Add(item);
-        return ToolResult.Ok(string.Empty, $"Выдан «{item.Name}» ×{qty}.");
+        return ToolResult.Ok(string.Empty,
+            $"Выдан «{item.Name}» ×{qty}. itemId={item.Id} (используй это для equip_player, или просто передай templateId=«{templateId}» в equip_player).");
     };
 }
 
@@ -708,15 +714,15 @@ internal static class EquipPlayerTool
     public static ToolDefinition Definition { get; } = new()
     {
         Name = "equip_player",
-        Description = "Экипировать предмет из инвентаря игрока в слот. Старый предмет возвращается в инвентарь. Слот автоопределяется по шаблону (weapon/armor/misc).",
+        Description = "Экипировать предмет из инвентаря игрока в слот. Старый предмет возвращается в инвентарь. Слот автоопределяется по шаблону (weapon/armor/misc). Можно указать templateId вместо itemId — движок сам найдёт экземпляр в инвентаре.",
         ParametersJson = """
         {
           "type": "object",
           "properties": {
-            "itemId": { "type": "string", "description": "ID экземпляра предмета в инвентаре." },
+            "itemId": { "type": "string", "description": "ID экземпляра предмета в инвентаре (необязательно если указан templateId)." },
+            "templateId": { "type": "string", "description": "ID шаблона предмета (альтернатива itemId — движок найдёт первый экземпляр этого шаблона в инвентаре)." },
             "slot": { "type": "string", "description": "Слот (weapon/armor/shield/...). Если пусто — автоопределение по шаблону." }
-          },
-          "required": ["itemId"]
+          }
         }
         """,
     };
@@ -728,13 +734,32 @@ internal static class EquipPlayerTool
             return ToolResult.Error(string.Empty, "В мире ещё нет игрока.");
 
         var itemId = args.TryGetProperty("itemId", out var iEl) ? iEl.GetString() ?? "" : "";
-        if (string.IsNullOrEmpty(itemId))
-            return ToolResult.Error(string.Empty, "Параметр itemId обязателен.");
+        var templateId = args.TryGetProperty("templateId", out var tEl) ? tEl.GetString() ?? "" : "";
 
-        var idx = p.Inventory.Items.FindIndex(it =>
-            string.Equals(it.Id.ToString(), itemId, StringComparison.OrdinalIgnoreCase));
+        if (string.IsNullOrEmpty(itemId) && string.IsNullOrEmpty(templateId))
+            return ToolResult.Error(string.Empty, "Нужен itemId или templateId.");
+
+        int idx;
+        if (!string.IsNullOrEmpty(itemId))
+        {
+            // Try instance ID first.
+            idx = p.Inventory.Items.FindIndex(it =>
+                string.Equals(it.Id.ToString(), itemId, StringComparison.OrdinalIgnoreCase));
+            // If not found by instance ID, try as templateId fallback.
+            if (idx < 0)
+                idx = p.Inventory.Items.FindIndex(it =>
+                    string.Equals(it.TemplateId, itemId, StringComparison.OrdinalIgnoreCase));
+        }
+        else
+        {
+            // templateId mode — find first matching instance.
+            idx = p.Inventory.Items.FindIndex(it =>
+                string.Equals(it.TemplateId, templateId, StringComparison.OrdinalIgnoreCase));
+        }
+
         if (idx < 0)
-            return ToolResult.Error(string.Empty, $"Предмет «{itemId}» не найден в инвентаре игрока.");
+            return ToolResult.Error(string.Empty,
+                $"Предмет не найден в инвентаре игрока (искали itemId=«{itemId}», templateId=«{templateId}»).");
 
         var item = p.Inventory.Items[idx];
         p.Inventory.Items.RemoveAt(idx);
@@ -2562,5 +2587,127 @@ internal static class GenerateDungeonTool
             $"Сгенерировано подземелье «{entrance.Name}»: {roomCount} комнат, тема: {theme}. " +
             $"{rooms.Count(r => r.Npcs.Count > 0)} комнат с обитателями, " +
             $"{rooms.Count(r => r.Items.Count > 0)} комнат с добычей.");
+    };
+}
+
+// ─── Start-scene / world-setup tools (create_location + give_currency) ──────
+
+/// <summary>
+/// Create a new location in the world and optionally connect it to an
+/// existing location via a bidirectional exit. Used by the StartSceneAgent
+/// when the player's role requires a location that doesn't exist in the
+/// world (e.g. king → throne room, mage → tower). The GM can also use it
+/// mid-game to expand the world.
+/// </summary>
+internal static class CreateLocationTool
+{
+    public static ToolDefinition Definition { get; } = new()
+    {
+        Name = "create_location",
+        Description = "Создать новую локацию в мире. Опционально соединить с существующей локацией двусторонним выходом. Используй для ролей, которым нужна локация, отсутствующая в мире (тронный зал для короля, башня для мага).",
+        ParametersJson = """
+        {
+          "type": "object",
+          "properties": {
+            "name": { "type": "string", "description": "Название локации (напр. «Тронный зал Велмарка»)." },
+            "description": { "type": "string", "description": "Описание локации (атмосферный текст)." },
+            "terrain": { "type": "string", "description": "Тип местности (castle/tower/forest/city/...). По умолчанию «building»." },
+            "danger": { "type": "integer", "description": "Уровень опасности 0-10 (0 = безопасно). По умолчанию 0." },
+            "connectTo": { "type": "string", "description": "ID существующей локации для соединения (опционально). Движок создаст двусторонний выход." },
+            "direction": { "type": "string", "description": "Направление выхода к новой локации (север/юг/восток/запад/вглубь/...). По умолчанию «вход»." }
+          },
+          "required": ["name", "description"]
+        }
+        """,
+    };
+
+    public static ToolHandler Handle(MyGame.Core.World.World world) => async (args, ct) =>
+    {
+        var name = args.TryGetProperty("name", out var nEl) ? nEl.GetString() ?? "" : "";
+        var description = args.TryGetProperty("description", out var dEl) ? dEl.GetString() ?? "" : "";
+        if (string.IsNullOrEmpty(name))
+            return ToolResult.Error(string.Empty, "Параметр name обязателен.");
+
+        var terrain = args.TryGetProperty("terrain", out var tEl) ? tEl.GetString() ?? "building" : "building";
+        var danger = args.TryGetProperty("danger", out var dgEl) && dgEl.TryGetInt32(out var d) ? d : 0;
+        var connectTo = args.TryGetProperty("connectTo", out var cEl) ? cEl.GetString() ?? "" : "";
+        var direction = args.TryGetProperty("direction", out var dirEl) ? dirEl.GetString() ?? "вход" : "вход";
+
+        var loc = new MyGame.Core.World.Entities.Location
+        {
+            Id = MyGame.Core.Common.EntityId.NewId(),
+            Name = name,
+            Description = description,
+            Terrain = terrain,
+            Danger = danger,
+            Visited = false,
+            Discovered = false,
+        };
+        world.AddLocation(loc);
+
+        // Optionally connect to an existing location.
+        if (!string.IsNullOrEmpty(connectTo))
+        {
+            if (MyGame.Core.Common.EntityId.TryParse(connectTo, out var connectId))
+            {
+                var existing = world.GetLocation(connectId);
+                if (existing is not null)
+                {
+                    existing.Exits.Add(new MyGame.Core.World.Entities.LocationExit
+                    {
+                        To = loc.Id,
+                        Direction = direction,
+                    });
+                    loc.Exits.Add(new MyGame.Core.World.Entities.LocationExit
+                    {
+                        To = existing.Id,
+                        Direction = "назад",
+                    });
+                    return ToolResult.Ok(string.Empty,
+                        $"Создана локация «{name}» (id: {loc.Id}), соединена с «{existing.Name}» в направлении «{direction}».");
+                }
+            }
+            return ToolResult.Ok(string.Empty,
+                $"Создана локация «{name}» (id: {loc.Id}). ВНИМАНИЕ: не удалось соединить с локацией «{connectTo}» — она не найдена. Используй move_player для перемещения.");
+        }
+
+        return ToolResult.Ok(string.Empty,
+            $"Создана локация «{name}» (id: {loc.Id}). Используй move_player с force:true для перемещения игрока туда.");
+    };
+}
+
+/// <summary>
+/// Give the player starting currency (gold). Used by the StartSceneAgent
+/// to grant role-appropriate wealth (a king gets more than a beggar).
+/// </summary>
+internal static class GiveCurrencyTool
+{
+    public static ToolDefinition Definition { get; } = new()
+    {
+        Name = "give_currency",
+        Description = "Выдать игроку золото. Используй для стартового капитала по роли (король — много, нищий — ноль).",
+        ParametersJson = """
+        {
+          "type": "object",
+          "properties": {
+            "amount": { "type": "integer", "description": "Количество золота (>= 0)." }
+          },
+          "required": ["amount"]
+        }
+        """,
+    };
+
+    public static ToolHandler Handle(MyGame.Core.World.World world) => async (args, ct) =>
+    {
+        var p = world.ActivePlayer ?? world.Players.FirstOrDefault();
+        if (p is null)
+            return ToolResult.Error(string.Empty, "В мире ещё нет игрока.");
+
+        var amount = args.TryGetProperty("amount", out var aEl) && aEl.TryGetInt32(out var a) ? a : 0;
+        if (amount < 0) amount = 0;
+
+        p.Inventory.Currency += amount;
+        return ToolResult.Ok(string.Empty,
+            $"Выдано {amount} золота (всего: {p.Inventory.Currency}).");
     };
 }
