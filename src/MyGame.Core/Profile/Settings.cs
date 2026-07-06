@@ -124,7 +124,7 @@ public sealed record Settings
     /// <c>"Violet"</c>. ThemeService resolves the name to a hex color and
     /// writes it into the AppAccent / AppAccentFg application resources.
     /// </summary>
-    public string AccentColor { get; init; } = "Indigo";
+    public string AccentColor { get; init; } = "Amber";
 
     // ─── Multiplayer (issue #78) ─────────────────────────────────────
 

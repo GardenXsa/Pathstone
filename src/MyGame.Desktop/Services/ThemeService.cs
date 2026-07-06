@@ -18,14 +18,17 @@ public static class ThemeService
 {
     private static readonly Dictionary<string, string> DarkPalette = new()
     {
-        ["AppBackground"] = "#0F1115",
-        ["AppSurface"]    = "#171A21",
-        ["AppSurfaceAlt"] = "#1F2330",
-        ["AppBorder"]     = "#2C3142",
-        ["AppForeground"] = "#E6E8EC",
-        ["AppMuted"]      = "#8A93A6",
-        ["AppDanger"]     = "#E5484D",
-        ["AppSuccess"]    = "#3DD68C",
+        // Warm candlelight palette — deep slate-charcoal + amber accent.
+        // Matches the TS source's mood (globals.css .dark): torchlight, not
+        // cold blue/indigo. Gives the app a fantasy-sourcebook feel.
+        ["AppBackground"] = "#1C1813",
+        ["AppSurface"]    = "#25201A",
+        ["AppSurfaceAlt"] = "#2E2A22",
+        ["AppBorder"]     = "#3D362C",
+        ["AppForeground"] = "#EBE5D8",
+        ["AppMuted"]      = "#A89B82",
+        ["AppDanger"]     = "#D4574B",
+        ["AppSuccess"]    = "#7BAE6B",
     };
 
     private static readonly Dictionary<string, string> LightPalette = new()
@@ -42,22 +45,23 @@ public static class ThemeService
 
     private static readonly Dictionary<string, (string Accent, string AccentFg)> Accents = new(StringComparer.OrdinalIgnoreCase)
     {
+        // Amber is the default — matches the warm candlelight palette.
+        ["Amber"]   = ("#E8B85A", "#1C1813"),
         ["Indigo"]  = ("#7C5CFF", "#FFFFFF"),
         ["Emerald"] = ("#10B981", "#FFFFFF"),
-        ["Amber"]   = ("#F59E0B", "#1F2937"),
         ["Rose"]    = ("#F43F5E", "#FFFFFF"),
         ["Cyan"]    = ("#06B6D4", "#FFFFFF"),
         ["Violet"]  = ("#8B5CF6", "#FFFFFF"),
     };
 
     public static IReadOnlyList<string> AccentPresetNames { get; } =
-        new[] { "Indigo", "Emerald", "Amber", "Rose", "Cyan", "Violet" };
+        new[] { "Amber", "Indigo", "Emerald", "Rose", "Cyan", "Violet" };
 
     public static string GetAccentHex(string name) =>
-        Accents.TryGetValue(name ?? "", out var v) ? v.Accent : Accents["Indigo"].Accent;
+        Accents.TryGetValue(name ?? "", out var v) ? v.Accent : Accents["Amber"].Accent;
 
     public static string GetAccentFgHex(string name) =>
-        Accents.TryGetValue(name ?? "", out var v) ? v.AccentFg : Accents["Indigo"].AccentFg;
+        Accents.TryGetValue(name ?? "", out var v) ? v.AccentFg : Accents["Amber"].AccentFg;
 
     /// <summary>
     /// Apply theme + accent + animation flag. Never throws — all errors
@@ -123,16 +127,16 @@ public static class ThemeService
         //    support indexer reading — only writing). If the brush exists
         //    and is a SolidColorBrush, mutate its Color in place (safe —
         //    Color is observable). Otherwise create a new brush.
-        UpdateBrush(app, "AppBackgroundBrush",  useDark ? "#0F1115" : "#FAFAFA");
-        UpdateBrush(app, "AppSurfaceBrush",     useDark ? "#171A21" : "#FFFFFF");
-        UpdateBrush(app, "AppSurfaceAltBrush",  useDark ? "#1F2330" : "#F3F4F6");
-        UpdateBrush(app, "AppBorderBrush",      useDark ? "#2C3142" : "#D1D5DB");
-        UpdateBrush(app, "AppForegroundBrush",  useDark ? "#E6E8EC" : "#1F2937");
-        UpdateBrush(app, "AppMutedBrush",       useDark ? "#8A93A6" : "#6B7280");
+        UpdateBrush(app, "AppBackgroundBrush",  useDark ? "#1C1813" : "#FAFAFA");
+        UpdateBrush(app, "AppSurfaceBrush",     useDark ? "#25201A" : "#FFFFFF");
+        UpdateBrush(app, "AppSurfaceAltBrush",  useDark ? "#2E2A22" : "#F3F4F6");
+        UpdateBrush(app, "AppBorderBrush",      useDark ? "#3D362C" : "#D1D5DB");
+        UpdateBrush(app, "AppForegroundBrush",  useDark ? "#EBE5D8" : "#1F2937");
+        UpdateBrush(app, "AppMutedBrush",       useDark ? "#A89B82" : "#6B7280");
         UpdateBrush(app, "AppAccentBrush",      accentHex);
         UpdateBrush(app, "AppAccentFgBrush",    accentFgHex);
-        UpdateBrush(app, "AppDangerBrush",      useDark ? "#E5484D" : "#DC2626");
-        UpdateBrush(app, "AppSuccessBrush",     useDark ? "#3DD68C" : "#059669");
+        UpdateBrush(app, "AppDangerBrush",      useDark ? "#D4574B" : "#DC2626");
+        UpdateBrush(app, "AppSuccessBrush",     useDark ? "#7BAE6B" : "#059669");
 
         // 5) Animations gate.
         if (app.ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop

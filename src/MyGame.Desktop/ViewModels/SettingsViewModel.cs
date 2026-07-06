@@ -62,7 +62,7 @@ public partial class SettingsViewModel : ViewModelBase
 
     // ─── Appearance (issue #47) ───────────────────────────────────────
     private string _themeMode = "Dark";
-    private string _accentColor = "Indigo";
+    private string _accentColor = "Amber";
     private bool _enableAnimations = true;
 
     // ─── Multiplayer (issue #78) ──────────────────────────────────────
@@ -99,7 +99,7 @@ public partial class SettingsViewModel : ViewModelBase
 
             // Appearance
             _themeMode = string.IsNullOrWhiteSpace(settings.ThemeMode) ? "Dark" : settings.ThemeMode;
-            _accentColor = string.IsNullOrWhiteSpace(settings.AccentColor) ? "Indigo" : settings.AccentColor;
+            _accentColor = string.IsNullOrWhiteSpace(settings.AccentColor) ? "Amber" : settings.AccentColor;
             _enableAnimations = settings.EnableAnimations;
 
             // Multiplayer

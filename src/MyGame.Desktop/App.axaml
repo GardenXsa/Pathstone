@@ -25,18 +25,22 @@
         control without a restart.
     -->
     <Application.Resources>
-        <!-- Color palette (dark theme, matches the TS source's mood). -->
-        <Color x:Key="AppBackground">#0F1115</Color>
-        <Color x:Key="AppSurface">#171A21</Color>
-        <Color x:Key="AppSurfaceAlt">#1F2330</Color>
-        <Color x:Key="AppBorder">#2C3142</Color>
-        <Color x:Key="AppForeground">#E6E8EC</Color>
-        <Color x:Key="AppMuted">#8A93A6</Color>
-        <Color x:Key="AppAccent">#7C5CFF</Color>
-        <Color x:Key="AppAccentFg">#FFFFFF</Color>
-        <Color x:Key="AppDanger">#E5484D</Color>
-        <Color x:Key="AppSuccess">#3DD68C</Color>
-        <Color x:Key="AppWarning">#F5A623</Color>
+        <!-- ── Warm candlelight palette (matches the TS source's mood) ──
+             Deep slate-charcoal backgrounds, warm amber accent (torchlight),
+             parchment-tinted foreground. NOT cold blue/indigo — this is a
+             fantasy TTRPG sourcebook feel. Hex values converted from the
+             TS source's oklch() palette (globals.css .dark). -->
+        <Color x:Key="AppBackground">#1C1813</Color>
+        <Color x:Key="AppSurface">#25201A</Color>
+        <Color x:Key="AppSurfaceAlt">#2E2A22</Color>
+        <Color x:Key="AppBorder">#3D362C</Color>
+        <Color x:Key="AppForeground">#EBE5D8</Color>
+        <Color x:Key="AppMuted">#A89B82</Color>
+        <Color x:Key="AppAccent">#E8B85A</Color>
+        <Color x:Key="AppAccentFg">#1C1813</Color>
+        <Color x:Key="AppDanger">#D4574B</Color>
+        <Color x:Key="AppSuccess">#7BAE6B</Color>
+        <Color x:Key="AppWarning">#E8B85A</Color>
 
         <SolidColorBrush x:Key="AppBackgroundBrush" Color="{StaticResource AppBackground}" />
         <SolidColorBrush x:Key="AppSurfaceBrush" Color="{StaticResource AppSurface}" />
@@ -63,6 +67,39 @@
         </Style>
         <Style Selector="TextBlock">
             <Setter Property="Foreground" Value="{DynamicResource AppForegroundBrush}" />
+        </Style>
+
+        <!-- ── Display font for headings (sourcebook feel) ──
+             The TS source uses Cinzel (Roman-inscription serif) for h1/h2/h3
+             to give a "fantasy sourcebook" character. We use Georgia/serif
+             fallback (Cinzel isn't bundled in the Avalonia app — would need
+             a font asset). Georgia is a solid serif that reads as
+             "classical" without being gimmicky. Applied via .Display class. -->
+        <Style Selector="TextBlock.Display">
+            <Setter Property="FontFamily" Value="Georgia, 'Times New Roman', serif" />
+            <Setter Property="FontWeight" Value="Bold" />
+            <Setter Property="FontStyle" Value="Normal" />
+        </Style>
+
+        <!-- Parchment container — subtle inset background suggesting aged
+             paper / wax-sealed ledger. Used for narrative blocks + panels
+             that should feel "written" rather than "rendered". -->
+        <Style Selector="Border.Parchment">
+            <Setter Property="Background" Value="#221E18" />
+            <Setter Property="BorderBrush" Value="#3D362C" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="CornerRadius" Value="6" />
+            <Setter Property="Padding" Value="16,12" />
+            <Setter Property="BoxShadow" Value="0 1 0 #3D362C" />
+        </Style>
+
+        <!-- Window-chrome top bar — subtle vertical gradient that reads as
+             "desktop app title bar" rather than a flat strip. -->
+        <Style Selector="Border.WindowChrome">
+            <Setter Property="Background" Value="#221E18" />
+            <Setter Property="BorderBrush" Value="#0E0C09" />
+            <Setter Property="BorderThickness" Value="0,0,0,1" />
+            <Setter Property="Padding" Value="12,6" />
         </Style>
 
         <!-- Top bar -->
