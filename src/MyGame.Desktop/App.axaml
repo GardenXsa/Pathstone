@@ -230,6 +230,27 @@
             <Setter Property="FontSize" Value="12" />
             <Setter Property="CornerRadius" Value="3" />
         </Style>
+        <!-- Sub-button: child of an expandable menu entry (e.g. Host /
+             Join under «Мультиплеер»). Slightly smaller than MenuButton,
+             transparent background so it reads as a child, accent-tinted
+             border on hover. Indented left by the caller's Margin. -->
+        <Style Selector="Button.SubButton">
+            <Setter Property="HorizontalContentAlignment" Value="Center" />
+            <Setter Property="HorizontalAlignment" Value="Stretch" />
+            <Setter Property="Padding" Value="12,8" />
+            <Setter Property="Margin" Value="0,2" />
+            <Setter Property="FontSize" Value="13" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="CornerRadius" Value="6" />
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="Foreground" Value="{DynamicResource AppForegroundBrush}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource AppBorderBrush}" />
+            <Setter Property="BorderThickness" Value="1" />
+        </Style>
+        <Style Selector="Button.SubButton:pointerover /template/ ContentPresenter">
+            <Setter Property="Background" Value="{DynamicResource AppSurfaceAltBrush}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource AppAccentBrush}" />
+        </Style>
         <!-- Stat +/- button in the character-creation point-buy block.
              Compact, accent-tinted, monospace label. Disabled state
              (no points left / stat at 0) fades to 30% opacity. -->

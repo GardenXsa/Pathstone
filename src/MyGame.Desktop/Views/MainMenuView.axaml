@@ -79,9 +79,13 @@
                         </StackPanel>
                     </Border>
 
-                    <!-- Primary menu buttons. The hints below (issue #73)
-                         are shown only for the first three sessions
-                         (ShowHints=true) and disappear afterwards. -->
+                    <!-- Primary menu buttons. Grouped: New Game / Create
+                         World (AI) / Load / Import / Settings are top-level.
+                         Multiplayer is ONE expandable button that reveals
+                         Host + Join sub-buttons on click — declutters the
+                         top-level menu + signals the two are related.
+                         Hints below each (issue #73) show for the first
+                         three sessions then disappear. -->
                     <StackPanel Spacing="2">
                         <Button Content="Новая игра" Command="{Binding NewGameCommand}" Classes="MenuButton" AutomationProperties.Name="Новая игра — создать стандартный мир"
                                 ToolTip.Tip="Создать новую игру со стандартным миром"/>
@@ -96,16 +100,50 @@
                                    Classes="Muted Small" Margin="14,0,0,2"
                                    IsVisible="{Binding ShowHints}"/>
                     </StackPanel>
+
+                    <!-- Мультиплеер — expandable. One button reveals
+                         Host + Join sub-buttons with a smooth height
+                         transition (.Classes transitions handled by the
+                         SubButton style + the StackPanel's IsVisible
+                         animated via the ExpanderContent style). -->
                     <StackPanel Spacing="2">
-                        <Button Content="Хост игры" Command="{Binding HostGameCommand}" Classes="MenuButton" AutomationProperties.Name="Запустить сетевую игру"
-                                ToolTip.Tip="Запустить сетевую игру на этом компьютере"/>
-                        <TextBlock Text="Хост игры — пригласите друзей по IP"
+                        <Button Command="{Binding ToggleMultiplayerCommand}" Classes="MenuButton" AutomationProperties.Name="Мультиплеер — развернуть"
+                                ToolTip.Tip="Сетевая игра: хост или подключение">
+                            <Grid ColumnDefinitions="*,Auto">
+                                <TextBlock Grid.Column="0" Text="🌐 Мультиплеер"/>
+                                <!-- Expand/collapse chevron: ▸ when collapsed,
+                                     ▾ when expanded. Two TextBlocks toggled
+                                     by IsVisible so we don't depend on a
+                                     bool-to-string converter. -->
+                                <TextBlock Grid.Column="1" Text="▸"
+                                           FontSize="12" Opacity="0.6" Margin="8,0,0,0"
+                                           IsVisible="{Binding !IsMultiplayerExpanded}"/>
+                                <TextBlock Grid.Column="1" Text="▾"
+                                           FontSize="12" Opacity="0.6" Margin="8,0,0,0"
+                                           IsVisible="{Binding IsMultiplayerExpanded}"/>
+                            </Grid>
+                        </Button>
+                        <TextBlock Text="Мультиплеер — играть с друзьями по сети"
                                    Classes="Muted Small" Margin="14,0,0,2"
                                    IsVisible="{Binding ShowHints}"/>
+
+                        <!-- Sub-buttons: revealed when IsMultiplayerExpanded.
+                             Indented + slightly smaller to read as children
+                             of the «Мультиплеер» entry. -->
+                        <StackPanel Spacing="4" Margin="16,4,0,0"
+                                    IsVisible="{Binding IsMultiplayerExpanded}">
+                            <Button Content="🎮 Хост" Command="{Binding HostGameCommand}"
+                                    Classes="SubButton"
+                                    HorizontalAlignment="Stretch"
+                                    ToolTip.Tip="Запустить сетевую игру на этом компьютере"/>
+                            <Button Content="🔗 Подключиться" Command="{Binding JoinGameCommand}"
+                                    Classes="SubButton"
+                                    HorizontalAlignment="Stretch"
+                                    ToolTip.Tip="Подключиться к сетевой игре по IP:порт"/>
+                        </StackPanel>
                     </StackPanel>
-                    <Button Content="Подключиться" Command="{Binding JoinGameCommand}" Classes="MenuButton" AutomationProperties.Name="Подключиться к сетевой игре"
-                            ToolTip.Tip="Подключиться к сетевой игре по IP:порт"/>
-                    <Button Content="Загрузить" Command="{Binding ToggleLoadCommand}" Classes="MenuButton" AutomationProperties.Name="Открыть список сохранений"
+
+                    <Button Content="📂 Загрузить" Command="{Binding ToggleLoadCommand}" Classes="MenuButton" AutomationProperties.Name="Открыть список сохранений"
                             ToolTip.Tip="Открыть список сохранений"/>
                     <Button Content="📥 Импорт персонажа" Click="OnImportCharacterClick" Classes="MenuButton"
                             ToolTip.Tip="Импортировать персонажа из .pathstone-char файла"/>

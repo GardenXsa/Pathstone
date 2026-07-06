@@ -175,6 +175,16 @@ public partial class MainMenuViewModel : ViewModelBase
     [ObservableProperty] private bool _hasPendingResumeBuild;
 
     /// <summary>
+    /// True when the «Мультиплеер» menu button is expanded, revealing the
+    /// «Хост» and «Подключиться» sub-buttons. Toggled by
+    /// <see cref="ToggleMultiplayer"/>. Collapses when the user navigates
+    /// away (CanNavigate goes false) or when another primary action fires.
+    /// Replaces the old two-flat-buttons layout — one grouped entry with a
+    /// smooth expand is cleaner + signals the two are related.
+    /// </summary>
+    [ObservableProperty] private bool _isMultiplayerExpanded;
+
+    /// <summary>
     /// Issue #54: update notification text. Set by the shell when
     /// UpdateChecker finds a newer version. Bound to the banner in
     /// MainMenuView. Null/empty = no update.
@@ -383,13 +393,23 @@ public partial class MainMenuViewModel : ViewModelBase
     [RelayCommand(CanExecute = nameof(CanNavigate))]
     private void CreateWorld() => _shell.NavigateToWorldBrief();
 
+    /// <summary>
+    /// Toggle the «Мультиплеер» expandable section — shows/hides the
+    /// «Хост» and «Подключиться» sub-buttons. Replaces the old layout of
+    /// two flat buttons stacked in the main menu; one grouped entry with
+    /// a smooth expand signals the two are related (both are multiplayer
+    /// flows) and declutters the top-level menu.
+    /// </summary>
+    [RelayCommand(CanExecute = nameof(CanNavigate))]
+    private void ToggleMultiplayer() => IsMultiplayerExpanded = !IsMultiplayerExpanded;
+
     /// <summary>«Хост игры» — open the multiplayer host setup screen.</summary>
     [RelayCommand(CanExecute = nameof(CanNavigate))]
-    private void HostGame() => _shell.NavigateToHost();
+    private void HostGame() { IsMultiplayerExpanded = false; _shell.NavigateToHost(); }
 
     /// <summary>«Подключиться» — open the multiplayer join screen.</summary>
     [RelayCommand(CanExecute = nameof(CanNavigate))]
-    private void JoinGame() => _shell.NavigateToJoin();
+    private void JoinGame() { IsMultiplayerExpanded = false; _shell.NavigateToJoin(); }
 
     /// <summary>
     /// «Настройки» — open the settings screen (AI settings only; the
